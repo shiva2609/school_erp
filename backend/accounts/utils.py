@@ -11,7 +11,7 @@ def get_validated_branch_id(user, requested_branch_id):
     Returns a validated branch_id string or None.
     
     Rules:
-    - SUPER_ADMIN / SCHOOL_ADMIN: can access any branch within their tenant.
+    - SUPER_ADMIN: can access any branch within their tenant.
       If requested_branch_id is provided, validates it belongs to user's tenant.
       If not provided, returns None (meaning "all branches").
     - BRANCH_ADMIN / ACCOUNTANT / TEACHER: locked to their own branch.

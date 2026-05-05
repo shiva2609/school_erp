@@ -10,7 +10,7 @@ export default function GlobalBranchSelector({ user }: { user: any }) {
   const [branches, setBranches] = useState<any[]>([]);
 
   useEffect(() => {
-    if (['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(user?.role)) {
+    if (['SUPER_ADMIN', 'OWNER'].includes(user?.role)) {
       api.get('/tenants/branches/').then(res => {
         const arr = res.data?.data ?? res.data?.results ?? res.data;
         setBranches(Array.isArray(arr) ? arr : []);
@@ -18,7 +18,7 @@ export default function GlobalBranchSelector({ user }: { user: any }) {
     }
   }, [user]);
 
-  if (!['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(user?.role)) return null;
+  if (!['SUPER_ADMIN', 'OWNER'].includes(user?.role)) return null;
 
   return (
     <div className="flex items-center gap-2 group">

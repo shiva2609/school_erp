@@ -142,7 +142,7 @@ def clean_existing(tenant):
     TeacherAssignment.objects.filter(tenant=tenant).delete()
     TeacherProfile.objects.filter(tenant=tenant).delete()
     TransportRateSlab.objects.filter(tenant=tenant).delete()
-    User.objects.filter(tenant=tenant, role__in=['SCHOOL_ADMIN', 'BRANCH_ADMIN']).delete()
+    User.objects.filter(tenant=tenant, role__in=['SUPER_ADMIN', 'BRANCH_ADMIN']).delete()
     User.objects.filter(tenant=tenant, role__in=['TEACHER', 'PARENT']).delete()
     ClassSection.objects.filter(tenant=tenant).delete()
     Subject.objects.filter(tenant=tenant).delete()

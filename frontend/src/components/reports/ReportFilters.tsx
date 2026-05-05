@@ -16,6 +16,10 @@ interface ReportFiltersProps {
   showPaymentMode?: boolean;
   showVendor?: boolean;
   showExpenseCategory?: boolean;
+  /** Free-text / datalist: sent as `expense_type` (category name contains, case-insensitive). */
+  showExpenseTypeSearch?: boolean;
+  /** Free-text / datalist: sent as `vendor_name` (vendor name contains). */
+  showVendorNameSearch?: boolean;
 }
 
 export default function ReportFilters({
@@ -29,7 +33,9 @@ export default function ReportFilters({
   showAdSource = false,
   showPaymentMode = false,
   showVendor = false,
-  showExpenseCategory = false
+  showExpenseCategory = false,
+  showExpenseTypeSearch = false,
+  showVendorNameSearch = false,
 }: ReportFiltersProps) {
   const { user } = useAuth();
   const { selectedBranch } = useBranch();
@@ -46,7 +52,9 @@ export default function ReportFilters({
     source: '',
     payment_mode: '',
     vendor_id: '',
-    expense_category_id: ''
+    expense_category_id: '',
+    expense_type: '',
+    vendor_name: '',
   });
 
   const [branches, setBranches] = useState<any[]>([]);
@@ -61,7 +69,7 @@ export default function ReportFilters({
     (selectedBranch && selectedBranch !== 'all' ? selectedBranch : '');
 
   useEffect(() => {
-    if (user?.role === 'SCHOOL_ADMIN' || user?.role === 'SUPER_ADMIN') {
+    if (['SUPER_ADMIN', 'OWNER'].includes(user?.role || '')) {
       fetchBranches();
     }
     if (showAcademicYear || showExam) fetchAcademicYears();
@@ -87,7 +95,9 @@ export default function ReportFilters({
   }, [showExam, filters.branch_id, filters.academic_year_id]);
 
   useEffect(() => {
-    if (!showVendor && !showExpenseCategory) return;
+    const needCategories = showExpenseCategory || showExpenseTypeSearch;
+    const needVendors = showVendor || showVendorNameSearch;
+    if (!needCategories && !needVendors) return;
     const qp = effectiveBranchId ? `?branch_id=${effectiveBranchId}` : '';
     const unwrap = (res: any) => {
       const d = res.data?.data ?? res.data;
@@ -98,19 +108,19 @@ export default function ReportFilters({
     const load = async () => {
       try {
         const [catRes, vendRes] = await Promise.all([
-          showExpenseCategory ? api.get(`expenses/categories/${qp}`) : Promise.resolve({ data: null }),
-          showVendor ? api.get(`vendors/${qp}`) : Promise.resolve({ data: null }),
+          needCategories ? api.get(`expenses/categories/${qp}`) : Promise.resolve({ data: null }),
+          needVendors ? api.get(`vendors/${qp}`) : Promise.resolve({ data: null }),
         ]);
-        if (showExpenseCategory) setExpenseCategories(unwrap(catRes));
-        if (showVendor) setVendors(unwrap(vendRes));
+        if (needCategories) setExpenseCategories(unwrap(catRes));
+        if (needVendors) setVendors(unwrap(vendRes));
       } catch (e) {
         console.error('Failed to fetch expense categories / vendors:', e);
-        if (showExpenseCategory) setExpenseCategories([]);
-        if (showVendor) setVendors([]);
+        if (needCategories) setExpenseCategories([]);
+        if (needVendors) setVendors([]);
       }
     };
     load();
-  }, [showVendor, showExpenseCategory, effectiveBranchId]);
+  }, [showVendor, showExpenseCategory, showExpenseTypeSearch, showVendorNameSearch, effectiveBranchId]);
 
   const fetchBranches = async () => {
     try {
@@ -163,7 +173,7 @@ export default function ReportFilters({
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 mb-6">
       <div className="flex flex-wrap gap-4 items-end">
-        {(user?.role === 'SCHOOL_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+        {['SUPER_ADMIN', 'OWNER'].includes(user?.role || '') && (
           <div className="flex flex-col gap-1.5 min-w-[150px]">
             <label className="text-xs font-semibold text-slate-500 uppercase">Branch</label>
             <select 
@@ -354,6 +364,46 @@ export default function ReportFilters({
                 <option key={v.id} value={v.id}>{v.name}</option>
               ))}
             </select>
+          </div>
+        )}
+
+        {showExpenseTypeSearch && (
+          <div className="flex flex-col gap-1.5 min-w-[200px] flex-1 sm:max-w-xs">
+            <label className="text-xs font-semibold text-slate-500 uppercase">Filter by expense type</label>
+            <input
+              type="text"
+              className={selectClass}
+              list="report-expense-type-options"
+              placeholder="e.g. Stationery, Miscellaneous"
+              value={filters.expense_type}
+              onChange={(e) => handleChange('expense_type', e.target.value)}
+              autoComplete="off"
+            />
+            <datalist id="report-expense-type-options">
+              {expenseCategories.map((c: any) => (
+                <option key={c.id} value={c.name} />
+              ))}
+            </datalist>
+          </div>
+        )}
+
+        {showVendorNameSearch && (
+          <div className="flex flex-col gap-1.5 min-w-[200px] flex-1 sm:max-w-xs">
+            <label className="text-xs font-semibold text-slate-500 uppercase">Filter by vendor name</label>
+            <input
+              type="text"
+              className={selectClass}
+              list="report-vendor-name-options"
+              placeholder="Type or pick a vendor"
+              value={filters.vendor_name}
+              onChange={(e) => handleChange('vendor_name', e.target.value)}
+              autoComplete="off"
+            />
+            <datalist id="report-vendor-name-options">
+              {vendors.filter((v: any) => v?.name).map((v: any) => (
+                <option key={v.id} value={v.name} />
+              ))}
+            </datalist>
           </div>
         )}
 

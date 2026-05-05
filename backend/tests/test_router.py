@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from tenants.models import Branch
 
 User = get_user_model()
-u = User.objects.filter(role__in=['SCHOOL_ADMIN', 'SUPER_ADMIN']).first()
+u = User.objects.filter(role='SUPER_ADMIN').first()
 
 factory = APIRequestFactory()
 b = Branch.objects.filter(tenant=u.tenant).first()

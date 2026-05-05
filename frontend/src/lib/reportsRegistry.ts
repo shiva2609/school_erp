@@ -19,6 +19,8 @@ export type ReportConfig = {
     showPaymentMode?: boolean;
     showVendor?: boolean;
     showExpenseCategory?: boolean;
+    showExpenseTypeSearch?: boolean;
+    showVendorNameSearch?: boolean;
   };
   /** Offer “Download PDF” (uses tenant document template + `?file=pdf`). */
   offerPdfDownload?: boolean;
@@ -425,17 +427,63 @@ export const reportsRegistry: ReportCategory[] = [
         id: 'expenses',
         categoryId: 'payments',
         title: 'Expenses',
-        description: 'List of expenses by vendor or category',
+        description: 'List of expenses by date range; narrow by expense type or vendor name',
         apiEndpoint: 'reports/payments/expenses/',
         exportKey: 'PAYMENTS_EXPENSES',
-        filters: { showDateRange: true, showClassSection: false, showAcademicYear: false, showVendor: true, showExpenseCategory: true },
-        // Backend .values(): id, title, amount, category__name, expense_date, status
+        filters: {
+          showDateRange: true,
+          showClassSection: false,
+          showAcademicYear: false,
+          showExpenseTypeSearch: true,
+          showVendorNameSearch: true,
+        },
         columns: [
-          { key: 'title', label: 'Title' },
-          { key: 'category__name', label: 'Category' },
+          { key: 'voucher_number', label: 'Voucher No.', render: (v: any) => (v != null && v !== '' ? String(v) : '—') },
+          {
+            key: 'category__name',
+            label: 'Expense type',
+            render: (_v: any, row: any) =>
+              React.createElement(
+                'span',
+                {
+                  className:
+                    'inline-flex px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium whitespace-normal',
+                },
+                row['category__name'] || '—',
+              ),
+          },
+          { key: 'title', label: 'Description' },
+          { key: 'vendor__name', label: 'Vendor', render: (_v: any, row: any) => row['vendor__name'] || '—' },
+          {
+            key: 'expense_date',
+            label: 'Payment date',
+            render: (v: any) =>
+              v
+                ? new Date(String(v) + 'T12:00:00').toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                : '—',
+          },
+          {
+            key: 'payment_mode',
+            label: 'Mode',
+            render: (v: any) => {
+              const labels: Record<string, string> = {
+                CASH: 'Cash',
+                CHEQUE: 'Cheque',
+                NEFT: 'NEFT',
+                RTGS: 'RTGS',
+                UPI: 'UPI',
+                CARD: 'Card',
+                BANK_TRANSFER: 'Bank Transfer',
+              };
+              return v ? labels[String(v)] || String(v) : '—';
+            },
+          },
           { key: 'amount', label: 'Amount', render: (_v: any, row: any) => `₹${Number(row.amount || 0).toLocaleString('en-IN')}` },
-          { key: 'expense_date', label: 'Date' },
-          { key: 'status', label: 'Status' }
+          { key: 'status', label: 'Status' },
         ]
       },
       {
@@ -562,12 +610,59 @@ export const reportsRegistry: ReportCategory[] = [
         description: 'List of transport-related expenses',
         apiEndpoint: 'reports/payments/bus-expenses/',
         exportKey: 'PAYMENTS_BUS_EXPENSES',
-        filters: { showDateRange: true, showClassSection: false, showAcademicYear: false },
+        filters: {
+          showDateRange: true,
+          showClassSection: false,
+          showAcademicYear: false,
+          showExpenseTypeSearch: true,
+          showVendorNameSearch: true,
+        },
         columns: [
-          { key: 'title', label: 'Title' },
-          { key: 'category__name', label: 'Category' },
+          { key: 'voucher_number', label: 'Voucher No.', render: (v: any) => (v != null && v !== '' ? String(v) : '—') },
+          {
+            key: 'category__name',
+            label: 'Expense type',
+            render: (_v: any, row: any) =>
+              React.createElement(
+                'span',
+                {
+                  className:
+                    'inline-flex px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium whitespace-normal',
+                },
+                row['category__name'] || '—',
+              ),
+          },
+          { key: 'title', label: 'Description' },
+          { key: 'vendor__name', label: 'Vendor', render: (_v: any, row: any) => row['vendor__name'] || '—' },
+          {
+            key: 'expense_date',
+            label: 'Payment date',
+            render: (v: any) =>
+              v
+                ? new Date(String(v) + 'T12:00:00').toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                : '—',
+          },
+          {
+            key: 'payment_mode',
+            label: 'Mode',
+            render: (v: any) => {
+              const labels: Record<string, string> = {
+                CASH: 'Cash',
+                CHEQUE: 'Cheque',
+                NEFT: 'NEFT',
+                RTGS: 'RTGS',
+                UPI: 'UPI',
+                CARD: 'Card',
+                BANK_TRANSFER: 'Bank Transfer',
+              };
+              return v ? labels[String(v)] || String(v) : '—';
+            },
+          },
           { key: 'amount', label: 'Amount', render: (_v: any, row: any) => `₹${Number(row.amount || 0).toLocaleString('en-IN')}` },
-          { key: 'expense_date', label: 'Date' },
           { key: 'status', label: 'Status' },
         ]
       },

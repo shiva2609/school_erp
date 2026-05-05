@@ -19,7 +19,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         qs = Announcement.objects.filter(branch__tenant=self.request.user.tenant)
         # Parents and non-admin roles only see published notices (drafts are admin-only).
         if self.request.user.role not in (
-            'SUPER_ADMIN', 'SCHOOL_ADMIN', 'BRANCH_ADMIN',
+            'SUPER_ADMIN', 'BRANCH_ADMIN',
         ):
             qs = qs.filter(is_published=True)
         return qs

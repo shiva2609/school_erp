@@ -1,11 +1,165 @@
 import logging
 import re
+from decimal import Decimal, ROUND_HALF_UP
+
 from django.template import Template, Context
+from django.utils import timezone
 from django.utils.html import escape
 
 from common.pdf_render import html_to_pdf_bytes
 
 logger = logging.getLogger(__name__)
+
+
+def absolute_media_url(request, url: str) -> str:
+    """Turn relative logo/media paths into absolute URLs so WeasyPrint can fetch them."""
+    if not url or not str(url).strip():
+        return ''
+    url = str(url).strip()
+    if url.startswith(('http://', 'https://', 'data:')):
+        return url
+    if request is not None:
+        try:
+            return request.build_absolute_uri(url)
+        except Exception:
+            pass
+    return url
+
+
+_LOW = [
+    'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen',
+]
+_TENS = [
+    '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety',
+]
+
+
+def _under_hundred(n: int) -> str:
+    if n < 20:
+        return _LOW[n]
+    t, u = divmod(n, 10)
+    w = _TENS[t]
+    if u:
+        w = f'{w} {_LOW[u]}'
+    return w
+
+
+def _under_thousand(n: int) -> str:
+    if n < 100:
+        return _under_hundred(n)
+    h, rest = divmod(n, 100)
+    w = f'{_LOW[h]} Hundred'
+    if rest:
+        w = f'{w} {_under_hundred(rest)}'
+    return w
+
+
+def _int_to_words_indian(n: int) -> str:
+    if n == 0:
+        return 'Zero'
+    if n < 0:
+        return f'Minus {_int_to_words_indian(-n)}'
+    parts = []
+    crore, n = divmod(n, 10000000)
+    lakh, n = divmod(n, 100000)
+    thousand, n = divmod(n, 1000)
+    if crore:
+        parts.append(f'{_under_thousand(crore)} Crore')
+    if lakh:
+        parts.append(f'{_under_thousand(lakh)} Lakh')
+    if thousand:
+        parts.append(f'{_under_thousand(thousand)} Thousand')
+    if n:
+        parts.append(_under_thousand(n))
+    return ' '.join(parts)
+
+
+def rupee_amount_in_words(amount) -> str:
+    """Indian-style words for receipt footers (e.g. 'Five Thousand Rupees Only')."""
+    d = Decimal(str(amount)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    rupees = int(d)
+    paise = int((d * 100) % 100)
+    words = f'{_int_to_words_indian(rupees)} Rupees'
+    if paise:
+        words += f' and {_int_to_words_indian(paise)} Paisa'
+    return f'{words} Only'
+
+
+def build_fee_receipt_context(payment, request=None):
+    """
+    Single context dict for FEE_RECEIPT HTML templates and built-in CONFIG receipts.
+
+    Includes aliases so older templates using exam.*, payment.date, payment.mode, etc. keep working.
+    """
+    invoice = payment.invoice
+    invoice.refresh_from_db()
+    student = payment.student
+    tenant = payment.tenant
+    branch = invoice.branch if invoice else None
+
+    class_section_str = str(student.class_section) if student.class_section else ''
+    full_name = f'{student.first_name} {student.last_name or ""}'.strip()
+    amt_str = str(payment.amount)
+    printed = timezone.now().date()
+
+    collected_by = ''
+    if payment.collected_by:
+        collected_by = f'{payment.collected_by.first_name} {payment.collected_by.last_name}'.strip()
+
+    logo = absolute_media_url(request, tenant.logo_url or '')
+
+    return {
+        'tenant_name': tenant.name,
+        'tenant_logo': logo,
+        'tenant_address': tenant.address or '',
+        'tenant_city': tenant.city or '',
+        'tenant_state': tenant.state or '',
+        'tenant_pincode': tenant.pincode or '',
+        'tenant_phone': tenant.owner_phone or '',
+        'branch_name': branch.name if branch else '',
+        'branch_code': branch.branch_code if branch else '',
+        'student': {
+            'first_name': student.first_name or '',
+            'last_name': student.last_name or '',
+            'full_name': full_name,
+            'admission_number': student.admission_number or '',
+            'class_section': class_section_str,
+            'class_name': class_section_str,
+            'father_name': student.father_name or '',
+            'mother_name': student.mother_name or '',
+            'father_phone': student.father_phone or '',
+            'mother_phone': student.mother_phone or '',
+            'guardian_name': student.guardian_name or '',
+            'guardian_phone': student.guardian_phone or '',
+        },
+        'invoice': {
+            'invoice_number': invoice.invoice_number,
+            'month': invoice.month or '',
+            'net_amount': str(invoice.net_amount),
+            'outstanding_amount': str(invoice.outstanding_amount),
+            'academic_year': str(invoice.academic_year) if invoice.academic_year else '',
+        },
+        'exam': {
+            'academic_year': str(invoice.academic_year) if invoice.academic_year else '',
+        },
+        'payment': {
+            'receipt_number': payment.receipt_number or '',
+            'amount': amt_str,
+            'total_amount': amt_str,
+            'payment_date': str(payment.payment_date),
+            'date': str(payment.payment_date),
+            'printed_date': str(printed),
+            'payment_mode': payment.payment_mode or '',
+            'mode': payment.payment_mode or '',
+            'payment_mode_display': payment.get_payment_mode_display() if hasattr(payment, 'get_payment_mode_display') else (payment.payment_mode or ''),
+            'reference_number': payment.reference_number or '',
+            'collected_by': collected_by,
+            'amount_in_words': rupee_amount_in_words(payment.amount),
+            'balance': str(invoice.outstanding_amount),
+        },
+    }
 
 
 def extract_body_html(html_string: str) -> str:

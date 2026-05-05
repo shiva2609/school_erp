@@ -10,6 +10,7 @@ interface User {
   first_name: string;
   last_name: string;
   role: string;
+  tenant?: string | null;
   tenant_name?: string;
   tenant_logo?: string;
   branch?: string;

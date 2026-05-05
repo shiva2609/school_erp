@@ -85,8 +85,18 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         if not branch:
             raise ValidationError({"branch": "Your account has no branch assigned. Contact your administrator."})
             
-        expense_date = timezone.now().date()
-        
+        raw_expense_date = self.request.data.get('expense_date')
+        if raw_expense_date:
+            try:
+                if isinstance(raw_expense_date, str):
+                    expense_date = datetime.strptime(str(raw_expense_date)[:10], '%Y-%m-%d').date()
+                else:
+                    expense_date = raw_expense_date
+            except ValueError:
+                expense_date = timezone.now().date()
+        else:
+            expense_date = timezone.now().date()
+
         category_name = self.request.data.get('category_name')
         category_id = self.request.data.get('category')
         if category_id:

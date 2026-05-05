@@ -33,6 +33,10 @@ class BaseReportFilter:
         self.payment_mode = request.query_params.get('payment_mode')
         self.vendor_id = request.query_params.get('vendor_id')
         self.expense_category_id = request.query_params.get('expense_category_id')
+        _et = (request.query_params.get('expense_type') or '').strip()
+        _vn = (request.query_params.get('vendor_name') or '').strip()
+        self.expense_type = _et or None
+        self.vendor_name = _vn or None
         self.exam_id = request.query_params.get('exam_id')
 
     def _get_branch_id(self):

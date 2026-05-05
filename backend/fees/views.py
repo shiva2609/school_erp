@@ -237,7 +237,7 @@ class FeeInvoiceViewSet(viewsets.ModelViewSet):
         from .services import generate_monthly_invoices
         role = normalize_role(request.user.role)
         
-        # SCHOOL_ADMIN has branch=None; accept branch_id from request data
+        # Tenant SUPER_ADMIN may have branch=None; accept branch_id from request data
         branch = request.user.branch
         if not branch and data.get('branch_id'):
             from tenants.models import Branch

@@ -15,6 +15,7 @@ interface User {
   role: string;
   status: string;
   is_active: boolean;
+  tenant?: string | null;
   branch: string | null;
   branch_name: string | null;
   mfa_enabled?: boolean;
@@ -27,8 +28,8 @@ interface Branch {
 }
 
 const ROLE_RANKS: Record<string, number> = {
+  OWNER: -1,
   SUPER_ADMIN: 0,
-  SCHOOL_ADMIN: 1,
   BRANCH_ADMIN: 2,
   ACCOUNTANT: 3,
   TEACHER: 3,
@@ -36,8 +37,8 @@ const ROLE_RANKS: Record<string, number> = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
+  OWNER: 'Owner',
   SUPER_ADMIN: 'Super Admin',
-  SCHOOL_ADMIN: 'School Admin',
   BRANCH_ADMIN: 'Branch Admin',
   ACCOUNTANT: 'Accountant',
   TEACHER: 'Teacher',
@@ -74,6 +75,10 @@ export default function UsersPage() {
     first_name: '', last_name: '', email: '', password: '', role: 'TEACHER', phone: '', branch: ''
   });
   const [saving, setSaving] = useState(false);
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetMustChange, setResetMustChange] = useState(true);
+  const [resetSaving, setResetSaving] = useState(false);
   const { confirm } = useConfirm();
 
   useEffect(() => {
@@ -89,10 +94,31 @@ export default function UsersPage() {
     setSelectedBranch('');
   }, [selectedTenant]);
 
-  const myRank = currentUser ? ROLE_RANKS[currentUser.role] : 99;
+  const myRank = currentUser ? (ROLE_RANKS[currentUser.role] ?? 99) : 99;
   const allowedRolesToCreate = Object.keys(ROLE_RANKS).filter(r => {
-    return ROLE_RANKS[r] > myRank || currentUser?.role === 'SUPER_ADMIN';
+    return ROLE_RANKS[r] > myRank || currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'OWNER';
   });
+
+  const managerRoles = new Set(['OWNER', 'SUPER_ADMIN', 'BRANCH_ADMIN']);
+
+  const canResetPassword = (u: User) => {
+    if (!currentUser || currentUser.id === u.id) return false;
+    if (!managerRoles.has(currentUser.role)) return false;
+    const tr = ROLE_RANKS[u.role] ?? 99;
+    const cr = ROLE_RANKS[currentUser.role] ?? 99;
+    return tr > cr;
+  };
+
+  const canImpersonateUser = (u: User) => {
+    if (!currentUser || currentUser.id === u.id) return false;
+    if (currentUser.role === 'OWNER') return true;
+    if (currentUser.role !== 'SUPER_ADMIN') return false;
+    const a = currentUser.tenant ?? null;
+    const b = u.tenant ?? null;
+    if (a && b) return a === b;
+    if (!a && !b) return true;
+    return false;
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,12 +136,13 @@ export default function UsersPage() {
   };
 
   const handleDelete = async (userToDelete: User) => {
-    const isSchoolAdmin = userToDelete.role === 'SCHOOL_ADMIN';
-    
+    const isTenantSuperAdmin =
+      userToDelete.role === 'SUPER_ADMIN' && !!userToDelete.tenant;
+
     let warningMsg = `Are you sure you want to delete ${userToDelete.first_name} ${userToDelete.last_name}?`;
-    
-    if (isSchoolAdmin) {
-      warningMsg = `DANGER: You are about to delete a School Admin (${userToDelete.first_name} ${userToDelete.last_name}).\n\nThis will completely wipe out their ENTIRE school, including all their branch admins, teachers, students, and records.\n\nType 'DELETE' to confirm.`;
+
+    if (isTenantSuperAdmin) {
+      warningMsg = `DANGER: You are about to delete an organization Super Admin (${userToDelete.first_name} ${userToDelete.last_name}).\n\nThis may remove the primary admin for that school. Confirm you have another admin account.\n\nType 'DELETE' to confirm.`;
       
       const confirmText = window.prompt(warningMsg);
       if (confirmText !== 'DELETE') return;
@@ -123,7 +150,7 @@ export default function UsersPage() {
       const isConfirmed = await confirm({
         title: "Delete User",
         message: warningMsg,
-        isDestructive: true
+        isDestructive: true,
       });
       if (!isConfirmed) return;
     }
@@ -133,6 +160,32 @@ export default function UsersPage() {
       refetch();
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Error deleting user. You may not have permission.');
+    }
+  };
+
+  const handleAdminPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetTarget || !resetPassword.trim()) {
+      toast.error('Enter a new password.');
+      return;
+    }
+    setResetSaving(true);
+    try {
+      await api.patch(`users/${resetTarget.id}/`, {
+        password: resetPassword,
+        must_change_password: resetMustChange,
+      });
+      toast.success(`Password updated for ${resetTarget.email}`);
+      setResetTarget(null);
+      setResetPassword('');
+      setResetMustChange(true);
+      refetch();
+    } catch (err: any) {
+      const d = err.response?.data;
+      const msg = d?.detail || d?.message || (typeof d === 'string' ? d : 'Could not reset password.');
+      toast.error(msg);
+    } finally {
+      setResetSaving(false);
     }
   };
 
@@ -281,7 +334,7 @@ export default function UsersPage() {
             </div>
 
             {/* Branch Selector (Conditional) */}
-            {!['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(formData.role) && (
+            {formData.role !== 'SUPER_ADMIN' && (
               <div className="relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors">
                   <Building2 size={18} />
@@ -362,7 +415,7 @@ export default function UsersPage() {
             )}
 
             {/* Branch Filter (Filtered by School if Super Admin) */}
-            {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'SCHOOL_ADMIN') && (
+            {currentUser?.role === 'SUPER_ADMIN' && !!currentUser?.tenant && (
               <select
                 value={selectedBranch}
                 onChange={e => setSelectedBranch(e.target.value)}
@@ -418,10 +471,12 @@ export default function UsersPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filteredUsers?.map(u => {
-                const canDelete = currentUser 
-                  ? (ROLE_RANKS[u.role] > ROLE_RANKS[currentUser.role] || currentUser.role === 'SUPER_ADMIN') 
-                    && u.id !== currentUser.id 
-                  : false;
+                const ur = ROLE_RANKS[u.role] ?? 99;
+                const cr = ROLE_RANKS[currentUser?.role ?? ''] ?? 99;
+                const canDelete =
+                  currentUser &&
+                  u.id !== currentUser.id &&
+                  (currentUser.role === 'OWNER' || ur > cr);
 
                 return (
                   <tr key={u.id} className="hover:bg-gray-50 transition-colors">
@@ -430,7 +485,7 @@ export default function UsersPage() {
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium 
                         ${u.role === 'SUPER_ADMIN' ? 'bg-purple-100 text-purple-700' : 
-                          u.role === 'SCHOOL_ADMIN' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'}`}>
+                          u.role === 'OWNER' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'}`}>
                         <Shield size={12} />
                         {ROLE_LABELS[u.role] || u.role}
                       </span>
@@ -458,13 +513,27 @@ export default function UsersPage() {
                       }
                     </td>
                     <td className="px-6 py-4 text-right flex justify-end gap-2">
-                      {currentUser?.role === 'SUPER_ADMIN' && currentUser.id !== u.id && (
+                      {canImpersonateUser(u) && (
                         <button 
                           onClick={() => handleImpersonate(u)}
                           className="text-gray-400 hover:text-blue-600 p-1.5 rounded bg-white hover:bg-blue-50 transition-colors"
-                          title="Impersonate User"
+                          title="Impersonate user (same organization; audited)"
                         >
                           <KeyRound size={16} />
+                        </button>
+                      )}
+                      {canResetPassword(u) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResetTarget(u);
+                            setResetPassword('');
+                            setResetMustChange(true);
+                          }}
+                          className="text-gray-400 hover:text-amber-600 p-1.5 rounded bg-white hover:bg-amber-50 transition-colors"
+                          title="Set new password"
+                        >
+                          <Lock size={16} />
                         </button>
                       )}
                       {canDelete && (
@@ -484,6 +553,56 @@ export default function UsersPage() {
           </table>
         )}
       </div>
+
+      {resetTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <form
+            onSubmit={handleAdminPasswordReset}
+            className="bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-md p-6 space-y-4"
+          >
+            <h3 className="text-lg font-bold text-gray-900">Reset password</h3>
+            <p className="text-sm text-gray-600">
+              Set a new password for <span className="font-semibold">{resetTarget.email}</span>. This is logged in the
+              activity ledger.
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">New password</label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                required
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resetMustChange}
+                onChange={(e) => setResetMustChange(e.target.checked)}
+              />
+              Require password change on next login
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setResetTarget(null)}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={resetSaving}
+                className="px-4 py-2 rounded-xl text-sm font-bold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {resetSaving ? 'Saving…' : 'Save password'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

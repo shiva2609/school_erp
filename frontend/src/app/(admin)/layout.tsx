@@ -15,62 +15,68 @@ import {
   LayoutDashboard, Users, BookOpen, ClipboardCheck, 
   Calendar, Receipt, TrendingDown, TrendingUp, PenTool, 
   Megaphone, Shield, LogOut, Settings, Building2, Search,
-  Menu, X, Bell, Bus, Eye, BarChart3, ArrowUpRight
+  Menu, X, Bell, Bus, Eye, BarChart3, ArrowUpRight, Award
 } from 'lucide-react';
 
-const getNavGroups = (role: string) => {
-  switch (role) {
-    case 'SUPER_ADMIN':
-      return [
-        {
-          group: 'Platform',
-          items: [
-            { href: '/management-dashboard', label: 'Global Overview', icon: LayoutDashboard },
-            { href: '/tenants', label: 'Tenant Control', icon: Shield },
-            { href: '/users', label: 'Global Users', icon: Users },
-            { href: '/audit-logs', label: 'System Ledger', icon: ClipboardCheck },
-            { href: '/system-settings', label: 'System Settings', icon: Settings },
-            { href: '/system-settings/templates', label: 'Document Templates', icon: PenTool },
-          ]
-        }
-      ];
-    case 'SCHOOL_ADMIN':
-      return [
-        {
-          group: 'Analytics',
-          items: [
-            { href: '/dashboard', label: 'School Analytics', icon: LayoutDashboard },
-            { href: '/reports', label: 'Reports Center', icon: BarChart3 },
-            { href: '/approvals', label: 'Principal Queue', icon: ClipboardCheck },
-            { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
-          ]
-        },
-        {
-          group: 'Directories',
-          items: [
-            { href: '/users', label: 'Global Staff', icon: Shield },
-            { href: '/teachers', label: 'All Teachers', icon: Users },
-            { href: '/students', label: 'All Students', icon: Users },
-          ]
-        },
-        {
-          group: 'Configuration',
-          items: [
-            { href: '/setup', label: 'School Settings', icon: Settings },
-            { href: '/system-settings/templates', label: 'Document Templates', icon: PenTool },
-            { href: '/academic-transition', label: 'Year Transition', icon: ArrowUpRight },
-          ]
-        },
+const platformNavGroups = [
+  {
+    group: 'Platform',
+    items: [
+      { href: '/management-dashboard', label: 'Global Overview', icon: LayoutDashboard },
+      { href: '/tenants', label: 'Tenant Control', icon: Shield },
+      { href: '/users', label: 'Global Users', icon: Users },
+      { href: '/audit-logs', label: 'System Ledger', icon: ClipboardCheck },
+      { href: '/system-settings', label: 'System Settings', icon: Settings },
+      { href: '/system-settings/templates', label: 'Document Templates', icon: PenTool },
+    ],
+  },
+];
 
-        {
-          group: 'Communicate',
-          items: [
-            { href: '/announcements', label: 'Announcements', icon: Megaphone },
-          ]
-        }
-      ];
+/** Organization (tenant) super admin — full school operations. */
+const tenantSuperAdminNavGroups = [
+  {
+    group: 'Analytics',
+    items: [
+      { href: '/dashboard', label: 'School Analytics', icon: LayoutDashboard },
+      { href: '/reports', label: 'Reports Center', icon: BarChart3 },
+      { href: '/audit-logs', label: 'Activity ledger', icon: ClipboardCheck },
+      { href: '/exam-marks', label: 'Exam marks entry', icon: Award },
+      { href: '/approvals', label: 'Principal Queue', icon: ClipboardCheck },
+      { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
+    ],
+  },
+  {
+    group: 'Directories',
+    items: [
+      { href: '/users', label: 'Global Staff', icon: Shield },
+      { href: '/teachers', label: 'All Teachers', icon: Users },
+      { href: '/students', label: 'All Students', icon: Users },
+    ],
+  },
+  {
+    group: 'Configuration',
+    items: [
+      { href: '/setup', label: 'School Settings', icon: Settings },
+      { href: '/system-settings/templates', label: 'Document Templates', icon: PenTool },
+      { href: '/academic-transition', label: 'Year Transition', icon: ArrowUpRight },
+    ],
+  },
+  {
+    group: 'Communicate',
+    items: [{ href: '/announcements', label: 'Announcements', icon: Megaphone }],
+  },
+];
+
+const getNavGroups = (user: { role: string; tenant?: string | null }) => {
+  const { role, tenant } = user;
+  if (role === 'OWNER') return platformNavGroups;
+  if (role === 'SUPER_ADMIN' && !tenant) return platformNavGroups;
+  if (role === 'SUPER_ADMIN' && tenant) return tenantSuperAdminNavGroups;
+
+  switch (role) {
     case 'BRANCH_ADMIN':
     case 'ACCOUNTANT':
+    case 'PRINCIPAL':
       return [
         {
           group: 'Overview',
@@ -101,6 +107,7 @@ const getNavGroups = (role: string) => {
             { href: '/classes', label: 'Classes', icon: BookOpen },
             { href: '/attendance', label: 'Attendance Overview', icon: ClipboardCheck },
             { href: '/timetable', label: 'Timetable', icon: Calendar },
+            { href: '/exam-marks', label: 'Exam marks', icon: Award },
           ]
         },
         {
@@ -125,6 +132,7 @@ const getNavGroups = (role: string) => {
             { href: '/homework', label: 'Homework', icon: PenTool },
             { href: '/homework-tracking', label: 'Homework Tracking', icon: Eye },
             { href: '/timetable', label: 'My Timetable', icon: Calendar },
+            { href: '/exam-marks', label: 'Exam marks', icon: Award },
           ]
         },
         {
@@ -199,7 +207,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const navGroups = user?.role ? getNavGroups(user.role) : [];
+  const navGroups = user?.role ? getNavGroups({ role: user.role, tenant: user.tenant }) : [];
 
   // Determine the active item by finding the longest matching href prefix
   let activeItemHref = '';

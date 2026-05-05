@@ -18,14 +18,14 @@ class SecurityAndIsolationTests(TestCase):
         self.zone_a = Zone.objects.create(name='Zone A', tenant=self.tenant_a)
         self.branch_a = Branch.objects.create(name='Branch A', tenant=self.tenant_a, zone=self.zone_a, branch_code='A1')
         self.ay_a = AcademicYear.objects.create(name='2026-27', tenant=self.tenant_a, start_date='2026-06-01', end_date='2027-05-31')
-        self.user_a = User.objects.create_user(email='admin@schoola.com', password='password123', tenant=self.tenant_a, branch=self.branch_a, role='SCHOOL_ADMIN')
+        self.user_a = User.objects.create_user(email='admin@schoola.com', password='password123', tenant=self.tenant_a, branch=self.branch_a, role='SUPER_ADMIN')
         
         # Tenant B Setup
         self.tenant_b = Tenant.objects.create(name='School B', owner_email='b@schoolb.com', city='City', state='State', pincode='123456')
         self.zone_b = Zone.objects.create(name='Zone B', tenant=self.tenant_b)
         self.branch_b = Branch.objects.create(name='Branch B', tenant=self.tenant_b, zone=self.zone_b, branch_code='B1')
         self.ay_b = AcademicYear.objects.create(name='2026-27', tenant=self.tenant_b, start_date='2026-06-01', end_date='2027-05-31')
-        self.user_b = User.objects.create_user(email='admin@schoolb.com', password='password123', tenant=self.tenant_b, branch=self.branch_b, role='SCHOOL_ADMIN')
+        self.user_b = User.objects.create_user(email='admin@schoolb.com', password='password123', tenant=self.tenant_b, branch=self.branch_b, role='SUPER_ADMIN')
         
         # Data in Tenant A
         self.student_a = Student.objects.create(
@@ -177,7 +177,7 @@ class RoleScopeCompatibilityTests(TestCase):
             email='legacy@scope.test',
             password='password123',
             tenant=self.tenant,
-            role='SCHOOL_ADMIN',
+            role='SUPER_ADMIN',
         )
         self.assertEqual(normalize_role(user.role), 'SUPER_ADMIN')
         scope = get_user_scope(user)

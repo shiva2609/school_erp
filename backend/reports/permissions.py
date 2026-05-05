@@ -3,7 +3,7 @@ from accounts.permissions import has_min_role, normalize_role, can_access_domain
 
 class ReportAccessPermission(permissions.BasePermission):
     """
-    Allows access only to SCHOOL_ADMIN, BRANCH_ADMIN, and ACCOUNTANT.
+    Allows access only to SUPER_ADMIN (tenant), BRANCH_ADMIN, and ACCOUNTANT (not teachers/parents).
     Blocks TEACHER and PARENT.
     """
     def has_permission(self, request, view):

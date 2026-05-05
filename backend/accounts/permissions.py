@@ -1,9 +1,5 @@
 from rest_framework import permissions
 
-LEGACY_ROLE_ALIASES = {
-    'SCHOOL_ADMIN': 'SUPER_ADMIN',
-}
-
 PLATFORM_OWNER_ROLES = {'OWNER'}
 TENANT_FULL_ACCESS_ROLES = {'SUPER_ADMIN'}
 TENANT_FINANCE_ROLES = {'CHIEF_ACCOUNTANT'}
@@ -29,9 +25,12 @@ ROLE_HIERARCHY = {
 def normalize_role(role):
     if not role:
         return role
+    # Removed role; old DB values and stale tokens normalize to tenant super admin.
+    if role == 'SCHOOL_ADMIN':
+        return 'SUPER_ADMIN'
     if role in ROLE_HIERARCHY:
         return role
-    return LEGACY_ROLE_ALIASES.get(role, role)
+    return role
 
 
 def role_in(user, allowed_roles):
@@ -80,8 +79,10 @@ class IsSuperAdmin(permissions.BasePermission):
         return role_in(request.user, {'OWNER', 'SUPER_ADMIN'})
 
 class IsSchoolAdminOrAbove(permissions.BasePermission):
+    """Tenant super admin and above (rank >= SUPER_ADMIN)."""
+
     def has_permission(self, request, view):
-        return has_min_role(request.user, 'SCHOOL_ADMIN')
+        return has_min_role(request.user, 'SUPER_ADMIN')
 
 class IsBranchAdminOrAbove(permissions.BasePermission):
     def has_permission(self, request, view):

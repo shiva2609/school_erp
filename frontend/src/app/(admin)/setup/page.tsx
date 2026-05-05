@@ -23,12 +23,12 @@ export default function SetupPage() {
   }, []);
   
   const tabs = [
-    { id: 'school', label: 'School Settings', icon: Settings, roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN'] },
-    { id: 'years', label: 'Academic Years', icon: Calendar, roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN'] },
-    { id: 'branches', label: 'Branches', icon: Layers, roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN'] },
-    { id: 'subjects', label: 'Subjects', icon: Tag, roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
-    { id: 'classes', label: 'Class & Fees', icon: BookOpen, roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
-    { id: 'approvals', label: 'Approvals', icon: CheckCircle2, roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
+    { id: 'school', label: 'School Settings', icon: Settings, roles: ['SUPER_ADMIN'] },
+    { id: 'years', label: 'Academic Years', icon: Calendar, roles: ['SUPER_ADMIN'] },
+    { id: 'branches', label: 'Branches', icon: Layers, roles: ['SUPER_ADMIN'] },
+    { id: 'subjects', label: 'Subjects', icon: Tag, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
+    { id: 'classes', label: 'Class & Fees', icon: BookOpen, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
+    { id: 'approvals', label: 'Approvals', icon: CheckCircle2, roles: ['SUPER_ADMIN', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
   ].filter(t => user && t.roles.includes(user.role));
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function SetupPage() {
 
   if (!user) return <div className="p-8">Loading profile...</div>;
 
-  if (!['SUPER_ADMIN', 'SCHOOL_ADMIN', 'BRANCH_ADMIN', 'ACCOUNTANT'].includes(user.role)) {
+  if (!['SUPER_ADMIN', 'BRANCH_ADMIN', 'ACCOUNTANT'].includes(user.role)) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
         <div className="bg-red-50 p-4 rounded-full mb-4">
@@ -899,7 +899,7 @@ function SubjectManager() {
                 onChange={e => setFormData({...formData, branch: e.target.value})}
                 className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-blue-100 outline-none disabled:opacity-50">
                 <option value="">Select Branch</option>
-                {['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(user?.role) && <option value="ALL">--- All Branches ---</option>}
+                {user?.role === 'SUPER_ADMIN' && <option value="ALL">--- All Branches ---</option>}
                 {Array.isArray(branches) && branches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>

@@ -41,4 +41,5 @@ urlpatterns += [
     path('api/v1/', include('staff.urls')),
     path('api/v1/', include('transport.urls')),
     path('api/v1/', include('document_templates.urls')),
+    path('api/v1/', include('academics.urls')),
 ]

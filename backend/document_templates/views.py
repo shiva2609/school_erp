@@ -1,16 +1,26 @@
 import logging
+from decimal import Decimal
+
+from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
 from accounts.permissions import IsSchoolAdminOrAbove, has_min_role, normalize_role
-from django.http import HttpResponse
 
 logger = logging.getLogger(__name__)
 
 from .models import DocumentTemplate
 from .serializers import DocumentTemplateSerializer
-from .services import extract_body_html, generate_pdf_from_template
+from .services import (
+    absolute_media_url,
+    build_fee_receipt_context,
+    extract_body_html,
+    generate_pdf_from_template,
+    rupee_amount_in_words,
+)
 
 class DocumentTemplateViewSet(viewsets.ModelViewSet):
     """
@@ -186,37 +196,7 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
         if not template:
             return Response({'error': 'No active Fee Receipt template found.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        invoice = payment.invoice
-        student = payment.student
-        context = {
-            'tenant_name': tenant.name,
-            'tenant_logo': tenant.logo_url or '',
-            'tenant_address': tenant.address or '',
-            'tenant_city': tenant.city or '',
-            'tenant_state': tenant.state or '',
-            'branch_name': invoice.branch.name if invoice.branch else '',
-            'student': {
-                'first_name': student.first_name,
-                'last_name': student.last_name,
-                'admission_number': student.admission_number or '',
-                'class_section': str(student.class_section) if student.class_section else '',
-            },
-            'invoice': {
-                'invoice_number': invoice.invoice_number,
-                'month': invoice.month or '',
-                'net_amount': str(invoice.net_amount),
-                'outstanding_amount': str(invoice.outstanding_amount),
-                'academic_year': str(invoice.academic_year) if invoice.academic_year else '',
-            },
-            'payment': {
-                'receipt_number': payment.receipt_number,
-                'amount': str(payment.amount),
-                'payment_date': str(payment.payment_date),
-                'payment_mode': payment.payment_mode,
-                'reference_number': payment.reference_number or '',
-                'collected_by': f'{payment.collected_by.first_name} {payment.collected_by.last_name}' if payment.collected_by else '',
-            }
-        }
+        context = build_fee_receipt_context(payment, request=request)
         
         try:
             pdf_bytes = generate_pdf_from_template(template, context)
@@ -249,28 +229,36 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
             tenant=request.user.tenant
         )
 
+        demo_payment_amount = Decimal('10000.00')
         context = {
             'tenant_name': request.user.tenant.name or "Demo School",
-            'tenant_logo': request.user.tenant.logo_url or '',
+            'tenant_logo': absolute_media_url(request, request.user.tenant.logo_url or ''),
             'tenant_address': request.user.tenant.address or '123 School Road',
             'tenant_city': request.user.tenant.city or 'City',
             'tenant_state': request.user.tenant.state or 'State',
+            'tenant_pincode': getattr(request.user.tenant, 'pincode', '') or '',
+            'tenant_phone': getattr(request.user.tenant, 'owner_phone', '') or '',
             'branch_name': 'Main Branch',
             'student': {
                 'first_name': 'John',
                 'last_name': 'Doe',
+                'full_name': 'John Doe',
                 'admission_number': 'STD-2026-001',
                 'date_of_birth': '2010-05-15',
                 'class_section': 'Grade 5 - A',
+                'class_name': 'Grade 5 - A',
                 'class_grade': 'G5',
                 'class_section_code': 'A',
                 'roll_number': '12',
                 'gender': 'MALE',
                 'photo_url': '',
                 'guardian_name': 'Jane Doe',
+                'guardian_phone': '9876543211',
                 'contact': '9876543210',
                 'father_name': 'Robert Doe',
                 'mother_name': 'Jane Doe',
+                'father_phone': '9876543210',
+                'mother_phone': '9876543212',
             },
             'tc': {
                 'certificate_no': 'TC/2026/042',
@@ -338,11 +326,18 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
             },
             'payment': {
                 'receipt_number': 'REC-9999',
-                'amount': '10000.00',
+                'amount': str(demo_payment_amount),
+                'total_amount': str(demo_payment_amount),
                 'payment_date': '2026-04-28',
+                'date': '2026-04-28',
+                'printed_date': str(timezone.now().date()),
                 'payment_mode': 'UPI',
+                'mode': 'UPI',
+                'payment_mode_display': 'UPI',
                 'reference_number': 'TXN-ABC123456',
                 'collected_by': 'Office Staff',
+                'amount_in_words': rupee_amount_in_words(demo_payment_amount),
+                'balance': '5000.00',
             }
         }
 

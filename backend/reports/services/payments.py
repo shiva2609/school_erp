@@ -119,10 +119,14 @@ class PaymentsService:
         
         if filters.status:
             qs = qs.filter(status=filters.status)
-        if getattr(filters, 'vendor_id', None):
-            qs = qs.filter(vendor_id=filters.vendor_id)
         if getattr(filters, 'expense_category_id', None):
             qs = qs.filter(category_id=filters.expense_category_id)
+        elif getattr(filters, 'expense_type', None):
+            qs = qs.filter(category__name__icontains=filters.expense_type)
+        if getattr(filters, 'vendor_id', None):
+            qs = qs.filter(vendor_id=filters.vendor_id)
+        elif getattr(filters, 'vendor_name', None):
+            qs = qs.filter(vendor__name__icontains=filters.vendor_name)
 
         return qs.order_by('-expense_date')
 

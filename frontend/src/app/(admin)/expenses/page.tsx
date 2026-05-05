@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/axios';
 import { useRouter } from 'next/navigation';
-import { Plus, Receipt, Check, X, FileText, Search, CreditCard, Wallet, Landmark, TrendingUp, RotateCcw } from 'lucide-react';
+import { Plus, Receipt, Check, X, FileText, Search, CreditCard, Wallet, Landmark, TrendingUp, RotateCcw, Tag } from 'lucide-react';
+import { EXPENSE_TYPE_PRESETS } from '@/lib/expenseTypePresets';
 import { toast } from 'react-hot-toast';
 import { useBranch } from '@/components/common/BranchContext';
 import Modal from '@/components/common/Modal';
@@ -84,7 +85,7 @@ export default function ExpensesPage() {
   }, [router]);
 
   const manualIncomeLedgerUrl =
-    user && ['ACCOUNTANT', 'BRANCH_ADMIN', 'SCHOOL_ADMIN', 'SUPER_ADMIN'].includes(user.role)
+    user && ['ACCOUNTANT', 'BRANCH_ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(user.role)
       ? `accounting/cashbook/?reference_model=MANUAL_OTHER_INCOME${branchParam ? `&${branchParam}` : ''}`
       : null;
 
@@ -97,13 +98,27 @@ export default function ExpensesPage() {
 
   const categories = Array.isArray(categoriesData) ? categoriesData : [];
   const vendors = Array.isArray(vendorsData) ? vendorsData : [];
+
+  const mergedExpenseTypes = useMemo(() => {
+    const fromApi = categories
+      .map((c: { name?: string }) => (typeof c?.name === 'string' ? c.name.trim() : ''))
+      .filter(Boolean);
+    const set = new Set<string>([...EXPENSE_TYPE_PRESETS, ...fromApi]);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [categories]);
+
+  const filteredExpenseTypes = useMemo(() => {
+    const q = formData.category_name.trim().toLowerCase();
+    if (!q) return mergedExpenseTypes;
+    return mergedExpenseTypes.filter((t) => t.toLowerCase().includes(q));
+  }, [mergedExpenseTypes, formData.category_name]);
   const manualIncomeRows = Array.isArray(manualIncomeRaw)
     ? manualIncomeRaw.filter((r: any) => Number(r.amount) > 0)
     : [];
 
-  const isAdmin = ['SCHOOL_ADMIN', 'SUPER_ADMIN'].includes(user?.role);
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'OWNER';
   const canLogExpense = user?.role === 'ACCOUNTANT';
-  const canRecordMiscIncome = user && ['ACCOUNTANT', 'BRANCH_ADMIN', 'SCHOOL_ADMIN', 'SUPER_ADMIN'].includes(user.role);
+  const canRecordMiscIncome = user && ['ACCOUNTANT', 'BRANCH_ADMIN', 'SUPER_ADMIN'].includes(user.role);
 
   const [otherIncomePresets, setOtherIncomePresets] = useState<string[]>([...DEFAULT_OTHER_INCOME_PRESETS]);
   const [oiCategorySelect, setOiCategorySelect] = useState('');
@@ -135,7 +150,7 @@ export default function ExpensesPage() {
       return;
     }
     if (!oiAmount || Number(oiAmount) <= 0) { toast.error('Enter a positive amount'); return; }
-    if (['SCHOOL_ADMIN', 'SUPER_ADMIN'].includes(user?.role) && (!selectedBranch || selectedBranch === 'all')) {
+    if (['SUPER_ADMIN', 'OWNER'].includes(user?.role || '') && (!selectedBranch || selectedBranch === 'all')) {
       toast.error('Select a specific branch in the header before recording other income.');
       return;
     }
@@ -211,19 +226,18 @@ export default function ExpensesPage() {
     }
   };
 
-  const [isCustomCategory, setIsCustomCategory] = useState(false);
-  const [isCustomVendor, setIsCustomVendor] = useState(false);
-
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.category_name.trim()) { toast.error('Expense type is required'); return; }
     setSaving(true);
     try {
-      await api.post('expenses/', formData);
+      const payload = {
+        ...formData,
+        voucher_number: formData.voucher_number.trim() || undefined,
+      };
+      await api.post('expenses/', payload);
       setShowDrawer(false);
       setFormData({ title: '', amount: '', payment_mode: 'CASH', expense_date: new Date().toISOString().split('T')[0], category_name: '', vendor_name: '', voucher_number: '' });
-      setIsCustomCategory(false);
-      setIsCustomVendor(false);
       refetch();
     } catch (err: any) { toast.error('Error: ' + (err.response?.data?.detail || JSON.stringify(err.response?.data))); }
     finally { setSaving(false); }
@@ -492,76 +506,159 @@ export default function ExpensesPage() {
       <Modal 
         isOpen={showDrawer} 
         onClose={() => setShowDrawer(false)} 
-        title="Log New Expense"
-        maxWidth="md"
+        title="Log expense"
+        maxWidth="xl"
       >
-        <div className="p-6">
-          <form onSubmit={handleAdd} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Voucher No.</label>
-                <input required type="number" value={formData.voucher_number || ''} onChange={e => setFormData({...formData, voucher_number: e.target.value})}
-                  placeholder="e.g. 101"
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all" />
+        <div className="max-h-[calc(90vh-5rem)] overflow-y-auto">
+          <div className="px-6 pt-2 pb-4 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+            <p className="text-sm text-slate-300">
+              Tap a type below or type any label — custom categories are saved for next time.
+            </p>
+          </div>
+          <form onSubmit={handleAdd} className="p-6 space-y-5">
+            <section className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 shadow-sm space-y-3">
+              <div className="flex items-center gap-2 text-slate-700">
+                <Tag className="w-4 h-4 text-blue-600 shrink-0" />
+                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-600">Expense type</h3>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Description / Title</label>
-                <input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})}
-                  placeholder="e.g. Electricity Bill"
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-sm font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all" />
+              <div className="relative">
+                <label htmlFor="expense-category-input" className="sr-only">Expense type — select or type</label>
+                <input
+                  id="expense-category-input"
+                  list="expense-category-datalist"
+                  required
+                  autoComplete="off"
+                  value={formData.category_name}
+                  onChange={(e) => setFormData({ ...formData, category_name: e.target.value })}
+                  placeholder="Search or type (e.g. Electricity Bill, custom vendor repair…)"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 placeholder:text-slate-400 shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                />
+                <datalist id="expense-category-datalist">
+                  {mergedExpenseTypes.map((t) => (
+                    <option key={t} value={t} />
+                  ))}
+                </datalist>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="border border-slate-200 rounded-xl p-3 bg-white flex flex-col justify-center">
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Payment Date</label>
-                <div className="text-sm font-semibold text-slate-700">
-                  Today, {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  Quick pick {formData.category_name.trim() ? `(matching “${formData.category_name.trim()}”) ` : ''}
+                  <span className="font-normal text-slate-400">— {filteredExpenseTypes.length} options</span>
+                </p>
+                <div className="max-h-[200px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 flex flex-wrap gap-2">
+                  {filteredExpenseTypes.length === 0 ? (
+                    <p className="text-xs text-slate-500 px-2 py-3 w-full text-center">No preset matches — your typed text will be used as the category.</p>
+                  ) : (
+                    filteredExpenseTypes.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, category_name: t })}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                          formData.category_name === t
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/80'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
+            </section>
 
-              <div className="border border-slate-200 rounded-xl p-3 bg-white flex flex-col justify-center">
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Expense Type</label>
-                <input
-                  required
-                  value={formData.category_name}
-                  onChange={e => setFormData({...formData, category_name: e.target.value})}
-                  placeholder="e.g. Electricity Bill"
-                  className="w-full text-sm font-medium text-slate-700 outline-none bg-transparent placeholder:text-slate-300" />
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Details</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Description / title</label>
+                  <input
+                    required
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="Short description for the ledger"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Voucher no. <span className="font-normal normal-case text-slate-400">(optional)</span></label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={formData.voucher_number || ''}
+                    onChange={(e) => setFormData({ ...formData, voucher_number: e.target.value })}
+                    placeholder="Leave blank to auto-assign"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Expense date</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.expense_date}
+                    onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  />
+                </div>
               </div>
-            </div>
+            </section>
 
-            <div className="border border-slate-200 rounded-xl p-3 bg-white flex flex-col justify-center">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vendor Name <span className="text-slate-300 font-normal normal-case">(optional)</span></label>
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Vendor <span className="font-normal normal-case text-slate-400">(optional)</span></h3>
               <input
+                list="expense-vendor-datalist"
                 value={formData.vendor_name}
-                onChange={e => setFormData({...formData, vendor_name: e.target.value})}
-                placeholder="e.g. ABC Suppliers"
-                className="w-full text-sm font-medium text-slate-700 outline-none bg-transparent placeholder:text-slate-300" />
-            </div>
+                onChange={(e) => setFormData({ ...formData, vendor_name: e.target.value })}
+                placeholder="Saved vendors or type a new name"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+              />
+              <datalist id="expense-vendor-datalist">
+                {vendors.map((v: { id: string; name?: string }) => (
+                  <option key={v.id} value={v.name || ''} />
+                ))}
+              </datalist>
+            </section>
 
-            <div className="grid grid-cols-2 gap-3">
-               <div className="border border-slate-200 rounded-xl p-3 bg-white flex flex-col justify-center relative">
-                 <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Amount (₹)</label>
-                 <input type="number" required value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})}
-                   placeholder="0.00"
-                   className="w-full text-lg font-bold text-slate-700 outline-none bg-transparent" />
-               </div>
-               <div className="border border-slate-200 rounded-xl p-3 bg-white flex flex-col justify-center">
-                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Payment Mode</label>
-                 <select required value={formData.payment_mode} onChange={e => setFormData({...formData, payment_mode: e.target.value})}
-                   className="w-full text-sm font-medium text-slate-700 outline-none bg-transparent appearance-none">
-                   <option value="CASH">Cash</option>
-                   <option value="BANK_TRANSFER">Bank Transfer</option>
-                   <option value="UPI">UPI / Digital</option>
-                   <option value="CHEQUE">Cheque</option>
-                 </select>
-               </div>
-            </div>
+            <section className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/90 p-4 shadow-sm">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Payment</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Amount (₹)</label>
+                  <input
+                    type="number"
+                    required
+                    step="0.01"
+                    min="0"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white text-xl font-bold text-slate-900 tabular-nums focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mode</label>
+                  <select
+                    required
+                    value={formData.payment_mode}
+                    onChange={(e) => setFormData({ ...formData, payment_mode: e.target.value })}
+                    className="w-full px-3 py-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                    <option value="UPI">UPI / Digital</option>
+                    <option value="CHEQUE">Cheque</option>
+                  </select>
+                </div>
+              </div>
+            </section>
 
-            <button type="submit" disabled={saving}
-              className="w-full bg-slate-900 hover:bg-black text-white py-3.5 mt-2 rounded-xl text-sm font-bold shadow-md transition-all disabled:opacity-50">
-              {saving ? 'Processing...' : 'SUBMIT'}
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full bg-slate-900 hover:bg-black text-white py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-slate-900/20 transition-all disabled:opacity-50"
+            >
+              {saving ? 'Submitting…' : 'Submit expense'}
             </button>
           </form>
         </div>

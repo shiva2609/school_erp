@@ -31,6 +31,8 @@ class ExportFilterBundle:
         payment_mode: Optional[str] = None,
         vendor_id: Optional[str] = None,
         expense_category_id: Optional[str] = None,
+        expense_type: Optional[str] = None,
+        vendor_name: Optional[str] = None,
         exam_id: Optional[str] = None,
     ):
         self.user = SimpleNamespace(tenant=tenant)
@@ -57,6 +59,12 @@ class ExportFilterBundle:
         self.payment_mode = payment_mode or None
         self.vendor_id = vendor_id or None
         self.expense_category_id = expense_category_id or None
+        self.expense_type = (expense_type or None)
+        if self.expense_type == '':
+            self.expense_type = None
+        self.vendor_name = (vendor_name or None)
+        if self.vendor_name == '':
+            self.vendor_name = None
         self.exam_id = exam_id or None
         if self.exam_id == '':
             self.exam_id = None
@@ -91,5 +99,7 @@ class ExportFilterBundle:
             payment_mode=raw.get('payment_mode'),
             vendor_id=raw.get('vendor_id'),
             expense_category_id=raw.get('expense_category_id'),
+            expense_type=raw.get('expense_type'),
+            vendor_name=raw.get('vendor_name'),
             exam_id=raw.get('exam_id') or raw.get('examId'),
         )

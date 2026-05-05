@@ -135,9 +135,11 @@ class ChangePasswordView(APIView):
 
 from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import PageNumberPagination
 from .models import User
 from .serializers import UserSerializer
 from .permissions import IsBranchAdminOrAbove, ROLE_HIERARCHY, normalize_role, role_in
+from .utils import log_audit_action
 
 # Only these roles can manage (create/update/delete) other users
 ROLES_THAT_CAN_MANAGE_USERS = ['OWNER', 'SUPER_ADMIN', 'BRANCH_ADMIN']
@@ -243,7 +245,23 @@ class UserViewSet(viewsets.ModelViewSet):
         if (target_rank >= creator_rank or instance_rank >= creator_rank) and creator_role != 'OWNER':
             raise PermissionDenied("You cannot modify users of this role level.")
 
+        password_in = bool((self.request.data.get('password') or '').strip())
         serializer.save()
+
+        if password_in:
+            u = serializer.instance
+            log_audit_action(
+                self.request.user,
+                'ADMIN_PASSWORD_RESET',
+                'User',
+                u.id,
+                {
+                    'target_user_id': str(u.id),
+                    'target_email': u.email,
+                    'must_change_password': u.must_change_password,
+                },
+                tenant=u.tenant,
+            )
 
     def perform_destroy(self, instance):
         creator_role = normalize_role(self.request.user.role)
@@ -264,7 +282,6 @@ class UserViewSet(viewsets.ModelViewSet):
             
         instance.delete()
 
-from rest_framework import viewsets
 from .models import AuditLog
 from .serializers import AuditLogSerializer
 from .permissions import IsSuperAdmin
@@ -288,13 +305,30 @@ def _audit_impersonation(*, actor, target, reason: str):
     )
 
 
+class AuditLogPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 500
+
+
 class SuperAdminAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    Dedicated viewset for SUPER_ADMIN to view all audit logs across all tenants.
+    Owner: all tenants. School / tenant super admins: their tenant only.
     """
     queryset = AuditLog.objects.select_related('tenant', 'user').all().order_by('-created_at')
     serializer_class = AuditLogSerializer
     permission_classes = [IsAuthenticated, IsSuperAdmin]
+    pagination_class = AuditLogPagination
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        role = normalize_role(user.role)
+        if role == 'OWNER':
+            return qs
+        if getattr(user, 'tenant_id', None):
+            return qs.filter(tenant_id=user.tenant_id)
+        return qs.none()
 
 class ImpersonateView(APIView):
     """
@@ -331,6 +365,14 @@ class ImpersonateView(APIView):
             target_user = User.objects.get(id=target_user_id)
         except User.DoesNotExist:
             return Response({"error": "Target user not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        actor_role = normalize_role(actor.role)
+        if actor_role != 'OWNER':
+            if not getattr(actor, 'tenant_id', None) or target_user.tenant_id != actor.tenant_id:
+                return Response(
+                    {"error": "You can only impersonate users in your own organization."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
         _audit_impersonation(actor=request.user, target=target_user, reason=reason)
         logger.info(

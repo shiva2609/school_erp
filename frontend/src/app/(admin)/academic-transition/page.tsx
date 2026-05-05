@@ -255,7 +255,7 @@ function YearOverviewTab({ branch, user }: { branch: string; user: any }) {
             </p>
 
             {/* Close Year Action */}
-            {activeYear.status === 'ACTIVE' && user?.role && ['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(user.role) && (
+            {activeYear.status === 'ACTIVE' && user?.role && user.role === 'SUPER_ADMIN' && (
               <div className="mt-6 flex flex-wrap items-end gap-4">
                 <div className="flex-1 min-w-[200px]">
                   <label className="text-xs font-bold text-blue-200 uppercase tracking-wider mb-1 block">Target Year</label>
@@ -868,7 +868,7 @@ function WriteOffTab({ branch, user }: { branch: string; user: any }) {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    {wo.status === 'PENDING' && user?.role && ['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(user.role) ? (
+                    {wo.status === 'PENDING' && user?.role && user.role === 'SUPER_ADMIN' ? (
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleReview(wo.id, 'APPROVE')}

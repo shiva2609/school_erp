@@ -201,8 +201,9 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
       </div>
 
       <div className="mt-8">
-        <ReportFilters 
-          onFilterChange={handleFilterSubmit} 
+        <ReportFilters
+          key={`${category}-${reportId}`}
+          onFilterChange={handleFilterSubmit}
           {...config.filters}
         />
       </div>

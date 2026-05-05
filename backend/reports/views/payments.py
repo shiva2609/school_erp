@@ -88,7 +88,10 @@ class PaymentsReportViewSet(viewsets.ViewSet):
     def expenses(self, request):
         filters = BaseReportFilter(request, request.user)
         qs = PaymentsService.get_expenses(filters)
-        data = qs.values('id', 'title', 'amount', 'category__name', 'expense_date', 'status')
+        data = qs.values(
+            'id', 'voucher_number', 'title', 'amount', 'category__name',
+            'vendor__name', 'expense_date', 'payment_mode', 'status',
+        )
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
         return paginator.get_paginated_response(page)
@@ -177,7 +180,10 @@ class PaymentsReportViewSet(viewsets.ViewSet):
     def bus_expenses(self, request):
         filters = BaseReportFilter(request, request.user)
         qs = PaymentsService.get_bus_expenses(filters)
-        data = qs.values('id', 'title', 'amount', 'category__name', 'expense_date', 'status')
+        data = qs.values(
+            'id', 'voucher_number', 'title', 'amount', 'category__name',
+            'vendor__name', 'expense_date', 'payment_mode', 'status',
+        )
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
         return paginator.get_paginated_response(page)

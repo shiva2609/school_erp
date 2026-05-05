@@ -359,27 +359,37 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
 
     if report_type == 'PAYMENTS_EXPENSES':
         qs = PaymentsService.get_expenses(bundle).values(
-            'id', 'title', 'amount', 'category__name', 'expense_date', 'status',
+            'id', 'voucher_number', 'title', 'amount', 'category__name',
+            'vendor__name', 'expense_date', 'payment_mode', 'status',
         )
-        headers = ['ID', 'Title', 'Amount', 'Category', 'Expense date', 'Status']
+        headers = [
+            'ID', 'Voucher no.', 'Title', 'Amount', 'Category', 'Vendor',
+            'Expense date', 'Payment mode', 'Status',
+        ]
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                str(row['id']), _cell(row['title']), _cell(row['amount']),
-                _cell(row['category__name']), _cell(row['expense_date']), _cell(row['status']),
+                str(row['id']), _cell(row['voucher_number']), _cell(row['title']), _cell(row['amount']),
+                _cell(row['category__name']), _cell(row['vendor__name']), _cell(row['expense_date']),
+                _cell(row['payment_mode']), _cell(row['status']),
             ])
         return headers, rows
 
     if report_type == 'PAYMENTS_BUS_EXPENSES':
         qs = PaymentsService.get_bus_expenses(bundle).values(
-            'id', 'title', 'amount', 'category__name', 'expense_date', 'status',
+            'id', 'voucher_number', 'title', 'amount', 'category__name',
+            'vendor__name', 'expense_date', 'payment_mode', 'status',
         )
-        headers = ['ID', 'Title', 'Amount', 'Category', 'Expense date', 'Status']
+        headers = [
+            'ID', 'Voucher no.', 'Title', 'Amount', 'Category', 'Vendor',
+            'Expense date', 'Payment mode', 'Status',
+        ]
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                str(row['id']), _cell(row['title']), _cell(row['amount']),
-                _cell(row['category__name']), _cell(row['expense_date']), _cell(row['status']),
+                str(row['id']), _cell(row['voucher_number']), _cell(row['title']), _cell(row['amount']),
+                _cell(row['category__name']), _cell(row['vendor__name']), _cell(row['expense_date']),
+                _cell(row['payment_mode']), _cell(row['status']),
             ])
         return headers, rows
 

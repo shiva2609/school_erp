@@ -160,7 +160,7 @@ if teacher_user:
     check("Teacher login", teacher_token is not None, teacher_user.email)
 
 # Branch admin (if any)
-admin_user = User.objects.filter(tenant=tenant, role__in=['SCHOOL_ADMIN', 'BRANCH_ADMIN']).first()
+admin_user = User.objects.filter(tenant=tenant, role__in=['SUPER_ADMIN', 'BRANCH_ADMIN']).first()
 admin_token = None
 if admin_user:
     admin_token = api_login(email=admin_user.email)

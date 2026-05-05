@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import api from '@/lib/axios';
+import { useAuth } from '@/components/common/AuthProvider';
 import { ClipboardCheck, Search, Activity, CalendarDays, ShieldAlert, FileJson } from 'lucide-react';
 
 interface AuditLog {
@@ -17,11 +18,14 @@ interface AuditLog {
 }
 
 export default function AuditLogsPage() {
+  const { user } = useAuth();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+
+  const isPlatformOwner = user?.role === 'OWNER' || (user?.role === 'SUPER_ADMIN' && !user?.tenant);
 
   useEffect(() => {
     fetchLogs();
@@ -29,8 +33,12 @@ export default function AuditLogsPage() {
 
   const fetchLogs = async () => {
     try {
-      const response = await api.get('super-admin/audit-logs/');
-      setLogs(response.data.results || response.data);
+      const response = await api.get('super-admin/audit-logs/', {
+        params: { page_size: 500 },
+      });
+      const body = response.data;
+      const list = Array.isArray(body?.results) ? body.results : Array.isArray(body) ? body : [];
+      setLogs(list);
     } catch (err: any) {
       setError('Failed to load system ledger. Check connection.');
     } finally {
@@ -51,6 +59,9 @@ export default function AuditLogsPage() {
       case 'UPDATE': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'DELETE': return 'bg-red-100 text-red-800 border-red-200';
       case 'APPROVE': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'IMPERSONATE':
+      case 'ADMIN_PASSWORD_RESET':
+        return 'bg-amber-100 text-amber-900 border-amber-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -60,7 +71,11 @@ export default function AuditLogsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 border-l-4 border-slate-800 pl-4">System Ledger</h1>
-          <p className="text-sm text-gray-500 mt-1 pl-5">Global audit trail across all tenants and users</p>
+          <p className="text-sm text-gray-500 mt-1 pl-5">
+            {isPlatformOwner
+              ? 'Platform-wide audit trail (all schools).'
+              : 'Audit trail for your school (fees, expenses, admin password resets, impersonation, and other logged actions).'}
+          </p>
         </div>
         <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

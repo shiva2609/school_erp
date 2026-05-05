@@ -24,7 +24,7 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = (
         ('OWNER', 'Owner (Platform Level)'),
-        ('SUPER_ADMIN', 'Super Admin (Tenant Level)'),
+        ('SUPER_ADMIN', 'Super Admin (Organization / Tenant)'),
         ('ZONAL_ADMIN', 'Zonal Admin'),
         ('CHIEF_ACCOUNTANT', 'Chief Accountant'),
         ('PRINCIPAL', 'Principal'),
@@ -33,8 +33,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('TEACHER', 'Teacher'),
         ('STUDENT', 'Student'),
         ('PARENT', 'Parent'),
-        # Backward-compatible legacy value retained to avoid breaking existing data immediately.
-        ('SCHOOL_ADMIN', 'School Admin (Legacy)'),
     )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/axios';
-import { Calendar, PenTool, Users, BookOpen, Clock, CheckCircle2, AlertCircle, ArrowRight, Zap } from 'lucide-react';
+import { Calendar, PenTool, Users, BookOpen, Clock, CheckCircle2, AlertCircle, ArrowRight, Zap, Award } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import StatCard from '@/components/dashboard/StatCard';
 
@@ -79,6 +79,10 @@ export default function TeacherDashboard({ user }: { user: any }) {
           <Link href="/homework"
             className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-800 transition-all active:scale-[0.98]">
             <PenTool size={14} /> Post Homework
+          </Link>
+          <Link href="/exam-marks"
+            className="flex items-center gap-2 bg-amber-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-amber-700 transition-all shadow-lg shadow-amber-200/50 active:scale-[0.98]">
+            <Award size={14} /> Exam marks
           </Link>
         </div>
       </div>

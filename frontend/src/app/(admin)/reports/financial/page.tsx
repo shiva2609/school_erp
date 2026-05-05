@@ -39,7 +39,7 @@ export default function FinancialReportsPage() {
     setLoading(true);
     try {
       const params: Record<string, string> = { startDate, endDate };
-      if (user?.role === 'SCHOOL_ADMIN' || user?.role === 'SUPER_ADMIN') {
+      if (user?.role === 'SUPER_ADMIN') {
         if (selectedBranch && selectedBranch !== 'all') params.branch_id = selectedBranch;
       }
       const res = await api.get('reports/payments/financial-dashboard/', { params });
@@ -109,7 +109,7 @@ export default function FinancialReportsPage() {
         </div>
       </div>
 
-      {(user?.role === 'SCHOOL_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+      {user?.role === 'SUPER_ADMIN' && (
         <p className="text-xs text-slate-500 flex items-center gap-1.5">
           <Building2 size={14} />
           Branch scope follows the header selector (or all branches if &quot;all&quot; is selected).

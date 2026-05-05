@@ -448,7 +448,7 @@ class FeeWriteOffViewSet(viewsets.ModelViewSet):
     def review(self, request, pk=None):
         """POST /api/write-offs/{id}/review/ — Approve or reject."""
         from accounts.permissions import has_min_role
-        if not has_min_role(request.user, 'SCHOOL_ADMIN'):
+        if not has_min_role(request.user, 'SUPER_ADMIN'):
             return Response(
                 {'success': False, 'error': 'Only School Admin or above can review write-offs.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -554,9 +554,9 @@ class StudentDropoutViewSet(viewsets.GenericViewSet):
 
     @action(detail=True, methods=['post'], url_path='reinstate')
     def reinstate(self, request, pk=None):
-        """POST /api/student-lifecycle/{id}/reinstate/ — SCHOOL_ADMIN only."""
+        """POST /api/student-lifecycle/{id}/reinstate/ — tenant super admin and above."""
         from accounts.permissions import has_min_role
-        if not has_min_role(request.user, 'SCHOOL_ADMIN'):
+        if not has_min_role(request.user, 'SUPER_ADMIN'):
             return Response(
                 {'success': False, 'error': 'Only School Admin can reinstate students.'},
                 status=status.HTTP_403_FORBIDDEN

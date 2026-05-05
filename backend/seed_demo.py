@@ -80,7 +80,7 @@ def seed():
             password="password123",
             first_name="Demo",
             last_name="SchoolAdmin",
-            role="SCHOOL_ADMIN",
+            role="SUPER_ADMIN",
             tenant=tenant
         )
         print(f"✅ Created School Admin: {school_admin.email} / password123")

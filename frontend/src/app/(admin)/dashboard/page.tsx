@@ -26,12 +26,14 @@ export default function DashboardController() {
 
   // Render role-specific dashboards
   switch (user.role) {
-    case 'SUPER_ADMIN':
+    case 'OWNER':
       return <SuperAdminDashboard user={user} />;
-    case 'SCHOOL_ADMIN':
+    case 'SUPER_ADMIN':
+      if (!user.tenant) return <SuperAdminDashboard user={user} />;
       return <AdminDashboard user={user} />;
     case 'BRANCH_ADMIN':
     case 'ACCOUNTANT':
+    case 'PRINCIPAL':
       return <BranchDashboard user={user} />;
     case 'TEACHER':
       return <TeacherDashboard user={user} />;

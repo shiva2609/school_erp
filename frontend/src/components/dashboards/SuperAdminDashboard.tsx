@@ -47,8 +47,7 @@ export default function SuperAdminDashboard({ user }: { user: any }) {
   if (loading) return <div className="animate-pulse h-96 bg-gray-100 rounded-2xl w-full"></div>;
 
   const roleLabels: Record<string, string> = {
-    'SUPER_ADMIN': 'Platform Admins',
-    'SCHOOL_ADMIN': 'School Admins',
+    'SUPER_ADMIN': 'Super Admins (orgs)',
     'BRANCH_ADMIN': 'Branch Admins',
     'ACCOUNTANT': 'Accountants',
     'TEACHER': 'Teachers',
