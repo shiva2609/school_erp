@@ -33,7 +33,8 @@ class ZoneSerializer(serializers.ModelSerializer):
     class Meta:
         model = Zone
         fields = ['id', 'tenant', 'tenant_name', 'name', 'is_active']
-        read_only_fields = ['id']
+        # tenant is assigned in ZoneViewSet.perform_create based on logged-in user
+        read_only_fields = ['id', 'tenant']
 
 class AcademicYearSerializer(serializers.ModelSerializer):
     class Meta:

@@ -193,6 +193,8 @@ class UserViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         creator_role = normalize_role(self.request.user.role)
         target_role = serializer.validated_data.get('role')
+        if normalize_role(target_role) == 'OWNER':
+            raise PermissionDenied("Owner accounts cannot be created from user management.")
 
         creator_rank = self._get_rank(creator_role)
         target_rank = self._get_rank(target_role)

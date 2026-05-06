@@ -105,6 +105,7 @@ export default function UsersPage() {
 
   const myRank = currentUser ? (ROLE_RANKS[currentUser.role] ?? 99) : 99;
   const allowedRolesToCreate = Object.keys(ROLE_RANKS).filter(r => {
+    if (r === 'OWNER') return false; // Owner should never be created from user management UI
     return ROLE_RANKS[r] > myRank || currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'OWNER';
   });
 
@@ -347,20 +348,18 @@ export default function UsersPage() {
             </div>
 
             {/* Branch Selector (Conditional) */}
-            {formData.role !== 'SUPER_ADMIN' && (
+            {formData.role !== 'SUPER_ADMIN' && !BRANCH_OPTIONAL_ROLES.has(formData.role) && (
               <div className="relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors">
                   <Building2 size={18} />
                 </div>
                 <select 
-                  required={!BRANCH_OPTIONAL_ROLES.has(formData.role)}
+                  required
                   value={formData.branch} 
                   onChange={e => setFormData({...formData, branch: e.target.value})}
                   className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-2xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none appearance-none"
                 >
-                  <option value="">
-                    {BRANCH_OPTIONAL_ROLES.has(formData.role) ? 'Home branch (optional)' : 'Select Branch'}
-                  </option>
+                  <option value="">Select Branch</option>
                   {allBranches?.filter(b => !selectedTenant || b.tenant === selectedTenant).map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
