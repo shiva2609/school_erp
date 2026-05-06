@@ -14,11 +14,13 @@ import {
 import StudentForm from '@/components/students/StudentForm';
 import PaymentModal from '@/components/students/PaymentModal';
 import Modal from '@/components/common/Modal';
+import { useAuth } from '@/components/common/AuthProvider';
 import { toast } from 'react-hot-toast';
 
 export default function StudentProfilePage() {
   const { id } = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const { data: student, loading, error, refetch } = useApi<any>(`/students/${id}/`);
   const [activeTab, setActiveTab] = useState('overview');
   const [showEditForm, setShowEditForm] = useState(false);
@@ -35,6 +37,97 @@ export default function StudentProfilePage() {
   const [droppingOut, setDroppingOut] = useState(false);
   const [reinstating, setReinstating] = useState(false);
   const { data: academicRecords, loading: recordsLoading } = useApi<any[]>(`/academic-records/?student_id=${id}`);
+
+  const [promotedFeeStandard, setPromotedFeeStandard] = useState(0);
+  const [promotedFeeOffered, setPromotedFeeOffered] = useState(0);
+  const [promotedFeeReason, setPromotedFeeReason] = useState('');
+  const [promotedFeeStructure, setPromotedFeeStructure] = useState<any>(null);
+  const [promotedFeeLoading, setPromotedFeeLoading] = useState(false);
+  const [promotedFeeSaving, setPromotedFeeSaving] = useState(false);
+
+  const canConfirmPromotedFees = !!user && (
+    ['OWNER', 'SUPER_ADMIN', 'ZONAL_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'].includes(user.role)
+  );
+
+  useEffect(() => {
+    if (!student?.needs_promoted_class_fee_setup || !student.class_section || !student.branch || !student.academic_year) {
+      setPromotedFeeStructure(null);
+      setPromotedFeeStandard(0);
+      setPromotedFeeOffered(0);
+      return;
+    }
+    let cancelled = false;
+    setPromotedFeeLoading(true);
+    (async () => {
+      try {
+        const csRes = await api.get(`classes/${student.class_section}/`);
+        const cs = csRes.data?.data ?? csRes.data;
+        const grade = cs?.grade;
+        if (!grade || cancelled) {
+          setPromotedFeeLoading(false);
+          return;
+        }
+        const fsRes = await api.get(
+          `/fees/structures/?branch_id=${student.branch}&academic_year_id=${student.academic_year}&grade=${encodeURIComponent(grade)}`
+        );
+        const arr = fsRes.data?.data ?? fsRes.data?.results ?? fsRes.data;
+        const list = Array.isArray(arr) ? arr : [];
+        const structure = list[0];
+        if (cancelled) return;
+        setPromotedFeeStructure(structure || null);
+        const total = (structure?.items || []).reduce((acc: number, item: any) => acc + Number(item.amount || 0), 0);
+        setPromotedFeeStandard(total);
+        setPromotedFeeOffered(total);
+      } catch {
+        if (!cancelled) {
+          setPromotedFeeStructure(null);
+          setPromotedFeeStandard(0);
+          setPromotedFeeOffered(0);
+          toast.error('Could not load fee structure for this class.');
+        }
+      } finally {
+        if (!cancelled) setPromotedFeeLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [
+    student?.needs_promoted_class_fee_setup,
+    student?.class_section,
+    student?.branch,
+    student?.academic_year,
+  ]);
+
+  const handleConfirmPromotedYearFees = async () => {
+    if (!promotedFeeStructure) {
+      toast.error('No fee structure for this class. Configure it under Setup first.');
+      return;
+    }
+    const offered = Number(promotedFeeOffered);
+    if (Number.isNaN(offered) || offered < 0) {
+      toast.error('Enter a valid confirmed fee amount.');
+      return;
+    }
+    setPromotedFeeSaving(true);
+    try {
+      await api.post(`/students/${id}/setup-promoted-year-fees/`, {
+        offered_total: offered,
+        standard_total: promotedFeeStandard > 0 ? promotedFeeStandard : undefined,
+        reason: promotedFeeReason.trim() || 'Promoted class — confirmed academic fee',
+      });
+      toast.success(
+        offered < promotedFeeStandard && promotedFeeStandard > 0
+          ? 'Fee saved. A discount approval may be pending for zonal or super admin review.'
+          : 'Academic fee confirmed for this year.'
+      );
+      refetch();
+    } catch (err: any) {
+      const d = err.response?.data;
+      const msg = typeof d?.detail === 'string' ? d.detail : d?.error || 'Could not save fees.';
+      toast.error(msg);
+    } finally {
+      setPromotedFeeSaving(false);
+    }
+  };
 
   const completedPayments = (student?.payments || []).filter((p: any) => p.status === 'COMPLETED');
   const refundedPayments = (student?.payments || []).filter((p: any) => p.status === 'REFUNDED');
@@ -550,6 +643,89 @@ export default function StudentProfilePage() {
 
           {activeTab === 'fees' && (
             <div className="space-y-10 animate-in fade-in slide-in-from-right-4">
+              {student.needs_promoted_class_fee_setup && (
+                <div className="rounded-[2rem] border-2 border-amber-200 bg-amber-50/80 p-6 md:p-8 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={22} />
+                    <div>
+                      <h4 className="text-sm font-black text-amber-900 uppercase tracking-wider">
+                        Set fee for promoted class
+                      </h4>
+                      <p className="text-sm text-amber-800/90 mt-1">
+                        This student moved up to <strong>{student.class_section_display || 'their new class'}</strong> for{' '}
+                        <strong>{student.academic_year_name}</strong>. Confirm the annual academic fee the same way as a new admission
+                        (no admission fee). Outstanding carry-forwards and old dues are unchanged.
+                      </p>
+                      <p className="text-xs text-amber-700/80 mt-2">
+                        If the confirmed fee is below the class structure total, an approval is routed: up to ₹2,000 discount to
+                        zonal admin (when the branch has a zone), above that to tenant super admin.
+                      </p>
+                    </div>
+                  </div>
+                  {!canConfirmPromotedFees ? (
+                    <p className="text-xs font-bold text-amber-800">Ask an accountant or branch admin to confirm fees.</p>
+                  ) : promotedFeeLoading ? (
+                    <div className="flex items-center gap-2 text-amber-800 text-sm">
+                      <Loader2 size={18} className="animate-spin" /> Loading class fee structure…
+                    </div>
+                  ) : !promotedFeeStructure ? (
+                    <p className="text-sm font-bold text-amber-900">
+                      No active fee structure for this grade and year. Add it under School Setup → Class &amp; Fees.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      <div>
+                        <label className="text-[10px] font-black text-amber-800/70 uppercase tracking-widest block mb-1">
+                          Standard (from setup)
+                        </label>
+                        <input
+                          type="number"
+                          readOnly
+                          className="w-full rounded-xl border border-amber-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800"
+                          value={promotedFeeStandard || ''}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-amber-800/70 uppercase tracking-widest block mb-1">
+                          Confirmed fee (annual)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          className="w-full rounded-xl border border-amber-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-amber-400 outline-none"
+                          value={promotedFeeOffered}
+                          onChange={e => setPromotedFeeOffered(Number(e.target.value))}
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-[10px] font-black text-amber-800/70 uppercase tracking-widest block mb-1">
+                          Note / reason (optional)
+                        </label>
+                        <input
+                          type="text"
+                          className="w-full rounded-xl border border-amber-200 bg-white px-4 py-2.5 text-sm text-slate-800 focus:ring-2 focus:ring-amber-400 outline-none"
+                          value={promotedFeeReason}
+                          onChange={e => setPromotedFeeReason(e.target.value)}
+                          placeholder="e.g. Sibling discount discussed with principal"
+                        />
+                      </div>
+                      <div className="md:col-span-2 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={handleConfirmPromotedYearFees}
+                          disabled={promotedFeeSaving}
+                          className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-amber-600 text-white text-xs font-black uppercase tracking-widest hover:bg-amber-700 disabled:opacity-50 shadow-lg"
+                        >
+                          {promotedFeeSaving ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+                          Confirm academic fee
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Fee Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">

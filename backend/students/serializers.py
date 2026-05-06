@@ -104,6 +104,7 @@ class StudentSerializer(serializers.ModelSerializer):
     payments = serializers.SerializerMethodField()
     is_csv_imported = serializers.SerializerMethodField()
     requires_initial_payment = serializers.SerializerMethodField()
+    needs_promoted_class_fee_setup = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
@@ -111,7 +112,7 @@ class StudentSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'enrollment_date', 'tenant', 'proposed_fee',
             'fee_stats', 'invoices', 'payments', 'transport_info', 'is_csv_imported',
-            'requires_initial_payment',
+            'requires_initial_payment', 'needs_promoted_class_fee_setup',
         ]
         extra_kwargs = {
             'admission_number': {'required': False, 'allow_blank': True}
@@ -195,6 +196,10 @@ class StudentSerializer(serializers.ModelSerializer):
             (~Q(invoice__invoice_number__startswith='ADM-') & ~Q(invoice__invoice_number__startswith='TRN-'))
         ).exists()
         return not has_initial_payment
+
+    def get_needs_promoted_class_fee_setup(self, obj):
+        from students.services import student_needs_promoted_year_fee_setup
+        return student_needs_promoted_year_fee_setup(obj)
 
 
 class StudentListSerializer(serializers.ModelSerializer):

@@ -35,6 +35,7 @@ from fees.transition_serializers import (
     AllocatedPaymentSerializer,
     DropoutSerializer,
     InitiateClosingSerializer, ConfirmClosingSerializer, RollbackClosingSerializer,
+    SyncCarryForwardsSerializer,
 )
 
 from fees.transition_services import (
@@ -44,6 +45,7 @@ from fees.transition_services import (
     allocate_payment,
     execute_write_off, handle_dropout,
     finalize_fee_structure,
+    sync_carry_forwards_from_invoices,
 )
 
 
@@ -150,6 +152,63 @@ class AcademicYearClosingViewSet(viewsets.GenericViewSet):
             logs, many=True, context={'sar_counts_by_year': sar_counts},
         )
         return Response({'success': True, 'data': serializer.data})
+
+    @action(detail=False, methods=['post'], url_path='sync-carry-forwards')
+    def sync_carry_forwards(self, request):
+        """POST /api/academic-year-closing/sync-carry-forwards/ — backfill FeeCarryForward from invoices."""
+        serializer = SyncCarryForwardsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            source_year = AcademicYear.objects.get(
+                id=data['source_academic_year_id'], tenant=request.user.tenant
+            )
+            target_year = AcademicYear.objects.get(
+                id=data['target_academic_year_id'], tenant=request.user.tenant
+            )
+        except AcademicYear.DoesNotExist:
+            return Response(
+                {'success': False, 'error': 'Academic year not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        branch = None
+        branch_id = get_validated_branch_id(
+            request.user,
+            str(data['branch_id']) if data.get('branch_id') else None,
+        )
+        if branch_id:
+            try:
+                branch = Branch.objects.get(id=branch_id, tenant=request.user.tenant)
+            except Branch.DoesNotExist:
+                return Response(
+                    {'success': False, 'error': 'Branch not found.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        result = sync_carry_forwards_from_invoices(
+            tenant=request.user.tenant,
+            source_year=source_year,
+            target_year=target_year,
+            user=request.user,
+            branch=branch,
+            student_ids=None,
+        )
+        log_audit_action(
+            user=request.user,
+            action='SYNC_CARRY_FORWARDS',
+            model_name='FeeCarryForward',
+            record_id=source_year.id,
+            details={
+                'source_year': source_year.name,
+                'target_year': target_year.name,
+                'branch_id': str(branch.id) if branch else None,
+                'created': result['created'],
+                'total_amount': result['total_amount'],
+            },
+        )
+        return Response({'success': True, 'data': result})
 
 
 # ─── Promotion ──────────────────────────────────────────────────

@@ -2,8 +2,42 @@ import logging
 from decimal import Decimal
 from django.db.models import Sum, Q
 from datetime import date
+from rest_framework.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
+
+
+def student_needs_promoted_year_fee_setup(student) -> bool:
+    """
+    True when the student has an academic record for the current year that came from
+    promotion/detention (promoted_from set) but no annual academic fee invoice/items yet.
+    """
+    from students.models import StudentAcademicRecord
+    from fees.models import FeeInvoice
+
+    if not student.academic_year_id or not student.class_section_id:
+        return False
+    promoted = StudentAcademicRecord.objects.filter(
+        student=student,
+        academic_year_id=student.academic_year_id,
+        promoted_from__isnull=False,
+    ).exists()
+    if not promoted:
+        return False
+    has_annual = FeeInvoice.objects.filter(
+        student=student,
+        academic_year_id=student.academic_year_id,
+        month='ANNUAL',
+    ).exclude(invoice_number__startswith='ADM-').exclude(invoice_number__startswith='TRN-').exists()
+    if has_annual:
+        return False
+    items_total = student.fee_items.filter(academic_year_id=student.academic_year_id).aggregate(
+        total=Sum('amount')
+    )['total'] or Decimal('0')
+    if items_total > 0:
+        return False
+    return True
+
 
 def create_student_fees(student, offered_total, standard_total_input, reason, requested_by):
     """Shared logic for creating fees and triggering approvals"""
@@ -15,6 +49,15 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
     ay = student.academic_year
     class_section = student.class_section
     tenant = student.tenant
+
+    if FeeInvoice.objects.filter(
+        student=student,
+        academic_year=ay,
+        month='ANNUAL',
+    ).exclude(invoice_number__startswith='ADM-').exclude(invoice_number__startswith='TRN-').exists():
+        raise ValidationError(
+            'Academic fee for this academic year is already set for this student.'
+        )
 
     # 1. Calculate REAL standard_total from FeeStructure
     standard_total = Decimal('0.00')

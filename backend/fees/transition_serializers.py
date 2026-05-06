@@ -261,6 +261,12 @@ class InitiateClosingSerializer(serializers.Serializer):
     target_academic_year_id = serializers.UUIDField()
 
 
+class SyncCarryForwardsSerializer(serializers.Serializer):
+    source_academic_year_id = serializers.UUIDField()
+    target_academic_year_id = serializers.UUIDField()
+    branch_id = serializers.UUIDField(required=False, allow_null=True)
+
+
 class ConfirmClosingSerializer(serializers.Serializer):
     closing_log_id = serializers.UUIDField()
 

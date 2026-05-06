@@ -8,10 +8,10 @@ import { useBranch } from '@/components/common/BranchContext';
 import { toast } from 'react-hot-toast';
 import {
   Calendar, ArrowRight, CheckCircle2, AlertTriangle, Clock,
-  Users, Receipt, FileX2, ChevronRight, ArrowUpRight,
-  Lock, Unlock, RotateCcw, Loader2, Eye, Play, Pause,
+  Users, Receipt, FileX2, ArrowUpRight,
+  Lock, Unlock, RotateCcw, Loader2, Pause,
   UserMinus, UserPlus, Ban, GraduationCap, ShieldAlert,
-  ArrowLeftRight, X, Check
+  ArrowLeftRight, Check
 } from 'lucide-react';
 
 /* ═══════════════ TYPES ═══════════════ */
@@ -42,18 +42,6 @@ interface ClosingLog {
   completed_at: string;
 }
 
-interface PromotionPreview {
-  student_id: string;
-  student_name: string;
-  admission_number: string;
-  current_class: string;
-  current_grade: string;
-  target_grade: string;
-  target_class: string;
-  outstanding_dues: string;
-  action: string;
-}
-
 interface CarryForward {
   id: string;
   student_name: string;
@@ -80,14 +68,6 @@ interface WriteOff {
   admin_remarks: string;
 }
 
-interface PromotionMap {
-  id: string;
-  branch: string;
-  academic_year: string;
-  from_grade: string;
-  to_grade: string;
-}
-
 interface ClassSectionRow {
   id: string;
   branch: string;
@@ -104,6 +84,74 @@ interface PromoteStudentRow {
   last_name: string;
   roll_number: number | null;
   class_section_display: string | null;
+}
+
+interface InvoiceDebtOption {
+  id: string;
+  invoice_number: string;
+  outstanding_amount: string;
+  status: string;
+}
+
+interface CFDebtOption {
+  id: string;
+  source_year_name: string;
+  remaining_amount: string;
+  status: string;
+}
+
+interface WriteOffStudentDebts {
+  studentId: string;
+  admission_number: string;
+  first_name: string;
+  last_name: string;
+  invoices: InvoiceDebtOption[];
+  carryForwards: CFDebtOption[];
+}
+
+interface WriteOffAlloc {
+  target_type: 'INVOICE' | 'CARRY_FORWARD';
+  target_id: string;
+  amount: string;
+}
+
+function defaultWriteOffAllocForStudent(b: WriteOffStudentDebts): WriteOffAlloc | null {
+  const invs = b.invoices;
+  const cfs = b.carryForwards;
+  if (!invs.length && !cfs.length) return null;
+  let bestInv = invs[0];
+  for (const inv of invs) {
+    if (Number(inv.outstanding_amount) > Number(bestInv.outstanding_amount)) bestInv = inv;
+  }
+  let bestCf = cfs[0];
+  for (const cf of cfs) {
+    if (Number(cf.remaining_amount) > Number(bestCf.remaining_amount)) bestCf = cf;
+  }
+  if (bestInv && (!bestCf || Number(bestInv.outstanding_amount) >= Number(bestCf.remaining_amount))) {
+    return {
+      target_type: 'INVOICE',
+      target_id: bestInv.id,
+      amount: String(bestInv.outstanding_amount),
+    };
+  }
+  if (bestCf) {
+    return {
+      target_type: 'CARRY_FORWARD',
+      target_id: bestCf.id,
+      amount: String(bestCf.remaining_amount),
+    };
+  }
+  return null;
+}
+
+function maxAmountForWriteOffTarget(b: WriteOffStudentDebts, alloc: WriteOffAlloc | undefined): number {
+  if (!alloc) return 0;
+  if (alloc.target_type === 'INVOICE') {
+    const inv = b.invoices.find(i => i.id === alloc.target_id);
+    return inv ? Number(inv.outstanding_amount) : 0;
+  }
+  const cf = b.carryForwards.find(c => c.id === alloc.target_id);
+  return cf ? Number(cf.remaining_amount) : 0;
 }
 
 /* ═══════════════ STATUS CHIPS ═══════════════ */
@@ -135,13 +183,6 @@ const closingLogStatusStyles: Record<string, string> = {
   FAILED: 'bg-red-50 text-red-600',
   ROLLED_BACK: 'bg-amber-50 text-amber-700',
 };
-
-/* ═══════════════ GRADE LIST (for promotion map) ═══════════════ */
-
-const GRADES = [
-  'NURSERY', 'LKG', 'UKG',
-  '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12',
-];
 
 /* ═══════════════ MAIN PAGE ═══════════════ */
 
@@ -439,9 +480,6 @@ function PromotionTab({ branch, user }: { branch: string; user: any }) {
   const { data: years, loading: yearsLoading, error: yearsError } = useApi<AcademicYear[]>(
     `tenants/academic-years/?branch_id=${branch}`
   );
-  const { data: promotionMaps, refetch: refetchMaps } = useApi<PromotionMap[]>(
-    `/promotion-maps/?branch_id=${branch}`
-  );
 
   const activeYear = years?.find(y => y.is_active);
 
@@ -452,16 +490,6 @@ function PromotionTab({ branch, user }: { branch: string; user: any }) {
   const [sameGradeSection, setSameGradeSection] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [promoting, setPromoting] = useState(false);
-
-  const [advTargetYearId, setAdvTargetYearId] = useState('');
-  const [preview, setPreview] = useState<PromotionPreview[] | null>(null);
-  const [previewMeta, setPreviewMeta] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [overrides, setOverrides] = useState<Record<string, string>>({});
-  const [newFromGrade, setNewFromGrade] = useState('');
-  const [newToGrade, setNewToGrade] = useState('');
-  const [addingMap, setAddingMap] = useState(false);
 
   useEffect(() => {
     if (!activeYear?.id) return;
@@ -544,89 +572,6 @@ function PromotionTab({ branch, user }: { branch: string; user: any }) {
       toast.error(err.response?.data?.error || err.response?.data?.detail || 'Promotion failed.');
     } finally {
       setPromoting(false);
-    }
-  };
-
-  const handlePreview = async () => {
-    if (!advTargetYearId || !branch) {
-      toast.error('Select branch and target year.');
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const res = await api.post('/promotions/preview/', {
-        target_academic_year_id: advTargetYearId,
-        branch_id: branch,
-        scope: 'BRANCH',
-      });
-      setPreview(res.data.data.promotions);
-      setPreviewMeta(res.data.data);
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Preview failed.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleExecute = async () => {
-    if (!preview || !advTargetYearId) return;
-    const overrideList = Object.entries(overrides)
-      .filter(([_, action]) => action !== 'PROMOTE')
-      .map(([student_id, action]) => ({ student_id, action }));
-
-    setIsExecuting(true);
-    try {
-      const res = await api.post('/promotions/execute/', {
-        target_academic_year_id: advTargetYearId,
-        branch_id: branch,
-        scope: 'BRANCH',
-        overrides: overrideList,
-      });
-      const d = res.data.data;
-      toast.success(`Done! Promoted: ${d.promoted}, Detained: ${d.detained}, Graduated: ${d.graduated}`);
-      setPreview(null);
-      setPreviewMeta(null);
-      setOverrides({});
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Promotion failed.');
-    } finally {
-      setIsExecuting(false);
-    }
-  };
-
-  const handleAddMap = async () => {
-    if (!newFromGrade || !newToGrade || !branch) return;
-    const ayId = activeYear?.id;
-    if (!ayId) {
-      toast.error('No active academic year.');
-      return;
-    }
-    setAddingMap(true);
-    try {
-      await api.post('/promotion-maps/', {
-        branch: branch,
-        academic_year: ayId,
-        from_grade: newFromGrade,
-        to_grade: newToGrade,
-      });
-      toast.success(`${newFromGrade} → ${newToGrade} mapping saved.`);
-      setNewFromGrade('');
-      setNewToGrade('');
-      refetchMaps();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || err.response?.data?.detail || 'Failed to add mapping.');
-    } finally {
-      setAddingMap(false);
-    }
-  };
-
-  const handleDeleteMap = async (id: string) => {
-    try {
-      await api.delete(`/promotion-maps/${id}/`);
-      toast.success('Mapping removed.');
-      refetchMaps();
-    } catch {
-      toast.error('Failed to delete.');
     }
   };
 
@@ -851,226 +796,6 @@ function PromotionTab({ branch, user }: { branch: string; user: any }) {
           </div>
         )}
       </div>
-
-      <details className="bg-white rounded-2xl border shadow-sm group">
-        <summary className="cursor-pointer list-none px-6 py-4 flex items-center justify-between gap-2 text-sm font-bold text-slate-800">
-          <span className="flex items-center gap-2">
-            <ChevronRight
-              size={18}
-              className="text-slate-400 transition-transform group-open:rotate-90"
-            />
-            Advanced: grade maps &amp; whole-branch promotion
-          </span>
-          <span className="text-xs font-normal text-slate-500">Optional — uses mapped grades for every class</span>
-        </summary>
-        <div className="px-6 pb-6 space-y-8 border-t border-slate-100 pt-6">
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-xs font-black">
-                1
-              </div>
-              Grade promotion map
-            </h3>
-            <p className="text-xs text-slate-400">
-              Define how each grade maps to the next for automated branch-wide runs.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {promotionMaps?.map(pm => (
-                <div
-                  key={pm.id}
-                  className="flex items-center gap-2 bg-slate-50 border rounded-xl px-3 py-2 text-sm group"
-                >
-                  <span className="font-bold text-slate-700">{pm.from_grade}</span>
-                  <ArrowRight size={14} className="text-slate-400" />
-                  <span className="font-bold text-emerald-600">{pm.to_grade}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteMap(pm.id)}
-                    className="p-0.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-              {(!promotionMaps || promotionMaps.length === 0) && (
-                <p className="text-sm text-slate-400 italic">No mappings configured yet. Add below.</p>
-              )}
-            </div>
-            <div className="flex items-end gap-3 pt-2 border-t border-slate-100 flex-wrap">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">From grade</label>
-                <select
-                  value={newFromGrade}
-                  onChange={e => setNewFromGrade(e.target.value)}
-                  className="border rounded-xl px-3 py-2 text-sm focus:ring-2 ring-blue-200 focus:outline-none"
-                >
-                  <option value="">Select…</option>
-                  {GRADES.map(g => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <ArrowRight size={20} className="text-slate-300 mb-2 hidden sm:block" />
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">To grade</label>
-                <select
-                  value={newToGrade}
-                  onChange={e => setNewToGrade(e.target.value)}
-                  className="border rounded-xl px-3 py-2 text-sm focus:ring-2 ring-blue-200 focus:outline-none"
-                >
-                  <option value="">Select…</option>
-                  {GRADES.map(g => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                onClick={handleAddMap}
-                disabled={addingMap || !newFromGrade || !newToGrade}
-                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all disabled:opacity-50"
-              >
-                {addingMap ? <Loader2 size={16} className="animate-spin" /> : 'Add'}
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-xs font-black">
-                2
-              </div>
-              Preview &amp; execute (entire branch)
-            </h3>
-            <div className="flex flex-wrap items-end gap-4">
-              <div className="flex-1 min-w-[200px]">
-                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Promote to year</label>
-                <select
-                  value={advTargetYearId}
-                  onChange={e => setAdvTargetYearId(e.target.value)}
-                  disabled={yearsLoading}
-                  className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 ring-blue-200 focus:outline-none disabled:opacity-60"
-                >
-                  <option value="">{yearsLoading ? 'Loading years…' : 'Select target year…'}</option>
-                  {years?.filter(y => !y.is_active).map(y => (
-                    <option key={y.id} value={y.id}>
-                      {y.name} ({y.status})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                onClick={handlePreview}
-                disabled={isLoading || !advTargetYearId}
-                className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-all disabled:opacity-50 flex items-center gap-2"
-              >
-                {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Eye size={16} />}
-                Preview
-              </button>
-            </div>
-
-            {previewMeta && (
-              <div className="space-y-4 pt-4 border-t">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Stat label="Total students" value={previewMeta.total_students} />
-                  <Stat label="Students with dues" value={previewMeta.students_with_dues} />
-                  <Stat
-                    label="Total outstanding"
-                    value={`₹${Number(previewMeta.total_outstanding).toLocaleString('en-IN')}`}
-                  />
-                  <Stat
-                    label="Unmapped classes"
-                    value={previewMeta.unmapped_classes?.length || 0}
-                    highlight={previewMeta.unmapped_classes?.length > 0}
-                  />
-                </div>
-
-                {previewMeta.unmapped_classes?.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
-                    <AlertTriangle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-red-700">
-                      <strong>Missing promotion maps:</strong> {previewMeta.unmapped_classes.join(', ')}.
-                    </p>
-                  </div>
-                )}
-
-                <div className="bg-white rounded-xl border overflow-hidden max-h-[400px] overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b sticky top-0">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-bold text-slate-600">Student</th>
-                        <th className="px-4 py-3 text-left font-bold text-slate-600">Current</th>
-                        <th className="px-4 py-3 text-left font-bold text-slate-600">Target</th>
-                        <th className="px-4 py-3 text-left font-bold text-slate-600">Dues</th>
-                        <th className="px-4 py-3 text-left font-bold text-slate-600 w-40">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {preview?.map(s => (
-                        <tr key={s.student_id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-4 py-3">
-                            <p className="font-bold text-slate-900">{s.student_name}</p>
-                            <p className="text-[10px] text-slate-400 font-mono">{s.admission_number}</p>
-                          </td>
-                          <td className="px-4 py-3 text-slate-600">{s.current_class}</td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`font-bold ${s.action === 'NEEDS_MAPPING' ? 'text-red-500' : 'text-emerald-600'}`}
-                            >
-                              {s.target_grade || '—'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            {Number(s.outstanding_dues) > 0 ? (
-                              <span className="text-rose-600 font-bold">
-                                ₹{Number(s.outstanding_dues).toLocaleString('en-IN')}
-                              </span>
-                            ) : (
-                              <span className="text-emerald-500 text-xs">Clear</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <select
-                              value={overrides[s.student_id] || 'PROMOTE'}
-                              onChange={e =>
-                                setOverrides(prev => ({ ...prev, [s.student_id]: e.target.value }))
-                              }
-                              className="w-full border rounded-lg px-2 py-1.5 text-xs font-bold focus:ring-2 ring-blue-200 focus:outline-none"
-                            >
-                              <option value="PROMOTE">Promote</option>
-                              <option value="DETAIN">Detain</option>
-                              <option value="DROPOUT">Mark dropout</option>
-                              <option value="GRADUATE">Graduate</option>
-                              <option value="TRANSFER">Transfer</option>
-                            </select>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="button"
-                    onClick={handleExecute}
-                    disabled={isExecuting}
-                    className="px-8 py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-emerald-200"
-                  >
-                    {isExecuting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                    Execute promotions ({preview?.length || 0} students)
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </details>
     </div>
   );
 }
@@ -1078,16 +803,124 @@ function PromotionTab({ branch, user }: { branch: string; user: any }) {
 
 function CarryForwardTab({ branch }: { branch: string }) {
   const [statusFilter, setStatusFilter] = useState('');
-  const { data: carryForwards, loading } = useApi<CarryForward[]>(
-    `/fees/carry-forwards/?branch_id=${branch}${statusFilter ? `&status=${statusFilter}` : ''}`
+  const { data: carryForwards, loading, refetch } = useApi<CarryForward[]>(
+    branch
+      ? `/fees/carry-forwards/?branch_id=${branch}${statusFilter ? `&status=${statusFilter}` : ''}`
+      : null
   );
+  const { data: years, loading: yearsLoading } = useApi<AcademicYear[]>(
+    branch ? `tenants/academic-years/?branch_id=${branch}` : null
+  );
+  const [syncSourceId, setSyncSourceId] = useState('');
+  const [syncTargetId, setSyncTargetId] = useState('');
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    if (!years?.length) return;
+    const active = years.find(y => y.is_active);
+    setSyncTargetId(prev => prev || active?.id || '');
+  }, [years]);
+
+  const handleSyncCarryForwards = async () => {
+    if (!branch || !syncSourceId || !syncTargetId) {
+      toast.error('Select source and target academic years.');
+      return;
+    }
+    if (syncSourceId === syncTargetId) {
+      toast.error('Source and target years must be different.');
+      return;
+    }
+    setSyncing(true);
+    try {
+      const res = await api.post('/academic-year-closing/sync-carry-forwards/', {
+        source_academic_year_id: syncSourceId,
+        target_academic_year_id: syncTargetId,
+        branch_id: branch,
+      });
+      const d = res.data?.data;
+      const created = d?.created ?? 0;
+      const amt = Number(d?.total_amount ?? 0);
+      toast.success(
+        created > 0
+          ? `Created ${created} carry-forward record(s) (₹${amt.toLocaleString('en-IN')} new liability).`
+          : 'No new carry-forwards needed (existing rows or no unpaid invoices for that source year).'
+      );
+      refetch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Could not sync carry-forwards.');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const totalPending = carryForwards
     ?.filter(cf => cf.status !== 'PAID' && cf.status !== 'WRITTEN_OFF')
     .reduce((sum, cf) => sum + Number(cf.remaining_amount), 0) || 0;
 
+  if (!branch) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 text-sm">
+        Select a branch in the header to view carry-forwards.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      <div className="bg-white rounded-2xl border shadow-sm p-6 space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900">Create carry-forwards from unpaid invoices</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Outstanding fee invoices do not appear here until a carry-forward row links the old year to the new one.
+            Use this after promotions or when you skipped formal year closing — pick the year where invoices are still
+            open, then the year you are carrying balances into (usually the active year).
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-end gap-3">
+          <div className="flex-1 min-w-[160px]">
+            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Source year (unpaid invoices)</label>
+            <select
+              value={syncSourceId}
+              onChange={e => setSyncSourceId(e.target.value)}
+              disabled={yearsLoading}
+              className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 ring-blue-200 focus:outline-none disabled:opacity-60"
+            >
+              <option value="">{yearsLoading ? 'Loading…' : 'Select year…'}</option>
+              {years?.map(y => (
+                <option key={y.id} value={y.id}>
+                  {y.name} ({y.status})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1 min-w-[160px]">
+            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Target year</label>
+            <select
+              value={syncTargetId}
+              onChange={e => setSyncTargetId(e.target.value)}
+              disabled={yearsLoading}
+              className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 ring-emerald-200 focus:outline-none disabled:opacity-60"
+            >
+              <option value="">{yearsLoading ? 'Loading…' : 'Select year…'}</option>
+              {years?.map(y => (
+                <option key={y.id} value={y.id}>
+                  {y.name} ({y.status}){y.is_active ? ' — active' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={handleSyncCarryForwards}
+            disabled={syncing || yearsLoading || !syncSourceId || !syncTargetId}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 disabled:opacity-50"
+          >
+            {syncing ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />}
+            Generate / refresh rows
+          </button>
+        </div>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border p-6 shadow-sm">
@@ -1125,8 +958,11 @@ function CarryForwardTab({ branch }: { branch: string }) {
         ) : !carryForwards?.length ? (
           <div className="p-12 text-center">
             <CheckCircle2 className="mx-auto text-emerald-300 mb-3" size={32} />
-            <p className="font-bold text-slate-900">All clear!</p>
-            <p className="text-slate-400 text-sm">No carry-forward records found.</p>
+            <p className="font-bold text-slate-900">No carry-forward rows yet</p>
+            <p className="text-slate-400 text-sm max-w-md mx-auto mt-1">
+              If students still show unpaid invoices from a previous academic year, use &quot;Generate / refresh rows&quot;
+              above with the correct source and target years.
+            </p>
           </div>
         ) : (
           <table className="w-full text-sm text-left">
@@ -1176,9 +1012,195 @@ function CarryForwardTab({ branch }: { branch: string }) {
 function WriteOffTab({ branch, user }: { branch: string; user: any }) {
   const [statusFilter, setStatusFilter] = useState('');
   const { data: writeOffs, loading, refetch } = useApi<WriteOff[]>(
-    `/fees/write-offs/?branch_id=${branch}${statusFilter ? `&status=${statusFilter}` : ''}`
+    branch
+      ? `/fees/write-offs/?branch_id=${branch}${statusFilter ? `&status=${statusFilter}` : ''}`
+      : null
   );
   const [processing, setProcessing] = useState<string | null>(null);
+
+  const { data: woYears, loading: woYearsLoading, error: woYearsError } = useApi<AcademicYear[]>(
+    branch ? `tenants/academic-years/?branch_id=${branch}` : null
+  );
+  const woActiveYear = woYears?.find(y => y.is_active);
+  const [woYearId, setWoYearId] = useState('');
+  const [woSectionId, setWoSectionId] = useState('');
+  const [woSelectedIds, setWoSelectedIds] = useState<string[]>([]);
+  const [woDebtPanel, setWoDebtPanel] = useState(false);
+  const [woDebtBundles, setWoDebtBundles] = useState<WriteOffStudentDebts[]>([]);
+  const [woAlloc, setWoAlloc] = useState<Record<string, WriteOffAlloc>>({});
+  const [woLoadingDebts, setWoLoadingDebts] = useState(false);
+  const [woSubmitting, setWoSubmitting] = useState(false);
+  const [woBulkReason, setWoBulkReason] = useState('');
+
+  useEffect(() => {
+    if (!woActiveYear?.id) return;
+    setWoYearId(prev => prev || woActiveYear.id);
+  }, [woActiveYear?.id]);
+
+  useEffect(() => {
+    setWoSectionId('');
+  }, [woYearId]);
+
+  useEffect(() => {
+    setWoSelectedIds([]);
+    setWoDebtPanel(false);
+    setWoDebtBundles([]);
+    setWoAlloc({});
+  }, [woSectionId]);
+
+  const woClassesUrl =
+    branch && woYearId ? `classes/?branch_id=${branch}&academic_year_id=${woYearId}` : null;
+  const { data: woClasses, loading: woClassesLoading } = useApi<ClassSectionRow[]>(woClassesUrl);
+
+  const woStudentsUrl = woSectionId ? `classes/${woSectionId}/students/` : null;
+  const { data: woClassStudents, loading: woStudentsLoading, refetch: refetchWoStudents } = useApi<
+    PromoteStudentRow[]
+  >(woStudentsUrl);
+
+  const woSection = useMemo(
+    () => woClasses?.find(c => c.id === woSectionId),
+    [woClasses, woSectionId]
+  );
+
+  useEffect(() => {
+    if (!woClassStudents?.length) {
+      setWoSelectedIds([]);
+      return;
+    }
+    setWoSelectedIds(woClassStudents.map(s => s.id));
+  }, [woSectionId, woClassStudents]);
+
+  const woToggleRow = (id: string) => {
+    setWoSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
+
+  const woAllSelected =
+    !!woClassStudents?.length && woSelectedIds.length === woClassStudents.length;
+  const woToggleAll = () => {
+    if (!woClassStudents?.length) return;
+    setWoSelectedIds(woAllSelected ? [] : woClassStudents.map(s => s.id));
+  };
+
+  const unwrapList = (res: { data?: any }) => {
+    const d = res.data;
+    if (Array.isArray(d?.data)) return d.data;
+    if (Array.isArray(d?.results)) return d.results;
+    if (Array.isArray(d)) return d;
+    return [];
+  };
+
+  const handleLoadDebtsForWriteOffs = async () => {
+    if (!branch || woSelectedIds.length === 0) {
+      toast.error('Select at least one student.');
+      return;
+    }
+    setWoLoadingDebts(true);
+    try {
+      const bundles: WriteOffStudentDebts[] = [];
+      for (const sid of woSelectedIds) {
+        const st = woClassStudents?.find(s => s.id === sid);
+        const [invRes, cfRes] = await Promise.all([
+          api.get('/fees/invoices/', { params: { branch_id: branch, student_id: sid } }),
+          api.get('/fees/carry-forwards/', { params: { branch_id: branch, student_id: sid } }),
+        ]);
+        const rawInv = unwrapList(invRes) as InvoiceDebtOption[];
+        const invoices = rawInv.filter(
+          inv =>
+            Number(inv.outstanding_amount) > 0 &&
+            ['SENT', 'PARTIALLY_PAID', 'OVERDUE'].includes(inv.status)
+        );
+        const rawCf = unwrapList(cfRes) as CFDebtOption[];
+        const carryForwards = rawCf.filter(
+          cf =>
+            Number(cf.remaining_amount) > 0 &&
+            cf.status !== 'PAID' &&
+            cf.status !== 'WRITTEN_OFF'
+        );
+        bundles.push({
+          studentId: sid,
+          admission_number: st?.admission_number ?? '',
+          first_name: st?.first_name ?? '',
+          last_name: st?.last_name ?? '',
+          invoices,
+          carryForwards,
+        });
+      }
+      setWoDebtBundles(bundles);
+      const nextAlloc: Record<string, WriteOffAlloc> = {};
+      for (const b of bundles) {
+        const def = defaultWriteOffAllocForStudent(b);
+        if (def) nextAlloc[b.studentId] = def;
+      }
+      setWoAlloc(nextAlloc);
+      setWoDebtPanel(true);
+      const withDebts = bundles.filter(b => b.invoices.length || b.carryForwards.length).length;
+      if (!withDebts) {
+        toast.error('No unpaid invoices or open carry-forwards for the selected students.');
+      } else {
+        toast.success(`Loaded balances for ${bundles.length} student(s).`);
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || err.response?.data?.error || 'Could not load fee balances.');
+    } finally {
+      setWoLoadingDebts(false);
+    }
+  };
+
+  const handleSubmitWriteOffRequests = async () => {
+    const reason = woBulkReason.trim();
+    if (reason.length < 10) {
+      toast.error('Reason must be at least 10 characters.');
+      return;
+    }
+    const rows = woDebtBundles.filter(b => woAlloc[b.studentId]);
+    if (!rows.length) {
+      toast.error('Choose a write-off target for at least one student.');
+      return;
+    }
+    setWoSubmitting(true);
+    let ok = 0;
+    let bad = 0;
+    try {
+      for (const b of rows) {
+        const alloc = woAlloc[b.studentId];
+        if (!alloc) {
+          bad++;
+          continue;
+        }
+        const max = maxAmountForWriteOffTarget(b, alloc);
+        const amt = Number(alloc.amount);
+        if (!max || amt < 0.01 || amt > max + 1e-6) {
+          bad++;
+          continue;
+        }
+        try {
+          await api.post('/fees/write-offs/', {
+            student_id: b.studentId,
+            target_type: alloc.target_type,
+            target_id: alloc.target_id,
+            amount: alloc.amount,
+            reason,
+          });
+          ok++;
+        } catch {
+          bad++;
+        }
+      }
+      toast.success(
+        ok ? `Submitted ${ok} request(s) for approval.` : 'No requests submitted.',
+        bad ? { duration: 5000 } : undefined
+      );
+      if (bad) toast.error(`${bad} row(s) skipped (invalid amount or API error).`);
+      refetch();
+      setWoDebtPanel(false);
+      setWoDebtBundles([]);
+      setWoAlloc({});
+      setWoBulkReason('');
+      await refetchWoStudents();
+    } finally {
+      setWoSubmitting(false);
+    }
+  };
 
   const handleReview = async (id: string, action: 'APPROVE' | 'REJECT') => {
     let remarks = '';
@@ -1202,8 +1224,318 @@ function WriteOffTab({ branch, user }: { branch: string; user: any }) {
     ?.filter(w => w.status === 'EXECUTED')
     .reduce((sum, w) => sum + Number(w.amount), 0) || 0;
 
+  const woYearLabel = woYears?.find(y => y.id === woYearId)?.name ?? '—';
+
+  if (!branch) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 text-sm">
+        Select a branch in the header to manage write-offs.
+      </div>
+    );
+  }
+
+  if (woYearsError) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">
+        <p className="font-bold">Could not load academic years</p>
+        <p className="text-sm mt-1">{woYearsError}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 flex gap-3 text-sm text-slate-700">
+        <AlertTriangle className="text-amber-500 flex-shrink-0 mt-0.5" size={18} />
+        <p>
+          <span className="font-semibold text-slate-900">Write-offs are approval requests.</span>{' '}
+          Submit requests below (or from a student profile); they stay pending until an admin approves. Outstanding
+          fee invoices alone do not appear in the history table until a request exists.
+        </p>
+      </div>
+
+      <div className="bg-white rounded-2xl border shadow-sm p-6 space-y-5">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <FileX2 size={18} className="text-rose-600" />
+            Request write-offs by class
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Same flow as promotion: pick the academic year and class, select students, then configure each line
+            against an invoice or carry-forward balance.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 p-4 space-y-3 bg-slate-50/50 max-w-xl">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class</p>
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Academic year</label>
+            <select
+              value={woYearId}
+              onChange={e => setWoYearId(e.target.value)}
+              disabled={woYearsLoading}
+              className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 ring-blue-200 focus:outline-none disabled:opacity-60"
+            >
+              <option value="">{woYearsLoading ? 'Loading…' : 'Select year…'}</option>
+              {woYears?.map(y => (
+                <option key={y.id} value={y.id}>
+                  {y.name}
+                  {y.is_active ? ' (active)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Class</label>
+            <select
+              value={woSectionId}
+              onChange={e => setWoSectionId(e.target.value)}
+              disabled={!woYearId || woClassesLoading}
+              className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 ring-blue-200 focus:outline-none disabled:opacity-60"
+            >
+              <option value="">
+                {!woYearId ? 'Choose a year first…' : woClassesLoading ? 'Loading classes…' : 'Select class…'}
+              </option>
+              {woClasses?.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.display_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {woSectionId && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h4 className="text-sm font-bold text-slate-800">
+                Students in {woSection ? woSection.display_name : 'this class'}
+                <span className="ml-2 text-xs font-normal text-slate-500">({woYearLabel})</span>
+              </h4>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-slate-600">
+                  {woSelectedIds.length} of {woClassStudents?.length ?? 0} selected
+                </span>
+                <button
+                  type="button"
+                  onClick={handleLoadDebtsForWriteOffs}
+                  disabled={woLoadingDebts || woSelectedIds.length === 0 || woStudentsLoading}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 disabled:opacity-50 shadow-sm"
+                >
+                  {woLoadingDebts ? <Loader2 size={16} className="animate-spin" /> : <FileX2 size={16} />}
+                  Configure write-offs
+                </button>
+              </div>
+            </div>
+
+            {woStudentsLoading ? (
+              <div className="flex justify-center py-12 border rounded-xl">
+                <Loader2 className="animate-spin text-blue-500" size={28} />
+              </div>
+            ) : !woClassStudents?.length ? (
+              <p className="text-sm text-slate-500 py-8 text-center border border-dashed rounded-xl">
+                No active students in this class for the selected year.
+              </p>
+            ) : (
+              <div className="border rounded-xl overflow-hidden overflow-x-auto">
+                <table className="w-full text-sm min-w-[560px]">
+                  <thead className="bg-slate-50 border-b">
+                    <tr>
+                      <th className="px-3 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300"
+                          checked={woAllSelected}
+                          onChange={woToggleAll}
+                          aria-label="Select all students"
+                        />
+                      </th>
+                      <th className="px-3 py-3 text-left font-bold text-slate-600">#</th>
+                      <th className="px-3 py-3 text-left font-bold text-slate-600">Admission</th>
+                      <th className="px-3 py-3 text-left font-bold text-slate-600">Roll</th>
+                      <th className="px-3 py-3 text-left font-bold text-slate-600">Name</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {woClassStudents.map((s, idx) => (
+                      <tr key={s.id} className="hover:bg-slate-50/80">
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            className="rounded border-slate-300"
+                            checked={woSelectedIds.includes(s.id)}
+                            onChange={() => woToggleRow(s.id)}
+                          />
+                        </td>
+                        <td className="px-3 py-2 tabular-nums text-slate-500">{idx + 1}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-slate-700">{s.admission_number}</td>
+                        <td className="px-3 py-2 text-slate-600">{s.roll_number ?? '—'}</td>
+                        <td className="px-3 py-2 font-medium text-slate-900">
+                          {s.first_name} {s.last_name}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {woDebtPanel && woDebtBundles.length > 0 && (
+          <div className="space-y-4 border-t border-slate-100 pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-sm font-bold text-slate-900">Write-off details</h4>
+              <button
+                type="button"
+                onClick={() => {
+                  setWoDebtPanel(false);
+                  setWoDebtBundles([]);
+                  setWoAlloc({});
+                }}
+                className="text-xs font-bold text-slate-500 hover:text-slate-800"
+              >
+                Back to selection
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              One pending request per row. Amount cannot exceed the open balance on the chosen invoice or
+              carry-forward.
+            </p>
+            <div className="border rounded-xl overflow-hidden overflow-x-auto">
+              <table className="w-full text-sm min-w-[720px]">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="px-3 py-3 text-left font-bold text-slate-600">Student</th>
+                    <th className="px-3 py-3 text-left font-bold text-slate-600">Write off against</th>
+                    <th className="px-3 py-3 text-left font-bold text-slate-600 w-36">Amount (₹)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {woDebtBundles.map(b => {
+                    const alloc = woAlloc[b.studentId];
+                    const max = maxAmountForWriteOffTarget(b, alloc);
+                    const hasDebt = b.invoices.length > 0 || b.carryForwards.length > 0;
+                    return (
+                      <tr key={b.studentId} className="hover:bg-slate-50/80">
+                        <td className="px-3 py-2">
+                          <p className="font-medium text-slate-900">
+                            {b.first_name} {b.last_name}
+                          </p>
+                          <p className="text-[10px] text-slate-400 font-mono">{b.admission_number}</p>
+                          {!hasDebt && (
+                            <p className="text-xs text-amber-700 mt-1">No eligible invoice or carry-forward</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={
+                              alloc ? `${alloc.target_type}:${alloc.target_id}` : ''
+                            }
+                            disabled={!hasDebt}
+                            onChange={e => {
+                              const v = e.target.value;
+                              if (!v) {
+                                setWoAlloc(prev => {
+                                  const n = { ...prev };
+                                  delete n[b.studentId];
+                                  return n;
+                                });
+                                return;
+                              }
+                              const [type, id] = v.split(':') as ['INVOICE' | 'CARRY_FORWARD', string];
+                              let amount = '0';
+                              if (type === 'INVOICE') {
+                                const inv = b.invoices.find(i => i.id === id);
+                                if (inv) amount = String(inv.outstanding_amount);
+                              } else {
+                                const cf = b.carryForwards.find(c => c.id === id);
+                                if (cf) amount = String(cf.remaining_amount);
+                              }
+                              setWoAlloc(prev => ({
+                                ...prev,
+                                [b.studentId]: { target_type: type, target_id: id, amount },
+                              }));
+                            }}
+                            className="w-full max-w-md border rounded-lg px-2 py-2 text-xs font-medium focus:ring-2 ring-blue-200 focus:outline-none disabled:opacity-50"
+                          >
+                            <option value="">Select target…</option>
+                            {b.invoices.length > 0 && (
+                              <optgroup label="Invoices">
+                                {b.invoices.map(inv => (
+                                  <option key={inv.id} value={`INVOICE:${inv.id}`}>
+                                    {inv.invoice_number} — ₹{Number(inv.outstanding_amount).toLocaleString('en-IN')} (
+                                    {inv.status})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {b.carryForwards.length > 0 && (
+                              <optgroup label="Carry-forwards">
+                                {b.carryForwards.map(cf => (
+                                  <option key={cf.id} value={`CARRY_FORWARD:${cf.id}`}>
+                                    CF {cf.source_year_name} — ₹{Number(cf.remaining_amount).toLocaleString('en-IN')}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            disabled={!alloc || !hasDebt}
+                            value={alloc?.amount ?? ''}
+                            onChange={e =>
+                              setWoAlloc(prev => ({
+                                ...prev,
+                                [b.studentId]: {
+                                  ...prev[b.studentId]!,
+                                  amount: e.target.value,
+                                },
+                              }))
+                            }
+                            className="w-full border rounded-lg px-2 py-2 text-sm font-mono focus:ring-2 ring-blue-200 focus:outline-none disabled:opacity-50"
+                          />
+                          {max > 0 && (
+                            <p className="text-[10px] text-slate-400 mt-1">Max ₹{max.toLocaleString('en-IN')}</p>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">
+                Reason (shared, min. 10 characters)
+              </label>
+              <textarea
+                value={woBulkReason}
+                onChange={e => setWoBulkReason(e.target.value)}
+                rows={3}
+                placeholder="e.g. Management waiver for orphan students — batch 2026"
+                className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 ring-blue-200 focus:outline-none"
+              />
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleSubmitWriteOffRequests}
+                disabled={woSubmitting}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-rose-600 text-white text-sm font-bold hover:bg-rose-700 disabled:opacity-50"
+              >
+                {woSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                Submit requests for approval
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border p-6 shadow-sm">

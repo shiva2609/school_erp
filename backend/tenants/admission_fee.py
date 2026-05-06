@@ -13,6 +13,15 @@ def get_configured_admission_fee(branch_id, academic_year_id) -> Decimal:
 def student_requires_admission_payment(student) -> bool:
     """True if branch/year has a positive configured fee and admission is not yet paid (ADM-* invoice PAID)."""
     from fees.models import FeeInvoice
+    from students.models import StudentAcademicRecord
+
+    if student.academic_year_id and StudentAcademicRecord.objects.filter(
+        student=student,
+        academic_year_id=student.academic_year_id,
+        promoted_from__isnull=False,
+    ).exists():
+        # Promoted / detained into this year: academic fee is confirmed separately; no admission invoice.
+        return False
 
     amt = get_configured_admission_fee(student.branch_id, student.academic_year_id)
     if amt <= 0:

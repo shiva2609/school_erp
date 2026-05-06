@@ -308,20 +308,34 @@ def rollback_year_closing(tenant, source_year, user, reason):
 
 # ─── Fee Carry-Forward ─────────────────────────────────────────
 
-def generate_carry_forwards(tenant, source_year, target_year, user):
+def sync_carry_forwards_from_invoices(
+    tenant, source_year, target_year, user, *, student_ids=None, branch=None
+):
     """
-    Generate FeeCarryForward records for all students with outstanding dues.
-    Called during year closing.
+    Create FeeCarryForward rows from unpaid FeeInvoice totals in source_year
+    toward target_year. Idempotent with get_or_create (same keys as year closing).
+
+    student_ids: optional list of student PKs (e.g. just promoted).
+    branch: optional Branch instance — only invoices for students in this branch.
     """
     from fees.models import FeeInvoice, FeeCarryForward
     from students.models import Student, StudentAcademicRecord
 
-    # Find all students with outstanding invoices in the source year
-    outstanding_invoices = FeeInvoice.objects.filter(
+    if source_year.id == target_year.id:
+        return {'created': 0, 'total_amount': str(Decimal('0'))}
+
+    qs = FeeInvoice.objects.filter(
         academic_year=source_year,
         outstanding_amount__gt=0,
         status__in=['SENT', 'PARTIALLY_PAID', 'OVERDUE'],
-    ).values('student').annotate(
+        student__tenant=tenant,
+    )
+    if branch is not None:
+        qs = qs.filter(student__branch=branch)
+    if student_ids is not None:
+        qs = qs.filter(student_id__in=student_ids)
+
+    outstanding_invoices = qs.values('student').annotate(
         total_fee=Sum('net_amount'),
         total_paid=Sum('paid_amount'),
         total_outstanding=Sum('outstanding_amount'),
@@ -337,15 +351,12 @@ def generate_carry_forwards(tenant, source_year, target_year, user):
         if carry_amount <= 0:
             continue
 
-        # Find the student's academic record for source year (if exists)
         source_record = StudentAcademicRecord.objects.filter(
             student_id=student_id, academic_year=source_year
         ).first()
 
-        # Get student for branch
         student = Student.objects.get(id=student_id)
 
-        # Create carry-forward (idempotent via unique_together)
         cf, was_created = FeeCarryForward.objects.get_or_create(
             student_id=student_id,
             source_academic_year=source_year,
@@ -370,6 +381,18 @@ def generate_carry_forwards(tenant, source_year, target_year, user):
         'created': created,
         'total_amount': str(total_amount),
     }
+
+
+def generate_carry_forwards(tenant, source_year, target_year, user):
+    """
+    Generate FeeCarryForward records for all students with outstanding dues.
+    Called during year closing.
+    """
+    return sync_carry_forwards_from_invoices(
+        tenant, source_year, target_year, user,
+        student_ids=None,
+        branch=None,
+    )
 
 
 # ─── Promotion Engine ──────────────────────────────────────────
@@ -413,6 +436,7 @@ def execute_promotion(tenant, source_year, target_year, branch, user, overrides=
     graduated = 0
     dropouts = 0
     errors = []
+    promoted_student_ids = []
 
     for record in records_qs:
         student_id = str(record.student_id)
@@ -485,6 +509,7 @@ def execute_promotion(tenant, source_year, target_year, branch, user, overrides=
             student.save()
 
             promoted += 1
+            promoted_student_ids.append(record.student_id)
 
         elif action == 'DETAIN':
             # Same grade next year
@@ -552,6 +577,13 @@ def execute_promotion(tenant, source_year, target_year, branch, user, overrides=
             record.student.leaving_date = timezone.now().date()
             record.student.leaving_reason = override.get('reason', 'Transferred')
             record.student.save()
+
+    if promoted_student_ids:
+        sync_carry_forwards_from_invoices(
+            tenant, source_year, target_year, user,
+            student_ids=promoted_student_ids,
+            branch=branch,
+        )
 
     log_bulk_action(
         user=user,

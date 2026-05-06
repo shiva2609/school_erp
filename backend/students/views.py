@@ -1,9 +1,10 @@
 import logging
+from collections import defaultdict
 
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 logger = logging.getLogger(__name__)
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -33,9 +34,9 @@ from .serializers import (
     StudentListSerializer, ParentStudentRelationSerializer,
 )
 from fees.models import FeeStructure, StudentFeeItem, FeeApprovalRequest
+from fees.transition_services import sync_carry_forwards_from_invoices
 
-
-from .services import create_student_fees, link_parent_accounts_to_student
+from .services import create_student_fees, link_parent_accounts_to_student, student_needs_promoted_year_fee_setup
 
 
 
@@ -371,6 +372,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                 'invoices',          # H1: eliminate N+1 for fee_stats/invoices
                 'invoices__payments', # H1: nested payment prefetch
                 'payments',          # H1: eliminate N+1 for payments
+                'academic_records',
             )
         
         # Teachers strictly see only students in their classes unless assigned otherwise
@@ -488,6 +490,51 @@ class StudentViewSet(viewsets.ModelViewSet):
             student.save()
         return Response({'success': True, 'data': StudentSerializer(student).data})
 
+    @action(detail=True, methods=['post'], url_path='setup-promoted-year-fees')
+    @transaction.atomic
+    def setup_promoted_year_fees(self, request, pk=None):
+        """
+        After promotion: confirm academic-year fee like new enrollment (manual offered total,
+        approval routing if below structure). Does not create admission (ADM-) invoices.
+        """
+        from decimal import InvalidOperation
+
+        student = self.get_object()
+        if not student_needs_promoted_year_fee_setup(student):
+            raise ValidationError({
+                'detail': 'Fees for this year are already set, or promotion fee setup is not required.',
+            })
+        if not student.class_section_id:
+            raise ValidationError({'detail': 'Student must have a class assigned.'})
+        structure = FeeStructure.objects.filter(
+            branch_id=student.branch_id,
+            academic_year_id=student.academic_year_id,
+            grade=student.class_section.grade,
+            is_active=True,
+        ).first()
+        if not structure:
+            raise ValidationError({
+                'detail': 'No active fee structure for this class and academic year. Configure it under Setup first.',
+            })
+        offered_raw = request.data.get('offered_total')
+        if offered_raw is None or str(offered_raw).strip() == '':
+            raise ValidationError({'detail': 'offered_total is required.'})
+        try:
+            offered_total = Decimal(str(offered_raw))
+        except (InvalidOperation, TypeError, ValueError):
+            raise ValidationError({'detail': 'Invalid offered_total.'})
+        standard_raw = request.data.get('standard_total')
+        standard_total = None
+        if standard_raw not in (None, ''):
+            try:
+                standard_total = Decimal(str(standard_raw))
+            except (InvalidOperation, TypeError, ValueError):
+                raise ValidationError({'detail': 'Invalid standard_total.'})
+        reason = (request.data.get('reason') or '').strip() or 'Promoted class — confirmed academic fee'
+        create_student_fees(student, offered_total, standard_total, reason, request.user)
+        serializer = self.get_serializer(student)
+        return Response({'success': True, 'data': serializer.data})
+
     @action(detail=False, methods=['post'], url_path='promote')
     @transaction.atomic
     def promote_students(self, request):
@@ -511,8 +558,11 @@ class StudentViewSet(viewsets.ModelViewSet):
         except (AcademicYear.DoesNotExist, ClassSection.DoesNotExist):
             return Response({'error': 'Invalid academic year or class section id.'}, status=400)
 
-        students = Student.objects.filter(id__in=student_ids, tenant=request.user.tenant)
-        
+        students = list(Student.objects.filter(id__in=student_ids, tenant=request.user.tenant))
+        by_source_year = defaultdict(list)
+        for s in students:
+            by_source_year[s.academic_year_id].append(s.pk)
+
         promoted_count = 0
         for student in students:
             # Dual-write: create academic record for source year (if not exists)
@@ -551,11 +601,30 @@ class StudentViewSet(viewsets.ModelViewSet):
             student.class_section = target_cs
             student.save()
             promoted_count += 1
-            
-            # Auto-generate the academic year fee records for the promoted student
-            create_student_fees(student, None, None, f'Promotion to {target_cs.grade}', request.user)
-            
-        return Response({'success': True, 'message': f'Successfully promoted {promoted_count} students.', 'promoted_count': promoted_count})
+
+        for source_year_id, sids in by_source_year.items():
+            if source_year_id == target_ay.id:
+                continue
+            try:
+                source_ay = AcademicYear.objects.get(id=source_year_id, tenant=request.user.tenant)
+            except AcademicYear.DoesNotExist:
+                continue
+            sync_carry_forwards_from_invoices(
+                request.user.tenant,
+                source_ay,
+                target_ay,
+                request.user,
+                student_ids=sids,
+            )
+
+        return Response({
+            'success': True,
+            'message': (
+                f'Successfully promoted {promoted_count} students. '
+                'Set academic-year fees per student from their profile (Fees tab).'
+            ),
+            'promoted_count': promoted_count,
+        })
 
     @action(detail=False, methods=['post'], url_path='import-csv')
     def import_csv(self, request):
