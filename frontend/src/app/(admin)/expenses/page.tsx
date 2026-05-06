@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/axios';
 import { useRouter } from 'next/navigation';
-import { Plus, Receipt, Check, X, FileText, Search, CreditCard, Wallet, Landmark, TrendingUp, RotateCcw, Tag } from 'lucide-react';
+import { Plus, Receipt, Check, X, FileText, Search, CreditCard, Wallet, Landmark, TrendingUp, RotateCcw, Tag, Trash2 } from 'lucide-react';
 import { EXPENSE_TYPE_PRESETS } from '@/lib/expenseTypePresets';
 import { toast } from 'react-hot-toast';
 import { useBranch } from '@/components/common/BranchContext';
@@ -22,6 +22,15 @@ interface Expense {
   vendor_display: string | null;
   payment_mode: string;
   submitted_by_name: string | null;
+}
+
+interface BulkExpenseRow {
+  title: string;
+  amount: string;
+  payment_mode: string;
+  category_name: string;
+  vendor_name: string;
+  voucher_number: string;
 }
 
 const statusStyles: Record<string, string> = {
@@ -58,6 +67,7 @@ export default function ExpensesPage() {
   const [activeTab, setActiveTab] = useState<'APPROVALS' | 'HISTORY'>('HISTORY');
   const [statusFilter, setStatusFilter] = useState('');
   const [showDrawer, setShowDrawer] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
   const [formData, setFormData] = useState({ 
@@ -69,6 +79,15 @@ export default function ExpensesPage() {
     vendor_name: '',
     voucher_number: '',
   });
+  const makeEmptyBulkRow = (): BulkExpenseRow => ({
+    title: '',
+    amount: '',
+    payment_mode: 'CASH',
+    category_name: '',
+    vendor_name: '',
+    voucher_number: '',
+  });
+  const [bulkRows, setBulkRows] = useState<BulkExpenseRow[]>([makeEmptyBulkRow()]);
 
   const branchParam = selectedBranch && selectedBranch !== 'all' ? `branch_id=${selectedBranch}` : '';
 
@@ -241,6 +260,45 @@ export default function ExpensesPage() {
       refetch();
     } catch (err: any) { toast.error('Error: ' + (err.response?.data?.detail || JSON.stringify(err.response?.data))); }
     finally { setSaving(false); }
+  };
+
+  const handleBulkAdd = async () => {
+    const cleaned = bulkRows
+      .map((r) => ({
+        ...r,
+        title: r.title.trim(),
+        category_name: r.category_name.trim(),
+        vendor_name: r.vendor_name.trim(),
+        voucher_number: r.voucher_number.trim(),
+      }))
+      .filter((r) => r.title || r.amount || r.category_name || r.vendor_name || r.voucher_number);
+
+    if (!cleaned.length) {
+      toast.error('Add at least one expense row.');
+      return;
+    }
+    for (let i = 0; i < cleaned.length; i += 1) {
+      const row = cleaned[i];
+      if (!row.title) { toast.error(`Row ${i + 1}: title is required`); return; }
+      if (!row.category_name) { toast.error(`Row ${i + 1}: expense type is required`); return; }
+      if (!row.amount || Number(row.amount) <= 0) { toast.error(`Row ${i + 1}: valid amount is required`); return; }
+    }
+
+    setSaving(true);
+    try {
+      await api.post('expenses/bulk-create/', {
+        expense_date: formData.expense_date,
+        items: cleaned,
+      });
+      toast.success(`${cleaned.length} expenses submitted.`);
+      setShowDrawer(false);
+      setBulkRows([makeEmptyBulkRow()]);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.items || err.response?.data?.detail || 'Failed to add expenses');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -516,6 +574,119 @@ export default function ExpensesPage() {
             </p>
           </div>
           <form onSubmit={handleAdd} className="p-6 space-y-5">
+            <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Entry mode</p>
+                <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setBulkMode(false)}
+                    className={`px-3 py-1.5 text-xs font-semibold ${!bulkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}
+                  >
+                    Single
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkMode(true)}
+                    className={`px-3 py-1.5 text-xs font-semibold ${bulkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}
+                  >
+                    Multiple (same date)
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {bulkMode ? (
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Expense date</h3>
+                <input
+                  type="date"
+                  required
+                  value={formData.expense_date}
+                  onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800"
+                />
+                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Rows</h3>
+                <div className="space-y-3">
+                  {bulkRows.map((row, idx) => (
+                    <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-2 rounded-xl border border-slate-200 p-3">
+                      <input
+                        placeholder="Description"
+                        value={row.title}
+                        onChange={(e) => setBulkRows((prev) => prev.map((x, i) => i === idx ? { ...x, title: e.target.value } : x))}
+                        className="md:col-span-2 px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                      />
+                      <input
+                        placeholder="Expense type"
+                        list="expense-category-datalist"
+                        value={row.category_name}
+                        onChange={(e) => setBulkRows((prev) => prev.map((x, i) => i === idx ? { ...x, category_name: e.target.value } : x))}
+                        className="px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Amount"
+                        value={row.amount}
+                        onChange={(e) => setBulkRows((prev) => prev.map((x, i) => i === idx ? { ...x, amount: e.target.value } : x))}
+                        className="px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                      />
+                      <select
+                        value={row.payment_mode}
+                        onChange={(e) => setBulkRows((prev) => prev.map((x, i) => i === idx ? { ...x, payment_mode: e.target.value } : x))}
+                        className="px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                      >
+                        <option value="CASH">Cash</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                        <option value="UPI">UPI / Digital</option>
+                        <option value="CHEQUE">Cheque</option>
+                      </select>
+                      <div className="flex gap-2">
+                        <input
+                          placeholder="Vendor"
+                          list="expense-vendor-datalist"
+                          value={row.vendor_name}
+                          onChange={(e) => setBulkRows((prev) => prev.map((x, i) => i === idx ? { ...x, vendor_name: e.target.value } : x))}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setBulkRows((prev) => prev.length === 1 ? prev : prev.filter((_, i) => i !== idx))}
+                          className="px-2 text-rose-600 hover:bg-rose-50 rounded-lg"
+                          title="Remove row"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBulkRows((prev) => [...prev, makeEmptyBulkRow()])}
+                  className="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold"
+                >
+                  + Add Row
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkRows([makeEmptyBulkRow()])}
+                  className="ml-2 px-3 py-2 rounded-lg bg-rose-50 text-rose-700 text-xs font-bold"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkAdd}
+                  disabled={saving}
+                  className="w-full mt-3 bg-slate-900 hover:bg-black text-white py-3.5 rounded-xl text-sm font-bold disabled:opacity-50"
+                >
+                  {saving ? 'Submitting…' : 'Submit all expenses'}
+                </button>
+              </section>
+            ) : (
+            <>
             <section className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 shadow-sm space-y-3">
               <div className="flex items-center gap-2 text-slate-700">
                 <Tag className="w-4 h-4 text-blue-600 shrink-0" />
@@ -660,6 +831,8 @@ export default function ExpensesPage() {
             >
               {saving ? 'Submitting…' : 'Submit expense'}
             </button>
+            </>
+            )}
           </form>
         </div>
       </Modal>

@@ -168,6 +168,14 @@ class ReportingViewSet(viewsets.ViewSet):
         if ay_id:
             revenue_qs = revenue_qs.filter(invoice__academic_year_id=ay_id)
         revenue_collected = revenue_qs.aggregate(total=Sum('amount'))['total'] or 0
+        academic_revenue_collected = revenue_qs.exclude(
+            invoice__invoice_number__startswith='ADM-'
+        ).exclude(
+            invoice__invoice_number__startswith='TRN-'
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        transport_revenue_collected = revenue_qs.filter(
+            invoice__invoice_number__startswith='TRN-'
+        ).aggregate(total=Sum('amount'))['total'] or 0
 
         return Response({
             'success': True,
@@ -175,6 +183,8 @@ class ReportingViewSet(viewsets.ViewSet):
                 'total_gross': float(stats['total_gross'] or 0),
                 'total_paid': float(stats['total_paid'] or 0),
                 'revenue_collected': float(revenue_collected),
+                'academic_revenue_collected': float(academic_revenue_collected),
+                'transport_revenue_collected': float(transport_revenue_collected),
                 'today_collection': float(today_collection),
                 'total_outstanding': float(stats['total_outstanding'] or 0),
                 'invoice_count': stats['count'],

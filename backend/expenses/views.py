@@ -6,7 +6,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
-from django.db.models import Sum
+from django.db.models import Sum, Max
+from django.db import transaction
 from decimal import Decimal
 
 from accounts.permissions import IsAccountantOrAbove, normalize_role, role_in
@@ -271,6 +272,137 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                 'message': f'{approved_count} expense(s) approved successfully.'
             }
         })
+
+    @action(detail=False, methods=['post'], url_path='bulk-create')
+    def bulk_create(self, request):
+        """
+        Create multiple same-day expenses in one request.
+        Payload:
+          {
+            "expense_date": "YYYY-MM-DD",
+            "items": [
+              {"title": "...", "amount": "123", "payment_mode": "CASH", "category_name": "...", "vendor_name": "...", "voucher_number": 10},
+              ...
+            ]
+          }
+        """
+        user = request.user
+        role = normalize_role(user.role)
+        from rest_framework.exceptions import PermissionDenied, ValidationError
+
+        if role != 'ACCOUNTANT':
+            raise PermissionDenied("Only accountants can log expenses.")
+        branch = user.branch
+        if not branch:
+            raise ValidationError({"branch": "Your account has no branch assigned. Contact your administrator."})
+
+        items = request.data.get('items') or []
+        if not isinstance(items, list) or not items:
+            raise ValidationError({"items": "Provide at least one expense row."})
+
+        raw_expense_date = request.data.get('expense_date')
+        if raw_expense_date:
+            try:
+                if isinstance(raw_expense_date, str):
+                    expense_date = datetime.strptime(str(raw_expense_date)[:10], '%Y-%m-%d').date()
+                else:
+                    expense_date = raw_expense_date
+            except ValueError:
+                raise ValidationError({"expense_date": "Date must be in YYYY-MM-DD format."})
+        else:
+            expense_date = timezone.now().date()
+
+        max_rows = 100
+        if len(items) > max_rows:
+            raise ValidationError({"items": f"Max {max_rows} rows allowed per save."})
+
+        created = []
+        next_voucher = (Expense.objects.filter(branch=branch).aggregate(m=Max('voucher_number'))['m'] or 0) + 1
+        seen_manual_vouchers = set()
+
+        with transaction.atomic():
+            for idx, row in enumerate(items, start=1):
+                title = str((row or {}).get('title') or '').strip()
+                if not title:
+                    raise ValidationError({"items": f"Row {idx}: title is required."})
+
+                amount_raw = (row or {}).get('amount')
+                try:
+                    amount_val = Decimal(str(amount_raw))
+                except Exception:
+                    raise ValidationError({"items": f"Row {idx}: amount is invalid."})
+                if amount_val <= 0:
+                    raise ValidationError({"items": f"Row {idx}: amount must be greater than zero."})
+
+                payment_mode = str((row or {}).get('payment_mode') or 'CASH')
+                allowed_modes = {'CASH', 'BANK_TRANSFER', 'UPI', 'CHEQUE', 'NEFT', 'RTGS', 'CARD'}
+                if payment_mode not in allowed_modes:
+                    raise ValidationError({"items": f"Row {idx}: invalid payment_mode '{payment_mode}'."})
+
+                category_name = str((row or {}).get('category_name') or '').strip() or 'General'
+                category, _ = ExpenseCategory.objects.get_or_create(
+                    tenant=user.tenant, branch=branch, name=category_name,
+                    defaults={'code': category_name[:10].upper().replace(' ', '_') or 'GEN'}
+                )
+
+                vendor_obj = None
+                vendor_name = str((row or {}).get('vendor_name') or '').strip()
+                if vendor_name:
+                    vendor_obj, _ = Vendor.objects.get_or_create(
+                        tenant=user.tenant, branch=branch, name=vendor_name
+                    )
+
+                manual_voucher = (row or {}).get('voucher_number')
+                if manual_voucher in (None, ''):
+                    voucher_number = next_voucher
+                    next_voucher += 1
+                else:
+                    try:
+                        voucher_number = int(manual_voucher)
+                    except Exception:
+                        raise ValidationError({"items": f"Row {idx}: voucher_number must be an integer."})
+                    if voucher_number in seen_manual_vouchers:
+                        raise ValidationError({"items": f"Row {idx}: duplicate voucher_number in request."})
+                    seen_manual_vouchers.add(voucher_number)
+                    if Expense.objects.filter(branch=branch, voucher_number=voucher_number).exists():
+                        raise ValidationError({"items": f"Row {idx}: voucher_number already exists."})
+
+                status_value = 'APPROVED' if amount_val <= 3000 else 'SUBMITTED'
+                expense = Expense.objects.create(
+                    tenant=user.tenant,
+                    branch=branch,
+                    category=category,
+                    vendor=vendor_obj,
+                    title=title,
+                    amount=amount_val,
+                    expense_date=expense_date,
+                    payment_mode=payment_mode,
+                    voucher_number=voucher_number,
+                    submitted_by=user,
+                    approved_by=user if status_value == 'APPROVED' else None,
+                    approved_at=timezone.now() if status_value == 'APPROVED' else None,
+                    status=status_value,
+                )
+                if status_value == 'APPROVED':
+                    TransactionLog.objects.create(
+                        tenant=user.tenant, branch=branch,
+                        transaction_type='EXPENSE', category=category.name,
+                        reference_model='Expense', reference_id=expense.id,
+                        amount=expense.amount, description=expense.title,
+                        transaction_date=expense.expense_date,
+                    )
+                created.append(expense)
+
+        return Response(
+            {
+                'success': True,
+                'data': {
+                    'count': len(created),
+                    'items': ExpenseSerializer(created, many=True).data,
+                },
+            },
+            status=status.HTTP_201_CREATED
+        )
 
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):

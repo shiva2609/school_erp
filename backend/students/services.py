@@ -85,6 +85,20 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
         student.refresh_from_db() 
         
         routing, discount_amount = compute_fee_approval_routing(branch, standard_total, offered_total)
+
+        # Fallback: if zonal routing applies but no active zonal admins are mapped to this zone,
+        # escalate to tenant super admin queue.
+        if routing == 'ZONAL' and branch.zone_id:
+            from accounts.models import User
+            has_zonal_reviewer = User.objects.filter(
+                tenant=tenant,
+                role='ZONAL_ADMIN',
+                is_active=True,
+                zone_accesses__zone_id=branch.zone_id,
+            ).exists()
+            if not has_zonal_reviewer:
+                routing = 'TENANT_SUPER'
+
         approval = FeeApprovalRequest.objects.create(
             tenant=tenant,
             branch=branch,

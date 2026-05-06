@@ -388,32 +388,140 @@ function AcademicYearManager() {
 }
 
 function BranchManager() {
-  const { data, loading, refetch } = useApi<any[]>('/tenants/branches/');
+  const { confirm } = useConfirm();
+  const { data, refetch } = useApi<any[]>('/tenants/branches/');
+  const { data: zones, refetch: refetchZones } = useApi<any[]>('/tenants/zones/');
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', branch_code: '', address: '', is_active: true });
   const [saving, setSaving] = useState(false);
+  const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: '', branch_code: '', address: '', is_active: true, zone: '',
+  });
 
-  const formats = []; // Removed
-  const getPreview = (fmt: string, pref: string, code: string) => "---"; // Removed
+  const resetForm = () => {
+    setFormData({ name: '', branch_code: '', address: '', is_active: true, zone: '' });
+    setEditingBranchId(null);
+    setShowForm(false);
+  };
+
+  const handleCreateZone = async () => {
+    const name = prompt('Enter zone name (e.g. North Zone):', 'Zone 1');
+    if (!name?.trim()) return;
+    try {
+      await api.post('tenants/zones/', { name: name.trim(), is_active: true });
+      toast.success('Zone created');
+      refetchZones();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Could not create zone');
+    }
+  };
+
+  const handleEditZone = async (zone: any) => {
+    const name = prompt('Edit zone name:', zone.name || '');
+    if (!name?.trim() || name.trim() === zone.name) return;
+    try {
+      await api.patch(`tenants/zones/${zone.id}/`, { name: name.trim() });
+      toast.success('Zone updated');
+      refetchZones();
+      refetch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Could not update zone');
+    }
+  };
+
+  const handleDeleteZone = async (zone: any) => {
+    const ok = await confirm({
+      title: 'Delete Zone',
+      message: `Delete zone "${zone.name}"? Branches in this zone will become unassigned.`,
+      isDestructive: true,
+      confirmText: 'Delete Zone',
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`tenants/zones/${zone.id}/`);
+      toast.success('Zone deleted');
+      refetchZones();
+      refetch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Could not delete zone');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.branch_code) { toast.error("Name and Code are required"); return; }
+    if (!formData.name?.trim() || !formData.branch_code?.trim()) {
+      toast.error('Branch name and code are required');
+      return;
+    }
     setSaving(true);
     try {
-      await api.post('tenants/branches/', formData);
-      setShowForm(false);
-      setFormData({ name: '', branch_code: '', address: '', is_active: true });
+      const payload: any = {
+        name: formData.name.trim(),
+        branch_code: formData.branch_code.trim().toUpperCase(),
+        address: formData.address,
+        is_active: formData.is_active,
+      };
+      if (formData.zone) payload.zone = formData.zone;
+
+      if (editingBranchId) {
+        await api.patch(`tenants/branches/${editingBranchId}/`, payload);
+        toast.success('Branch updated');
+      } else {
+        await api.post('tenants/branches/', payload);
+        toast.success('Branch created');
+      }
+      resetForm();
       refetch();
-    } catch (err: any) { toast.error('Error creating branch'); } finally { setSaving(false); }
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Error saving branch');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  
+  const openEdit = (branch: any) => {
+    setEditingBranchId(branch.id);
+    setFormData({
+      name: branch.name || '',
+      branch_code: branch.branch_code || '',
+      address: branch.address || '',
+      is_active: !!branch.is_active,
+      zone: branch.zone || '',
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = async (branch: any) => {
+    const ok = await confirm({
+      title: 'Delete Branch',
+      message: `Delete branch "${branch.name}" permanently? This removes linked data by cascade rules and cannot be undone.`,
+      isDestructive: true,
+      confirmText: 'Delete Branch',
+    });
+    if (!ok) return;
+
+    try {
+      await api.delete(`tenants/branches/${branch.id}/`);
+      toast.success('Branch deleted');
+      refetch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to delete branch');
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <button onClick={() => setShowForm(!showForm)}
-          className="bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
+        <button
+          onClick={handleCreateZone}
+          className="bg-violet-100 text-violet-700 px-4 py-2 rounded-xl text-sm font-medium hover:bg-violet-200 transition-colors"
+        >
+          + Add Zone
+        </button>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2"
+        >
           {showForm ? 'Cancel' : <><CustomPlus size={16} /> Add Branch</>}
         </button>
       </div>
@@ -423,38 +531,123 @@ function BranchManager() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-500 px-1">Branch Name</label>
-              <input placeholder="e.g. Hyderabad Main" value={formData.name}
-                onChange={e => setFormData({...formData, name: e.target.value})}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input
+                placeholder="e.g. Hyderabad Main"
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-500 px-1">Branch Code</label>
-              <input placeholder="e.g. HYD001" value={formData.branch_code}
-                onChange={e => setFormData({...formData, branch_code: e.target.value})}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input
+                placeholder="e.g. HYD001"
+                value={formData.branch_code}
+                onChange={e => setFormData({ ...formData, branch_code: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-xs font-semibold text-gray-500 px-1">Address</label>
+              <input
+                placeholder="Branch address (optional)"
+                value={formData.address}
+                onChange={e => setFormData({ ...formData, address: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 px-1">Zone</label>
+              <select
+                value={formData.zone}
+                onChange={e => setFormData({ ...formData, zone: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm"
+              >
+                <option value="">Unassigned</option>
+                {zones?.map((z: any) => (
+                  <option key={z.id} value={z.id}>{z.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1 flex items-end">
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={formData.is_active}
+                  onChange={e => setFormData({ ...formData, is_active: e.target.checked })}
+                />
+                Branch active
+              </label>
             </div>
           </div>
 
           <button type="submit" disabled={saving} className="bg-slate-900 text-white px-8 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-800 disabled:opacity-50">
-            {saving ? 'Creating...' : 'Create Branch'}
+            {saving ? 'Saving...' : editingBranchId ? 'Update Branch' : 'Create Branch'}
           </button>
         </form>
+      )}
+
+      {!!zones?.length && (
+        <div className="bg-white p-4 rounded-xl border border-gray-100">
+          <p className="text-xs font-semibold text-gray-500 mb-2">Zones</p>
+          <div className="flex flex-wrap gap-2">
+            {zones.map((z: any) => (
+              <div key={z.id} className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                <span>{z.name}</span>
+                <button
+                  type="button"
+                  onClick={() => handleEditZone(z)}
+                  className="rounded-full p-0.5 hover:bg-violet-100"
+                  title="Edit zone"
+                >
+                  <Edit2 size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteZone(z)}
+                  className="rounded-full p-0.5 hover:bg-rose-100 hover:text-rose-700"
+                  title="Delete zone"
+                >
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {data?.map((branch) => (
           <div key={branch.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                    <div className="bg-blue-50 p-2.5 rounded-xl text-blue-600"><Building2 size={20} /></div>
-                    <div>
-                        <h3 className="font-bold text-gray-900">{branch.name}</h3>
-                        <p className="text-xs text-gray-500 font-medium">{branch.branch_code}</p>
-                    </div>
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-50 p-2.5 rounded-xl text-blue-600"><Building2 size={20} /></div>
+                <div>
+                  <h3 className="font-bold text-gray-900">{branch.name}</h3>
+                  <p className="text-xs text-gray-500 font-medium">{branch.branch_code}</p>
                 </div>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${branch.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                {branch.is_active ? 'ACTIVE' : 'INACTIVE'}
+              </span>
             </div>
-            <div className="space-y-2">
-                <p className="text-xs text-blue-600 font-bold">Standard Fees: Enabled</p>
+            <div className="space-y-1 mb-3">
+              <p className="text-xs text-blue-600 font-bold">Zone: {branch.zone_name || 'Unassigned'}</p>
+              {branch.address && <p className="text-xs text-gray-500">{branch.address}</p>}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => openEdit(branch)}
+                className="flex-1 py-2 bg-gray-50 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-100 border border-gray-100 flex items-center justify-center gap-1"
+              >
+                <Edit2 size={13} /> Edit
+              </button>
+              <button
+                onClick={() => handleDelete(branch)}
+                className="flex-1 py-2 bg-rose-50 text-rose-700 rounded-xl text-xs font-bold hover:bg-rose-100 border border-rose-100 flex items-center justify-center gap-1"
+              >
+                <Trash2 size={13} /> Delete
+              </button>
             </div>
           </div>
         ))}

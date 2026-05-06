@@ -81,8 +81,8 @@ export default function AdminApprovalsQueue() {
     if (!ok) return;
 
     try {
-      await api.post(`fees/approvals/${id}/reject/`, { remarks: '' });
-      toast.success(`Fee reduction for ${studentName} rejected`);
+      const res = await api.post(`fees/approvals/${id}/reject/`, { remarks: '' });
+      toast.success(res.data?.message || `Fee reduction for ${studentName} rejected`);
       fetchApprovals();
     } catch {
       toast.error('Failed to reject request');

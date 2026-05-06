@@ -60,6 +60,7 @@ export default function BranchDashboard({ user }: { user: any }) {
   const avgAttendance = data.attendance.length > 0 
     ? Math.round(data.attendance.reduce((acc: any, curr: any) => acc + curr.percentage, 0) / data.attendance.length)
     : 0;
+  const hasTransportRevenue = Number(data.stats?.transport_revenue_collected || 0) > 0;
 
   return (
     <div className="space-y-6 pb-10">
@@ -73,11 +74,19 @@ export default function BranchDashboard({ user }: { user: any }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Today's Collection" value={`₹${(data.stats?.today_collection || 0).toLocaleString('en-IN')}`} icon={IndianRupee} color="green" />
         <StatCard
-          title="Revenue received"
-          value={`₹${(data.stats?.revenue_collected ?? data.stats?.total_paid ?? 0).toLocaleString('en-IN')}`}
+          title="Academic revenue received"
+          value={`₹${(data.stats?.academic_revenue_collected ?? data.stats?.revenue_collected ?? data.stats?.total_paid ?? 0).toLocaleString('en-IN')}`}
           icon={TrendingUp}
           color="purple"
         />
+        {hasTransportRevenue && (
+          <StatCard
+            title="Transport revenue received"
+            value={`₹${(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}`}
+            icon={IndianRupee}
+            color="amber"
+          />
+        )}
         <StatCard title="Outstanding Dues" value={`₹${(data.stats?.total_outstanding || 0).toLocaleString('en-IN')}`} icon={AlertCircle} color="red" />
         <StatCard title="Today's Attendance" value={`${avgAttendance}%`} icon={Calendar} color="blue" />
       </div>

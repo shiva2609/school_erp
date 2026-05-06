@@ -36,6 +36,12 @@ export default function StudentProfilePage() {
   const [reinstating, setReinstating] = useState(false);
   const { data: academicRecords, loading: recordsLoading } = useApi<any[]>(`/academic-records/?student_id=${id}`);
 
+  const completedPayments = (student?.payments || []).filter((p: any) => p.status === 'COMPLETED');
+  const refundedPayments = (student?.payments || []).filter((p: any) => p.status === 'REFUNDED');
+  const completedAmount = completedPayments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+  const refundedAmount = refundedPayments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+  const requiresInitialPayment = !!student?.requires_initial_payment && !student?.is_csv_imported;
+
   if (loading && !student) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
       <div className="w-12 h-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin" />
@@ -116,6 +122,21 @@ export default function StudentProfilePage() {
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to mark dropout.');
     } finally { setDroppingOut(false); }
+  };
+
+  const handleOpenInvoicePayment = (inv: any) => {
+    if (requiresInitialPayment) {
+      toast.error('Initial admission + academic payment is pending. Please complete it first.');
+      router.push(`/students/${id}/pay-admission`);
+      return;
+    }
+    setSelectedInvoice({
+      id: inv.id,
+      invoice_number: inv.invoice_number,
+      outstanding_amount: inv.outstanding_amount,
+      student_name: `${student.first_name} ${student.last_name}`
+    });
+    setShowPaymentModal(true);
   };
 
   const handleReinstate = async () => {
@@ -239,6 +260,18 @@ export default function StudentProfilePage() {
               {student.first_name} {student.last_name}
             </h1>
             <div className="flex flex-wrap items-center gap-4">
+
+            {student.status === 'PENDING_APPROVAL' && completedAmount > 0 && (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                <AlertCircle size={14} /> Payment collected: ₹{completedAmount.toLocaleString('en-IN')} — awaiting fee concession approval.
+              </div>
+            )}
+            {student.status === 'INACTIVE' && refundedAmount > 0 && (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800">
+                <AlertCircle size={14} /> Approval rejected: refund tagged ₹{refundedAmount.toLocaleString('en-IN')} (removed from collections).
+              </div>
+            )}
+
               <div className="flex items-center gap-2 text-sm font-bold text-slate-500 bg-slate-50 px-3 py-1 rounded-lg">
                 <Hash size={14} /> {student.admission_number}
               </div>
@@ -654,15 +687,7 @@ export default function StudentProfilePage() {
                           <p className="text-2xl font-black text-slate-900 italic tracking-tighter">₹{inv.outstanding_amount.toLocaleString('en-IN')}</p>
                         </div>
                         <button 
-                          onClick={() => {
-                            setSelectedInvoice({
-                              id: inv.id,
-                              invoice_number: inv.invoice_number,
-                              outstanding_amount: inv.outstanding_amount,
-                              student_name: `${student.first_name} ${student.last_name}`
-                            });
-                            setShowPaymentModal(true);
-                          }}
+                          onClick={() => handleOpenInvoicePayment(inv)}
                           className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 hover:shadow-blue-200 transition-all flex items-center gap-2 group-hover:-translate-y-1"
                         >
                           <CreditCard size={14} /> Record Payment

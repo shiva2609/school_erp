@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.utils import timezone
+from django.db.models import Q
 from .models import (
     ClassSection, AdmissionInquiry, AdmissionApplication,
     ApplicationDocument, Student, ParentStudentRelation,
@@ -101,11 +102,17 @@ class StudentSerializer(serializers.ModelSerializer):
     fee_stats = serializers.SerializerMethodField()
     invoices = serializers.SerializerMethodField()
     payments = serializers.SerializerMethodField()
+    is_csv_imported = serializers.SerializerMethodField()
+    requires_initial_payment = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at', 'enrollment_date', 'tenant', 'proposed_fee', 'fee_stats', 'invoices', 'payments', 'transport_info']
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'enrollment_date', 'tenant', 'proposed_fee',
+            'fee_stats', 'invoices', 'payments', 'transport_info', 'is_csv_imported',
+            'requires_initial_payment',
+        ]
         extra_kwargs = {
             'admission_number': {'required': False, 'allow_blank': True}
         }
@@ -166,6 +173,28 @@ class StudentSerializer(serializers.ModelSerializer):
         from fees.serializers import PaymentSerializer
         payments = Payment.objects.filter(student=obj).order_by('-payment_date', '-created_at')
         return PaymentSerializer(payments, many=True).data
+
+    def get_is_csv_imported(self, obj):
+        # CSV imports preserve source admission number in legacy_admission_number.
+        return bool((obj.legacy_admission_number or '').strip())
+
+    def get_requires_initial_payment(self, obj):
+        """
+        For normal admissions (non-CSV), ensure at least one completed admission
+        or academic payment exists before allowing regular invoice payments.
+        """
+        if self.get_is_csv_imported(obj):
+            return False
+
+        from fees.models import Payment
+        has_initial_payment = Payment.objects.filter(
+            student=obj,
+            status='COMPLETED',
+        ).filter(
+            Q(invoice__invoice_number__startswith='ADM-') |
+            (~Q(invoice__invoice_number__startswith='ADM-') & ~Q(invoice__invoice_number__startswith='TRN-'))
+        ).exists()
+        return not has_initial_payment
 
 
 class StudentListSerializer(serializers.ModelSerializer):

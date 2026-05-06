@@ -1,7 +1,8 @@
 from decimal import Decimal
 from datetime import date
 from django.db import transaction
-from .models import FeeInvoice, FeeInvoiceItem, FeeStructure, FeeStructureItem, Payment
+from django.db.models import Sum
+from .models import FeeInvoice, FeeInvoiceItem, FeeStructure, FeeStructureItem, Payment, StudentFeeItem
 from students.models import Student
 from accounts.utils import log_audit_action, log_bulk_action
 import logging
@@ -284,6 +285,52 @@ def _academic_invoice_for_initial_tuition(student):
     return annual or qs.first()
 
 
+def _ensure_academic_invoice_for_initial_tuition(student, user):
+    """
+    Ensure there is an annual academic invoice to receive initial tuition payment.
+
+    This is important for discounted admissions that are pending approval; front-desk
+    should still be able to collect payment immediately.
+    """
+    existing = _academic_invoice_for_initial_tuition(student)
+    if existing:
+        return existing
+
+    fee_items = StudentFeeItem.objects.filter(student=student, academic_year=student.academic_year)
+    net = fee_items.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    if net <= 0:
+        return None
+
+    seq = FeeInvoice.objects.filter(branch=student.branch).count() + 1
+    invoice = FeeInvoice.objects.create(
+        tenant=student.tenant,
+        invoice_number=f"INV-{student.academic_year.start_date.year}-{seq:04d}",
+        student=student,
+        branch=student.branch,
+        academic_year=student.academic_year,
+        month='ANNUAL',
+        gross_amount=net,
+        concession_amount=Decimal('0.00'),
+        net_amount=net,
+        outstanding_amount=net,
+        due_date=date.today(),
+        status='SENT',
+        generated_by='AUTO',
+        created_by=user,
+    )
+    FeeInvoiceItem.objects.bulk_create([
+        FeeInvoiceItem(
+            invoice=invoice,
+            category=it.category,
+            original_amount=it.amount,
+            concession=Decimal('0.00'),
+            final_amount=it.amount,
+        )
+        for it in fee_items
+    ])
+    return invoice
+
+
 def _apply_payment_to_invoice(user, student, invoice, amount: Decimal, payment_mode, payment_date, reference_number, description: str):
     from .models import DocumentSequence
     from expenses.models import TransactionLog
@@ -415,7 +462,7 @@ def process_initial_payment(user, student, admission_fee, tuition_payment, payme
                 payment_ids.append(str(p.id))
 
         if tuition_effective > 0:
-            acad_inv = _academic_invoice_for_initial_tuition(student)
+            acad_inv = _ensure_academic_invoice_for_initial_tuition(student, user)
             if not acad_inv:
                 raise ValidationError(
                     'No outstanding academic fee invoice found. '

@@ -20,6 +20,7 @@ export default function AdminDashboard({ user }: { user: any }) {
     admissionFunnel: []
   });
   const [loading, setLoading] = useState(true);
+  const hasTransportRevenue = Number(data.stats?.transport_revenue_collected || 0) > 0;
 
   useEffect(() => {
     let isMounted = true;
@@ -74,11 +75,19 @@ export default function AdminDashboard({ user }: { user: any }) {
         <StatCard title="Total Enrollment" value={(data.stats?.total_students || 0).toLocaleString('en-IN')} icon={Users} color="blue" />
         <StatCard title="Active Branches" value={(data.stats?.active_branches || 0).toString()} icon={Building2} color="purple" />
         <StatCard
-          title="Revenue received"
-          value={`₹${(data.stats?.revenue_collected ?? data.stats?.total_paid ?? 0).toLocaleString('en-IN')}`}
+          title="Academic revenue received"
+          value={`₹${(data.stats?.academic_revenue_collected ?? data.stats?.revenue_collected ?? data.stats?.total_paid ?? 0).toLocaleString('en-IN')}`}
           icon={TrendingUp}
           color="green"
         />
+        {hasTransportRevenue && (
+          <StatCard
+            title="Transport revenue received"
+            value={`₹${(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}`}
+            icon={IndianRupee}
+            color="amber"
+          />
+        )}
         <StatCard 
           title="Avg Attendance" 
           value={`${data.attendance.length > 0 ? Math.round(data.attendance.reduce((a: any, b: any) => a + b.percentage, 0) / data.attendance.length) : 0}%`} 

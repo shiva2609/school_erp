@@ -181,18 +181,73 @@ class FeeApprovalRequestViewSet(viewsets.ModelViewSet):
         
         return Response({'success': True, 'message': 'Fee reduction approved.'})
 
+    @transaction.atomic
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
         approval = self.get_object()
         if not user_can_act_on_fee_approval(request.user, approval):
             raise PermissionDenied('You cannot reject this request.')
+
         approval.status = 'REJECTED'
         approval.reviewed_by = request.user
         approval.reviewed_at = timezone.now()
         approval.admin_remarks = request.data.get('remarks', '')
         approval.save()
-        
-        return Response({'success': True, 'message': 'Fee reduction rejected.'})
+
+        student = approval.student
+        if student.status == 'PENDING_APPROVAL':
+            student.status = 'INACTIVE'
+            student.save(update_fields=['status'])
+
+        # Reverse already-collected payments so cashbook/collection totals are corrected.
+        completed = Payment.objects.select_for_update().filter(student=student, status='COMPLETED')
+        refund_total = Decimal('0.00')
+        reversed_receipts = []
+        from expenses.models import TransactionLog
+
+        for payment in completed:
+            invoice = FeeInvoice.objects.select_for_update().filter(id=payment.invoice_id).first()
+            if invoice:
+                invoice.paid_amount = max(invoice.paid_amount - payment.amount, Decimal('0.00'))
+                invoice.outstanding_amount = invoice.net_amount - invoice.paid_amount
+                if invoice.paid_amount > 0:
+                    invoice.status = 'PARTIALLY_PAID'
+                else:
+                    invoice.status = 'SENT'
+                invoice.save(update_fields=['paid_amount', 'outstanding_amount', 'status'])
+
+            payment.status = 'REFUNDED'
+            payment.save(update_fields=['status'])
+            refund_total += payment.amount
+            if payment.receipt_number:
+                reversed_receipts.append(payment.receipt_number)
+
+            TransactionLog.objects.create(
+                tenant=payment.tenant,
+                branch=payment.branch,
+                transaction_type='INCOME',
+                category='Fee Reversal',
+                reference_model='Payment',
+                reference_id=payment.id,
+                amount=-payment.amount,
+                description=(
+                    f"Auto-reversal after fee concession rejection for "
+                    f"{student.admission_number} ({payment.receipt_number or payment.id})"
+                ),
+                transaction_date=timezone.now().date(),
+            )
+
+        return Response({
+            'success': True,
+            'message': (
+                f"Fee reduction rejected. Refund required: ₹{float(refund_total):.2f}"
+                if refund_total > 0 else 'Fee reduction rejected.'
+            ),
+            'data': {
+                'refund_total': float(refund_total),
+                'reversed_receipts': reversed_receipts,
+            },
+        })
 
 
 class FeeConcessionViewSet(viewsets.ModelViewSet):
@@ -595,6 +650,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
             )
         except DRFValidationError as e:
             return Response({'detail': e.detail}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.exception('Initial payment failed for student %s by user %s', student.id, request.user.id)
+            return Response(
+                {'detail': 'Initial payment failed. Please verify invoice balances and try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         return Response({'success': True, 'data': result}, status=status.HTTP_201_CREATED)
 

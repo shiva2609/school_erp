@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import api from '@/lib/axios';
-import { Building2, Search, PowerOff, Power, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Building2, Search, PowerOff, Power, ShieldAlert, CheckCircle2, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useConfirm } from '@/components/common/ConfirmProvider';
 
@@ -56,6 +56,27 @@ export default function TenantControlPage() {
     } catch (err: any) {
       setError('Failed to update tenant status.');
       setTimeout(() => setError(''), 3000);
+    }
+  };
+
+
+  const handleDeleteTenant = async (tenantId: string, tenantName: string) => {
+    const isConfirmed = await confirm({
+      title: 'Delete Tenant Permanently',
+      message: `Delete ${tenantName}? This permanently removes tenant data across branches, users, students, fees, and logs. This cannot be undone.`,
+      isDestructive: true,
+      confirmText: 'Delete Tenant',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      await api.delete(`tenants/super-admin/all/${tenantId}/`);
+      setTenants(prev => prev.filter(t => t.id !== tenantId));
+      setSuccess('Tenant deleted permanently.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to delete tenant.');
+      setTimeout(() => setError(''), 4000);
     }
   };
 
@@ -149,20 +170,28 @@ export default function TenantControlPage() {
                       <div className="text-xs text-gray-500">{format(new Date(tenant.created_at), 'hh:mm a')}</div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => handleToggleStatus(tenant.id, tenant.is_active)}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-all ${
-                          tenant.is_active
-                            ? 'bg-white border-red-200 text-red-600 hover:bg-red-50 hover:shadow-md'
-                            : 'bg-green-600 border-transparent text-white hover:bg-green-700 hover:shadow-md'
-                        }`}
-                      >
-                        {tenant.is_active ? (
-                          <><PowerOff className="w-4 h-4" /> Freeze Domain</>
-                        ) : (
-                          <><Power className="w-4 h-4" /> Reactivate</>
-                        )}
-                      </button>
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          onClick={() => handleToggleStatus(tenant.id, tenant.is_active)}
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-all ${
+                            tenant.is_active
+                              ? 'bg-white border-red-200 text-red-600 hover:bg-red-50 hover:shadow-md'
+                              : 'bg-green-600 border-transparent text-white hover:bg-green-700 hover:shadow-md'
+                          }`}
+                        >
+                          {tenant.is_active ? (
+                            <><PowerOff className="w-4 h-4" /> Freeze</>
+                          ) : (
+                            <><Power className="w-4 h-4" /> Reactivate</>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTenant(tenant.id, tenant.name)}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-rose-300 text-rose-700 bg-white hover:bg-rose-50 text-sm font-semibold transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" /> Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

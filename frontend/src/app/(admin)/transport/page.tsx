@@ -28,6 +28,9 @@ export default function TransportPage() {
   const { data: rates, loading: ratesLoading, refetch: refetchRates } = useApi<any[]>(
     `/transport/rate-slabs/?branch_id=${selectedBranch}`
   );
+  const { data: feeStats } = useApi<any>(
+    `/reports/fees/stats/?branch_id=${selectedBranch || ''}`
+  );
 
   return (
     <div className="space-y-6">
@@ -52,6 +55,16 @@ export default function TransportPage() {
       </div>
 
       {/* Tabs Navigation */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Transport Revenue Received</p>
+          <p className="text-2xl font-black text-blue-700">
+            ₹{Number(feeStats?.transport_revenue_collected || 0).toLocaleString('en-IN')}
+          </p>
+          <p className="text-[11px] text-gray-400 mt-1">Completed TRN invoice payments only.</p>
+        </div>
+      </div>
+
       <div className="flex gap-2 bg-white p-1 rounded-2xl border border-gray-100 shadow-sm w-fit">
         {[
           { id: 'students', label: 'Enrolled Students', icon: Users },

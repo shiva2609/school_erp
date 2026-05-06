@@ -77,8 +77,22 @@ export default function PayAdmissionPage() {
       setResult(res.data.data);
       setSuccess(true);
     } catch (err: any) {
-      const d = err.response?.data?.detail;
-      toast.error(typeof d === 'string' ? d : d ? JSON.stringify(d) : 'Error processing payment');
+      const payload = err.response?.data;
+      const detail = payload?.detail;
+      const fieldErrors = payload && typeof payload === 'object'
+        ? Object.entries(payload)
+            .filter(([k]) => k !== 'detail')
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : String(v)}`)
+            .join(' | ')
+        : '';
+      const msg =
+        (typeof detail === 'string' && detail) ||
+        (Array.isArray(detail) && detail.length ? detail.join(', ') : '') ||
+        fieldErrors ||
+        payload?.error ||
+        err.message ||
+        'Error processing payment';
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
