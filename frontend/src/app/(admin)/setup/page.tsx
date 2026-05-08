@@ -776,7 +776,7 @@ function ClassAndFeeSetup({ user }: { user: any }) {
     }
   };
 
-  const findClassFeeCategory = (allCategories: any[] | undefined, branchId: string) => {
+  const findClassFeeCategory = (allCategories: any[] | null | undefined, branchId: string) => {
     if (!Array.isArray(allCategories)) return null;
     return (
       allCategories.find(

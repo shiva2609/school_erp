@@ -214,17 +214,11 @@ const getNavGroups = (user: { role: string; tenant?: string | null }) => {
 function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading, refreshUser } = useAuth();
+  const { user, loading, refreshUser, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = async () => {
-    try {
-      await api.post('auth/logout/');
-    } catch (err) {
-      // API might fail if token is already expired, continue to redirect regardless
-    } finally {
-      router.push('/login');
-    }
+    await logout({ confirm: true });
   };
 
   useEffect(() => {
