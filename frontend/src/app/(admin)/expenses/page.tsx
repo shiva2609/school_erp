@@ -104,7 +104,7 @@ export default function ExpensesPage() {
   }, [router]);
 
   const manualIncomeLedgerUrl =
-    user && ['ACCOUNTANT', 'BRANCH_ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(user.role)
+    user && ['ACCOUNTANT', 'BRANCH_ADMIN', 'SUPER_ADMIN', 'OWNER', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN'].includes(user.role)
       ? `accounting/cashbook/?reference_model=MANUAL_OTHER_INCOME${branchParam ? `&${branchParam}` : ''}`
       : null;
 
@@ -137,7 +137,7 @@ export default function ExpensesPage() {
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'OWNER';
   const canLogExpense = user?.role === 'ACCOUNTANT';
-  const canRecordMiscIncome = user && ['ACCOUNTANT', 'BRANCH_ADMIN', 'SUPER_ADMIN'].includes(user.role);
+  const canRecordMiscIncome = user && ['ACCOUNTANT', 'BRANCH_ADMIN', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN'].includes(user.role);
 
   const [otherIncomePresets, setOtherIncomePresets] = useState<string[]>([...DEFAULT_OTHER_INCOME_PRESETS]);
   const [oiCategorySelect, setOiCategorySelect] = useState('');
@@ -169,7 +169,7 @@ export default function ExpensesPage() {
       return;
     }
     if (!oiAmount || Number(oiAmount) <= 0) { toast.error('Enter a positive amount'); return; }
-    if (['SUPER_ADMIN', 'OWNER'].includes(user?.role || '') && (!selectedBranch || selectedBranch === 'all')) {
+    if (['SUPER_ADMIN', 'OWNER', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN'].includes(user?.role || '') && (!selectedBranch || selectedBranch === 'all')) {
       toast.error('Select a specific branch in the header before recording other income.');
       return;
     }

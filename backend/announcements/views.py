@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
-from accounts.permissions import IsBranchAdminOrAbove
+from accounts.permissions import IsAccountantOrAbove
 from .models import Announcement, AnnouncementReadReceipt
 from .serializers import AnnouncementSerializer, AnnouncementReadReceiptSerializer
 
@@ -25,7 +25,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'mark_read']:
             return [IsAuthenticated()]
-        return [IsAuthenticated(), IsBranchAdminOrAbove()]
+        return [IsAuthenticated(), IsAccountantOrAbove()]
 
     def get_queryset(self):
         qs = (

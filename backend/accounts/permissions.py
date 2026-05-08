@@ -68,7 +68,7 @@ def can_access_domain(user, domain):
     role = normalize_role(getattr(user, 'role', None))
     allowed = {
         'finance': {'OWNER', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN', 'BRANCH_ADMIN', 'ACCOUNTANT'},
-        'academic': {'OWNER', 'SUPER_ADMIN', 'ZONAL_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'TEACHER'},
+        'academic': {'OWNER', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT', 'TEACHER'},
         'settings': {'OWNER', 'SUPER_ADMIN'},
     }
     return role in allowed.get(domain, set())

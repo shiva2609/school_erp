@@ -69,7 +69,7 @@ export default function ReportFilters({
     (selectedBranch && selectedBranch !== 'all' ? selectedBranch : '');
 
   useEffect(() => {
-    if (['SUPER_ADMIN', 'OWNER'].includes(user?.role || '')) {
+    if (['SUPER_ADMIN', 'OWNER', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN'].includes(user?.role || '')) {
       fetchBranches();
     }
     if (showAcademicYear || showExam) fetchAcademicYears();
@@ -173,7 +173,7 @@ export default function ReportFilters({
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 mb-6">
       <div className="flex flex-wrap gap-4 items-end">
-        {['SUPER_ADMIN', 'OWNER'].includes(user?.role || '') && (
+        {['SUPER_ADMIN', 'OWNER', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN'].includes(user?.role || '') && (
           <div className="flex flex-col gap-1.5 min-w-[150px]">
             <label className="text-xs font-semibold text-slate-500 uppercase">Branch</label>
             <select 

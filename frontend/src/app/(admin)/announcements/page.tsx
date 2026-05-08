@@ -6,6 +6,7 @@ import api from '@/lib/axios';
 import { Plus, Megaphone, Eye, Send } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useBranch } from '@/components/common/BranchContext';
+import { useAuth } from '@/components/common/AuthProvider';
 
 interface AnnouncementItem {
   id: string;
@@ -35,6 +36,7 @@ const AUDIENCE_OPTIONS: { value: string; label: string }[] = [
 
 export default function AnnouncementsPage() {
   const { selectedBranch } = useBranch();
+  const { user } = useAuth();
   const { data, loading, refetch } = useApi<AnnouncementItem[]>('/announcements/');
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -50,15 +52,17 @@ export default function AnnouncementsPage() {
   const [classesLoading, setClassesLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const effectiveBranchId = selectedBranch || user?.branch_id || user?.branch || '';
+
   useEffect(() => {
-    if (!selectedBranch || formData.target_audience !== 'CLASS') {
+    if (!effectiveBranchId || formData.target_audience !== 'CLASS') {
       setBranchClasses([]);
       return;
     }
     let cancelled = false;
     setClassesLoading(true);
     api
-      .get(`/classes/?branch_id=${selectedBranch}`)
+      .get(`/classes/?branch_id=${effectiveBranchId}`)
       .then(res => {
         if (cancelled) return;
         const raw = res.data?.data ?? res.data;
@@ -73,11 +77,11 @@ export default function AnnouncementsPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedBranch, formData.target_audience]);
+  }, [effectiveBranchId, formData.target_audience]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedBranch) {
+    if (!effectiveBranchId) {
       toast.error('Select a branch in the header before creating an announcement.');
       return;
     }
@@ -87,7 +91,7 @@ export default function AnnouncementsPage() {
         title: formData.title,
         body: formData.body,
         target_audience: formData.target_audience,
-        branch: selectedBranch,
+        branch: effectiveBranchId,
         send_push: formData.send_push,
         send_email: formData.target_audience === 'INDIVIDUAL' ? true : formData.send_email,
       };
@@ -114,9 +118,10 @@ export default function AnnouncementsPage() {
       });
       setTargetClassIds([]);
       refetch();
-      toast.success('Draft saved');
-    } catch {
-      toast.error('Error creating announcement');
+      toast.success('Announcement created.');
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.response?.data?.error || JSON.stringify(err.response?.data || {});
+      toast.error(msg && msg !== '{}' ? msg : 'Error creating announcement');
     } finally {
       setSaving(false);
     }
@@ -136,9 +141,9 @@ export default function AnnouncementsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Announcements & Push Notifications</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Announcements</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Broadcast to audiences tied to the branch selected in the header. One-to-one sends push and email to that user&apos;s account.
+            Create and manage school announcements for the selected branch.
           </p>
         </div>
         <button
@@ -149,7 +154,7 @@ export default function AnnouncementsPage() {
         </button>
       </div>
 
-      {!selectedBranch && (
+      {!effectiveBranchId && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Choose a <strong>branch</strong> from the global selector to create or scope announcements.
         </div>
@@ -276,10 +281,10 @@ export default function AnnouncementsPage() {
           <div className="flex gap-3">
             <button
               type="submit"
-              disabled={saving || !selectedBranch}
+              disabled={saving || !effectiveBranchId}
               className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
             >
-              {saving ? 'Creating...' : 'Create Draft'}
+              {saving ? 'Creating...' : 'Create Announcement'}
             </button>
             <button
               type="button"
