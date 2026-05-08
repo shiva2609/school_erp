@@ -1,6 +1,7 @@
 import logging
 from decimal import Decimal
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, F
+from django.db.models.functions import Coalesce
 from datetime import date
 from rest_framework.exceptions import ValidationError
 
@@ -60,7 +61,8 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
         )
 
     # 1. Calculate REAL standard_total from FeeStructure
-    standard_total = Decimal('0.00')
+    actual_total = Decimal('0.00')
+    locked_total = Decimal('0.00')
     structure = None
     
     if class_section:
@@ -69,19 +71,22 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
         ).first()
         
         if structure:
-            standard_total = structure.items.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            actual_total = structure.items.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            locked_total = structure.items.aggregate(
+                total=Sum(Coalesce('locked_amount', F('amount')))
+            )['total'] or Decimal('0.00')
 
     # Defensive: ensure offered is Decimal
     if offered_total is not None and Decimal(str(offered_total)) > 0:
         offered_total = Decimal(str(offered_total))
     else:
-        offered_total = standard_total
+        offered_total = actual_total
 
     # 2. Create Locked Fee Items if a structure exists
     if structure:
         # We apply the reduction proportionally to all fee items
         # Use the actual standard_total from DB for ratio
-        ratio = offered_total / standard_total if standard_total > 0 else 1
+        ratio = offered_total / actual_total if actual_total > 0 else 1
         
         # Generate Annual Academic Invoice
         seq = FeeInvoice.objects.filter(branch=branch).count() + 1
@@ -92,8 +97,8 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
             branch=branch,
             academic_year=ay,
             month="ANNUAL",
-            gross_amount=standard_total,
-            concession_amount=standard_total - offered_total if standard_total > offered_total else Decimal('0.00'),
+            gross_amount=actual_total,
+            concession_amount=actual_total - offered_total if actual_total > offered_total else Decimal('0.00'),
             net_amount=offered_total,
             outstanding_amount=offered_total,
             due_date=date.today(),
@@ -122,12 +127,13 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
         FeeInvoiceItem.objects.bulk_create(invoice_items)
 
     # 3. Trigger Approval if reduction detected compared to DB standard_total
-    if offered_total < standard_total:
+    approval_base_total = locked_total if locked_total > 0 else actual_total
+    if offered_total < approval_base_total:
         # Update student status to PENDING_APPROVAL
         Student.objects.filter(id=student.id).update(status='PENDING_APPROVAL')
         student.refresh_from_db() 
         
-        routing, discount_amount = compute_fee_approval_routing(branch, standard_total, offered_total)
+        routing, discount_amount = compute_fee_approval_routing(branch, approval_base_total, offered_total)
 
         # Fallback: if zonal routing applies but no active zonal admins are mapped to this zone,
         # escalate to tenant super admin queue.
@@ -147,7 +153,7 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
             branch=branch,
             student=student,
             requested_by=requested_by,
-            standard_total=standard_total,
+            standard_total=approval_base_total,
             offered_total=offered_total,
             discount_amount=discount_amount,
             routing=routing,

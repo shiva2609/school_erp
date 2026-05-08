@@ -22,6 +22,23 @@ class FeeStructureItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id', 'structure']
 
+    def validate(self, attrs):
+        amount = attrs.get('amount', getattr(self.instance, 'amount', None))
+        locked_amount = attrs.get('locked_amount', getattr(self.instance, 'locked_amount', None))
+        if amount is not None and locked_amount is not None and locked_amount > amount:
+            raise serializers.ValidationError({'locked_amount': 'Locked fee cannot be greater than actual fee.'})
+        return attrs
+
+    def create(self, validated_data):
+        if validated_data.get('locked_amount') is None:
+            validated_data['locked_amount'] = validated_data.get('amount')
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        if 'locked_amount' not in validated_data:
+            validated_data['locked_amount'] = instance.locked_amount if instance.locked_amount is not None else instance.amount
+        return super().update(instance, validated_data)
+
 
 class FeeStructureSerializer(serializers.ModelSerializer):
     items = FeeStructureItemSerializer(many=True, read_only=True)

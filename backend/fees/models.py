@@ -136,6 +136,7 @@ class FeeStructureItem(models.Model):
     structure = models.ForeignKey(FeeStructure, on_delete=models.CASCADE, related_name='items')
     category = models.ForeignKey(FeeCategory, on_delete=models.CASCADE, related_name='structure_items')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    locked_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     frequency = models.CharField(max_length=15, choices=FREQUENCY_CHOICES)
     due_day = models.PositiveIntegerField(null=True, blank=True)
     is_optional = models.BooleanField(default=False)

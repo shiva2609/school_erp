@@ -152,7 +152,8 @@ class PaymentsReportViewSet(viewsets.ViewSet):
         qs = PaymentsService.get_concessions(filters)
         data = qs.values(
             'student__admission_number', 'student__first_name', 'student__last_name',
-            'concession__name', 'status', 'valid_from', 'valid_until', 'notes',
+            'student__class_section__grade', 'student__class_section__section',
+            'gross_amount', 'net_amount', 'concession_amount', 'concession_percent',
         )
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)

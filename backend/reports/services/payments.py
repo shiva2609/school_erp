@@ -1,7 +1,7 @@
 from django.db import models
-from django.db.models import Sum, DecimalField
+from django.db.models import Sum, DecimalField, F, Case, When, Value, ExpressionWrapper
 from django.db.models.functions import Coalesce
-from fees.models import FeeInvoice, Payment, StudentConcession
+from fees.models import FeeInvoice, Payment
 from expenses.models import Expense, TransactionLog
 from reports.services.base import BaseReportService
 from decimal import Decimal
@@ -42,19 +42,29 @@ class PaymentsService:
 
     @staticmethod
     def get_concessions(filters):
-        qs = StudentConcession.objects.select_related('student', 'concession', 'approved_by')
-        
-        # Branch scope needs to go through student
-        qs = qs.filter(student__tenant=filters.user.tenant)
-        if filters.branch_id:
-            qs = qs.filter(student__branch_id=filters.branch_id)
-            
-        qs = BaseReportService.apply_date_range(qs, 'approved_at__date', filters.start_date, filters.end_date)
-        
-        if filters.status:
-            qs = qs.filter(status=filters.status)
-            
-        return qs.order_by('-valid_from')
+        qs = FeeInvoice.objects.select_related('student', 'student__class_section').exclude(status='CANCELLED')
+        qs = BaseReportService.apply_branch_scope(qs, filters)
+        qs = BaseReportService.apply_academic_year(qs, filters.academic_year_id)
+        if filters.class_id:
+            qs = qs.filter(student__class_section__grade=filters.class_id)
+        if filters.section_id:
+            qs = qs.filter(student__class_section_id=filters.section_id)
+
+        qs = qs.filter(concession_amount__gt=0)
+        qs = qs.annotate(
+            concession_percent=Case(
+                When(
+                    gross_amount__gt=0,
+                    then=ExpressionWrapper(
+                        (F('concession_amount') * Value(100.0)) / F('gross_amount'),
+                        output_field=DecimalField(max_digits=7, decimal_places=2),
+                    ),
+                ),
+                default=Value(0),
+                output_field=DecimalField(max_digits=7, decimal_places=2),
+            )
+        )
+        return qs.order_by('-created_at')
 
     @staticmethod
     def get_fees_paid_by_mode(filters):

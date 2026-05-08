@@ -558,17 +558,18 @@ export const reportsRegistry: ReportCategory[] = [
         id: 'concessions',
         categoryId: 'payments',
         title: 'Concessions',
-        description: 'List of fee concessions granted',
+        description: 'Student concession amount and percentage from actual fee',
         apiEndpoint: 'reports/payments/concessions/',
         exportKey: 'PAYMENTS_CONCESSIONS',
         filters: { showDateRange: false, showClassSection: true, showAcademicYear: true },
         columns: [
           { key: 'student__admission_number', label: 'Adm. No.' },
           { key: 'student_name', label: 'Student', render: (_v: any, row: any) => `${row.student__first_name || ''} ${row.student__last_name || ''}`.trim() || '-' },
-          { key: 'concession__name', label: 'Concession' },
-          { key: 'status', label: 'Status' },
-          { key: 'valid_from', label: 'From' },
-          { key: 'valid_until', label: 'Until' },
+          { key: 'class', label: 'Class', render: (_v: any, row: any) => `${row.student__class_section__grade || ''}-${row.student__class_section__section || ''}`.replace(/-$/, '') },
+          { key: 'gross_amount', label: 'Actual Fee', render: (_v: any, row: any) => `₹${Number(row.gross_amount || 0).toLocaleString('en-IN')}` },
+          { key: 'net_amount', label: 'Given Fee', render: (_v: any, row: any) => `₹${Number(row.net_amount || 0).toLocaleString('en-IN')}` },
+          { key: 'concession_amount', label: 'Concession', render: (_v: any, row: any) => `₹${Number(row.concession_amount || 0).toLocaleString('en-IN')}` },
+          { key: 'concession_percent', label: 'Concession %', render: (_v: any, row: any) => `${Number(row.concession_percent || 0).toFixed(2)}%` },
         ]
       },
       {

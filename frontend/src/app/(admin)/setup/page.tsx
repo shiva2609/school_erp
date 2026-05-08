@@ -777,9 +777,19 @@ function ClassAndFeeSetup({ user }: { user: any }) {
   };
 
   // ─── Tuition/Class Fee Handler (uses fees/structures/ API) ───
-  const handleUpdateFee = async (grade: string, catName: string, currentAmount: number) => {
-    const amount = prompt(`Enter ${catName} for Grade ${grade}:`, currentAmount.toString());
+  const handleUpdateFee = async (
+    grade: string,
+    catName: string,
+    currentActualAmount: number,
+    currentLockedAmount: number
+  ) => {
+    const amount = prompt(`Enter actual ${catName} fee for Grade ${grade}:`, currentActualAmount.toString());
     if (amount === null) return;
+    const lockedAmount = prompt(
+      `Enter locked ${catName} fee for Grade ${grade}:`,
+      currentLockedAmount.toString()
+    );
+    if (lockedAmount === null) return;
 
     try {
       // Find or Auto-Create Category if missing
@@ -815,9 +825,17 @@ function ClassAndFeeSetup({ user }: { user: any }) {
       // Update or create item
       const existingItem = (existingStruct?.items || []).find((i: any) => i.category === cat.id);
       if (existingItem) {
-        await api.patch(`/fees/structure-items/${existingItem.id}/`, { amount });
+        await api.patch(`/fees/structure-items/${existingItem.id}/`, {
+          amount,
+          locked_amount: lockedAmount,
+        });
       } else {
-        await api.post(`/fees/structures/${structureId}/items/`, { category: cat.id, amount, frequency: 'MONTHLY' });
+        await api.post(`/fees/structures/${structureId}/items/`, {
+          category: cat.id,
+          amount,
+          locked_amount: lockedAmount,
+          frequency: 'MONTHLY',
+        });
       }
       toast.success("Fee updated!");
       refetch();
@@ -945,7 +963,8 @@ function ClassAndFeeSetup({ user }: { user: any }) {
                   <tr className="bg-gray-50/50 border-b border-gray-100">
                     <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Grade</th>
                     <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Sections</th>
-                    <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Tuition Fee (Monthly)</th>
+                    <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Actual Fee (Monthly)</th>
+                    <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Locked Fee (Monthly)</th>
                     <th className="px-6 py-4 text-right text-xs font-black text-gray-400 uppercase tracking-widest">Actions</th>
                   </tr>
                 </thead>
@@ -983,11 +1002,31 @@ function ClassAndFeeSetup({ user }: { user: any }) {
                       {tuitionItem ? (
                         <div className="flex items-center gap-2">
                           <span>₹{Number(tuitionItem.amount).toLocaleString('en-IN')}</span>
-                          <button onClick={() => handleUpdateFee(grade, 'Tuition', tuitionItem.amount)} className="text-blue-600 text-xs hover:underline">Edit</button>
+                          <button
+                            onClick={() =>
+                              handleUpdateFee(
+                                grade,
+                                'Tuition',
+                                Number(tuitionItem.amount || 0),
+                                Number(tuitionItem.locked_amount ?? tuitionItem.amount ?? 0)
+                              )
+                            }
+                            className="text-blue-600 text-xs hover:underline"
+                          >
+                            Edit
+                          </button>
                         </div>
                       ) : (
-                        <button onClick={() => handleUpdateFee(grade, 'Tuition', 0)} className="text-blue-600 hover:underline">Set Tuition</button>
+                        <button
+                          onClick={() => handleUpdateFee(grade, 'Tuition', 0, 0)}
+                          className="text-blue-600 hover:underline"
+                        >
+                          Set Tuition
+                        </button>
                       )}
+                    </td>
+                    <td className="px-6 py-4 font-bold text-gray-900">
+                      {tuitionItem ? `₹${Number(tuitionItem.locked_amount ?? tuitionItem.amount).toLocaleString('en-IN')}` : '-'}
                     </td>
                     <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
                       <button onClick={() => handleEditGrade(grade)} title="Rename Grade" className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
