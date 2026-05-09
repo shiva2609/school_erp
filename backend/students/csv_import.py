@@ -48,10 +48,31 @@ def handle_csv_import(request):
         user = request.user
         branch_id = request.data.get('branch_id')
         academic_year_id = request.data.get('academic_year_id')
-        file_obj = request.FILES.get('file')
+        file_obj = request.FILES.get('file') or request.data.get('file')
+        if not file_obj:
+            return Response(
+                {
+                    'success': False,
+                    'detail': 'No file was received. If this keeps happening, try another browser or contact support.',
+                },
+                status=400,
+            )
 
-        file_name = (file_obj.name or '').lower() if file_obj else ''
-        if not file_obj or not (file_name.endswith('.csv') or file_name.endswith('.xlsx')):
+        file_name = (getattr(file_obj, 'name', None) or '').lower()
+        looks_csv = file_name.endswith('.csv')
+        looks_xlsx = file_name.endswith('.xlsx')
+        if not (looks_csv or looks_xlsx):
+            try:
+                head = file_obj.read(4)
+                if hasattr(file_obj, 'seek'):
+                    file_obj.seek(0)
+                if len(head) >= 2 and head[:2] == b'PK':
+                    looks_xlsx = True
+            except Exception:
+                if hasattr(file_obj, 'seek'):
+                    file_obj.seek(0)
+
+        if not (looks_csv or looks_xlsx):
             return Response({'success': False, 'detail': 'Please upload a valid CSV or XLSX file.'}, status=400)
 
         max_bytes = getattr(settings, 'STUDENT_CSV_IMPORT_MAX_BYTES', 5 * 1024 * 1024)

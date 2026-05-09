@@ -14,6 +14,15 @@ const api = axios.create({
 let csrfTokenFromResponse = '';
 
 api.interceptors.request.use((config) => {
+  // Let the browser set multipart boundaries; default JSON Content-Type breaks file uploads.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    const h = config.headers;
+    if (h && typeof (h as { delete?: (k: string) => void }).delete === 'function') {
+      (h as { delete: (k: string) => void }).delete('Content-Type');
+    } else if (h && typeof h === 'object') {
+      delete (h as Record<string, unknown>)['Content-Type'];
+    }
+  }
   if (typeof window !== 'undefined' && window.location?.hostname) {
     (config.headers as Record<string, string>)['X-School-Origin-Host'] = window.location.hostname;
   }

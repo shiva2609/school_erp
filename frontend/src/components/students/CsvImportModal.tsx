@@ -120,7 +120,7 @@ export default function CsvImportModal({
     setJobData(null);
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', file, file.name || 'upload.csv');
     const b = String(branchId || '').trim();
     if (b) formData.append('branch_id', b);
     if (String(ayId || '').trim()) formData.append('academic_year_id', ayId);
