@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useResolvedPush } from '@/hooks/useResolvedNavigation';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/axios';
 import { 
@@ -20,6 +21,7 @@ import { toast } from 'react-hot-toast';
 export default function StudentProfilePage() {
   const { id } = useParams();
   const router = useRouter();
+  const push = useResolvedPush();
   const { user } = useAuth();
   const { data: student, loading, error, refetch } = useApi<any>(`/students/${id}/`);
   const [activeTab, setActiveTab] = useState('overview');
@@ -255,7 +257,7 @@ export default function StudentProfilePage() {
   const handleOpenInvoicePayment = (inv: any) => {
     if (requiresInitialPayment) {
       toast.error('Initial admission + academic payment is pending. Please complete it first.');
-      router.push(`/students/${id}/pay-admission`);
+      push(`/students/${id}/pay-admission`);
       return;
     }
     setSelectedInvoice({
@@ -856,7 +858,7 @@ export default function StudentProfilePage() {
                     {canManageInitialPaymentStatus && !admissionPaid && (
                       <div className="mt-3 flex gap-2">
                         <button
-                          onClick={() => router.push(`/students/${id}/pay-admission`)}
+                          onClick={() => push(`/students/${id}/pay-admission`)}
                           className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest"
                         >
                           Pay now
@@ -890,7 +892,7 @@ export default function StudentProfilePage() {
                     {canManageInitialPaymentStatus && !fixedDepositPaid && (
                       <div className="mt-3 flex gap-2">
                         <button
-                          onClick={() => router.push(`/students/${id}/pay-admission`)}
+                          onClick={() => push(`/students/${id}/pay-admission`)}
                           className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest"
                         >
                           Pay now

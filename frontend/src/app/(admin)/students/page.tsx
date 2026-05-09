@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useResolvedPush } from '@/hooks/useResolvedNavigation';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/axios';
 import Link from 'next/link';
@@ -30,7 +30,7 @@ interface Student {
 }
 
 export default function StudentsPage() {
-  const router = useRouter();
+  const push = useResolvedPush();
   const { selectedBranch } = useBranch();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ACTIVE');
@@ -68,7 +68,7 @@ export default function StudentsPage() {
       refetch();
       if (row?.requires_admission_payment && row?.id) {
         toast.success('Student saved. Continue to admission fee payment.');
-        router.push(`/students/${row.id}/pay-admission`);
+        push(`/students/${row.id}/pay-admission`);
         return;
       }
       toast.success('Student enrolled.');

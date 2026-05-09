@@ -1,15 +1,24 @@
 "use client";
 
+import { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/common/AuthProvider';
+import { toMobilePath } from '@/lib/mobilePath';
 import SuperAdminDashboard from '@/components/dashboards/SuperAdminDashboard';
 import AdminDashboard from '@/components/dashboards/AdminDashboard';
 import BranchDashboard from '@/components/dashboards/BranchDashboard';
 import TeacherDashboard from '@/components/dashboards/TeacherDashboard';
-import ParentDashboard from '@/components/dashboards/ParentDashboard';
 
 export default function DashboardController() {
   const { user, loading } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
 
+  useEffect(() => {
+    if (!loading && user?.role === 'PARENT') {
+      router.replace(pathname.startsWith('/m') ? toMobilePath('/parent') : '/parent');
+    }
+  }, [loading, user?.role, router, pathname]);
 
   if (loading || !user) {
     return (
@@ -24,7 +33,14 @@ export default function DashboardController() {
     );
   }
 
-  // Render role-specific dashboards
+  if (user.role === 'PARENT') {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-slate-500 text-sm">
+        Opening family portal…
+      </div>
+    );
+  }
+
   switch (user.role) {
     case 'OWNER':
       return <SuperAdminDashboard user={user} />;
@@ -40,8 +56,6 @@ export default function DashboardController() {
       return <BranchDashboard user={user} />;
     case 'TEACHER':
       return <TeacherDashboard user={user} />;
-    case 'PARENT':
-      return <ParentDashboard user={user} />;
     default:
       return (
         <div className="p-8 text-center text-gray-500">

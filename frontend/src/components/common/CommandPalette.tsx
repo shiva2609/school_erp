@@ -1,19 +1,26 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { Search, Command, Users, Receipt, Calendar, CreditCard, LayoutDashboard, Building2, X, ArrowRight, Zap } from 'lucide-react';
+import { useResolvedPush } from '@/hooks/useResolvedNavigation';
+import { Search, Command, Users, Receipt, Calendar, CreditCard, LayoutDashboard, Building2, ArrowRight, Zap, Megaphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/lib/axios';
 import { useBranch } from './BranchContext';
+import { useAuth } from './AuthProvider';
 import { toast } from 'react-hot-toast';
 
-const NAV_ITEMS = [
+const STAFF_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', shortcut: 'D' },
   { id: 'students', label: 'Student Directory', icon: Users, path: '/students', shortcut: 'S' },
   { id: 'fees', label: 'Financial Desk (Fees)', icon: Receipt, path: '/fees', shortcut: 'F' },
   { id: 'expenses', label: 'Expense Ledger', icon: CreditCard, path: '/expenses', shortcut: 'E' },
   { id: 'attendance', label: 'Daily Attendance', icon: Calendar, path: '/attendance', shortcut: 'A' },
+];
+
+const PARENT_NAV_ITEMS = [
+  { id: 'parent-home', label: 'Family overview', icon: LayoutDashboard, path: '/parent', shortcut: 'D' },
+  { id: 'parent-notices', label: 'School notices', icon: Megaphone, path: '/parent/notices', shortcut: 'N' },
+  { id: 'parent-timetable', label: 'Timetable', icon: Calendar, path: '/parent/timetable', shortcut: 'T' },
 ];
 
 export default function CommandPalette() {
@@ -22,8 +29,11 @@ export default function CommandPalette() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const router = useRouter();
+  const push = useResolvedPush();
   const { selectedBranch } = useBranch();
+  const { user } = useAuth();
+  const isParent = user?.role === 'PARENT';
+  const navItems = isParent ? PARENT_NAV_ITEMS : STAFF_NAV_ITEMS;
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -46,8 +56,12 @@ export default function CommandPalette() {
     }
   }, [isOpen]);
 
-  // Debounced search for students
+  // Debounced search for students (staff branches only)
   useEffect(() => {
+    if (isParent) {
+      setResults([]);
+      return;
+    }
     if (!query || query.length < 2) {
       setResults([]);
       return;
@@ -73,16 +87,16 @@ export default function CommandPalette() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [query, selectedBranch]);
+  }, [query, selectedBranch, isParent]);
 
-  const filteredNav = NAV_ITEMS.filter(item => 
+  const filteredNav = navItems.filter(item => 
     item.label.toLowerCase().includes(query.toLowerCase())
   ).map(i => ({ ...i, type: 'NAV' }));
 
   const allItems = [...filteredNav, ...results];
 
   const handleSelect = (item: any) => {
-    router.push(item.path);
+    push(item.path);
     setIsOpen(false);
   };
 

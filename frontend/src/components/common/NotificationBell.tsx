@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useResolvedPush } from '@/hooks/useResolvedNavigation';
 import api from '@/lib/axios';
 import { Bell, CheckCheck, X } from 'lucide-react';
 
@@ -16,7 +16,7 @@ interface Notification {
 }
 
 export default function NotificationBell() {
-  const router = useRouter();
+  const push = useResolvedPush();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -125,7 +125,7 @@ export default function NotificationBell() {
                   onClick={() => {
                     if (!notif.is_read) markRead(notif.id);
                     if (notif.link) {
-                      router.push(notif.link);
+                      push(notif.link);
                       setOpen(false);
                     }
                   }}
