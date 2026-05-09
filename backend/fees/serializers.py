@@ -177,6 +177,8 @@ class StudentFeeItemSerializer(serializers.ModelSerializer):
 class FeeApprovalRequestSerializer(serializers.ModelSerializer):
     student_name = serializers.SerializerMethodField()
     branch_name = serializers.CharField(source='branch.name', read_only=True)
+    academic_year_name = serializers.SerializerMethodField()
+    class_section_display = serializers.SerializerMethodField()
     requested_by_name = serializers.SerializerMethodField()
     reviewed_by_name = serializers.SerializerMethodField()
     reduction_amount = serializers.DecimalField(
@@ -190,6 +192,14 @@ class FeeApprovalRequestSerializer(serializers.ModelSerializer):
 
     def get_student_name(self, obj):
         return f"{obj.student.first_name} {obj.student.last_name}"
+
+    def get_academic_year_name(self, obj):
+        ay = getattr(obj.student, 'academic_year', None)
+        return ay.name if ay else ''
+
+    def get_class_section_display(self, obj):
+        cs = getattr(obj.student, 'class_section', None)
+        return cs.display_name if cs else ''
 
     def get_requested_by_name(self, obj):
         return f"{obj.requested_by.first_name} {obj.requested_by.last_name}"

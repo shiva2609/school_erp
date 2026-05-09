@@ -14,6 +14,8 @@ interface ApprovalRequest {
   student: string;
   student_name: string;
   branch_name: string;
+  academic_year_name?: string;
+  class_section_display?: string;
   standard_total: number;
   offered_total: number;
   reduction_amount: number;
@@ -201,6 +203,22 @@ export default function AdminApprovalsQueue() {
                         — Requested by {req.requested_by_name}
                       </span>
                     </div>
+                    {(req.academic_year_name || req.class_section_display) ? (
+                      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                        {req.academic_year_name ? (
+                          <span>
+                            <span className="font-bold text-gray-500 uppercase tracking-wide">Academic year: </span>
+                            {req.academic_year_name}
+                          </span>
+                        ) : null}
+                        {req.class_section_display ? (
+                          <span>
+                            <span className="font-bold text-gray-500 uppercase tracking-wide">Class: </span>
+                            {req.class_section_display}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
 
                     <div className="mt-3 flex flex-wrap gap-3 text-sm">
                       <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">

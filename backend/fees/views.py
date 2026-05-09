@@ -145,7 +145,13 @@ class FeeApprovalRequestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base = FeeApprovalRequest.objects.select_related(
-            'branch', 'branch__zone', 'student', 'requested_by', 'reviewed_by'
+            'branch',
+            'branch__zone',
+            'student',
+            'student__academic_year',
+            'student__class_section',
+            'requested_by',
+            'reviewed_by',
         )
         qs = fee_approval_queryset_for_user(user, base)
         branch_id = get_validated_branch_id(user, self.request.query_params.get('branch_id'))

@@ -1097,6 +1097,13 @@ function FeeApprovalManager() {
             <div className="flex-1">
               <h3 className="font-bold text-gray-900 text-lg">{req.student_name}</h3>
               <p className="text-sm text-gray-500 font-medium">{req.branch_name} • Requested by {req.requested_by_name}</p>
+              {(req.academic_year_name || req.class_section_display) ? (
+                <p className="text-xs text-gray-600 mt-1">
+                  {req.academic_year_name ? <><span className="font-semibold text-gray-700">Academic year:</span> {req.academic_year_name}</> : null}
+                  {req.academic_year_name && req.class_section_display ? ' · ' : null}
+                  {req.class_section_display ? <><span className="font-semibold text-gray-700">Class:</span> {req.class_section_display}</> : null}
+                </p>
+              ) : null}
               <div className="mt-3 inline-block px-3 py-1 bg-yellow-50 text-yellow-700 text-[10px] font-black rounded-lg border border-yellow-100">PENDING APPROVAL</div>
             </div>
             <div className="text-right">

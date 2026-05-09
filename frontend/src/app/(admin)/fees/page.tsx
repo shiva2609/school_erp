@@ -28,6 +28,8 @@ interface FeeApprovalRequest {
   id: string;
   student_name: string;
   admission_number: string;
+  academic_year_name?: string;
+  class_section_display?: string;
   standard_total: string;
   offered_total: string;
   reason: string;
@@ -189,6 +191,17 @@ export default function FeesPage() {
                         <div>
                            <h4 className="font-bold text-slate-900">{req.student_name}</h4>
                            <p className="text-[10px] font-mono text-slate-400 uppercase">{req.admission_number}</p>
+                           {(req.academic_year_name || req.class_section_display) ? (
+                             <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                               {req.academic_year_name ? (
+                                 <><span className="font-bold text-slate-600">AY: </span>{req.academic_year_name}</>
+                               ) : null}
+                               {req.academic_year_name && req.class_section_display ? ' · ' : null}
+                               {req.class_section_display ? (
+                                 <><span className="font-bold text-slate-600">Class: </span>{req.class_section_display}</>
+                               ) : null}
+                             </p>
+                           ) : null}
                         </div>
                         <div className="text-right space-y-0.5">
                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Agreed fee</p>
