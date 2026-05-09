@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/axios';
-import { useRouter } from 'next/navigation';
+import { useResolvedReplace } from '@/hooks/useResolvedNavigation';
 import { Plus, Receipt, Check, X, FileText, Search, CreditCard, Wallet, Landmark, TrendingUp, RotateCcw, Tag, Trash2 } from 'lucide-react';
 import { EXPENSE_TYPE_PRESETS } from '@/lib/expenseTypePresets';
 import { toast } from 'react-hot-toast';
@@ -93,15 +93,15 @@ export default function ExpensesPage() {
 
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const router = useRouter();
+  const replace = useResolvedReplace();
 
   useEffect(() => {
     api.get('auth/me/').then(res => {
       const u = res.data.data;
       setUser(u);
-      if (u?.role === 'TEACHER') router.replace('/teacher-dashboard');
+      if (u?.role === 'TEACHER') replace('/teacher-dashboard');
     });
-  }, [router]);
+  }, [replace]);
 
   const manualIncomeLedgerUrl =
     user && ['ACCOUNTANT', 'BRANCH_ADMIN', 'SUPER_ADMIN', 'OWNER', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN'].includes(user.role)

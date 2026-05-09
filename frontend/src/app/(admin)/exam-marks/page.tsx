@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import api from "@/lib/axios";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/components/common/AuthProvider";
-import { useRouter } from "next/navigation";
+import { useResolvedReplace } from "@/hooks/useResolvedNavigation";
 import { Award, Loader2, Save, BookOpen } from "lucide-react";
 
 type Assignment = {
@@ -62,7 +62,7 @@ function unwrapList(res: any): any[] {
 
 export default function ExamMarksPage() {
   const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
+  const replace = useResolvedReplace();
 
   const [contextLoading, setContextLoading] = useState(true);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -92,9 +92,9 @@ export default function ExamMarksPage() {
     if (authLoading || !user) return;
     if (!ACADEMIC_MARKS_ROLES.has(user.role)) {
       toast.error("You do not have access to exam marks entry.");
-      router.replace("/dashboard");
+      replace("/dashboard");
     }
-  }, [authLoading, user, router]);
+  }, [authLoading, user, replace]);
 
   const loadContext = useCallback(async () => {
     setContextLoading(true);

@@ -7,6 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import api from '@/lib/axios';
 import Link from 'next/link';
+import { getPostLoginPath } from '@/lib/rolePortal';
+import { safeInternalNext } from '@/lib/loginNext';
 
 const loginSchema = z.object({
   email: z.string().min(1, { message: "Email or phone number is required" }),
@@ -14,6 +16,12 @@ const loginSchema = z.object({
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
+
+function postLoginUrl(role: string, tenant: string | null | undefined) {
+  const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const next = safeInternalNext(params.get('next'));
+  return next || getPostLoginPath(role, tenant ?? null);
+}
 
 export default function LoginPage() {
   const [serverError, setServerError] = useState('');
@@ -33,7 +41,9 @@ export default function LoginPage() {
         setMfaCode('');
         return;
       }
-      window.location.href = '/dashboard';
+      const me = await api.get('auth/me/');
+      const u = me.data?.data;
+      window.location.href = postLoginUrl(u?.role ?? '', u?.tenant ?? null);
     } catch (err: any) {
       const status = err.response?.status;
       const detail = err.response?.data?.detail;
@@ -60,7 +70,9 @@ export default function LoginPage() {
         mfa_challenge: mfaChallenge,
         code: mfaCode.replace(/\s/g, ''),
       });
-      window.location.href = '/dashboard';
+      const me = await api.get('auth/me/');
+      const u = me.data?.data;
+      window.location.href = postLoginUrl(u?.role ?? '', u?.tenant ?? null);
     } catch (err: any) {
       const msg = err.response?.data?.error || err.response?.data?.detail;
       setServerError(msg || 'Invalid code. Try again.');
@@ -176,6 +188,16 @@ export default function LoginPage() {
             </form>
           )}
         </div>
+
+        <p className="mt-10 text-sm text-slate-500 max-w-sm leading-relaxed">
+          <Link
+            href="/login?next=/m"
+            className="font-semibold text-slate-800 hover:underline underline-offset-4"
+          >
+            Mobile app layout
+          </Link>
+          {' — '}same login; touch-friendly navigation after you sign in.
+        </p>
       </div>
     </div>
   );

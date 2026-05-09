@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useResolvedPush } from '@/hooks/useResolvedNavigation';
 import api from '@/lib/axios';
 import { useApi } from '@/lib/hooks';
 import { Receipt, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -11,7 +12,7 @@ const PAYMENT_MODES = ['CASH', 'UPI', 'CHEQUE', 'NEFT', 'RTGS', 'DD', 'ONLINE'] 
 
 export default function PayAdmissionPage() {
   const params = useParams();
-  const router = useRouter();
+  const push = useResolvedPush();
   const studentId = params.id as string;
 
   const [student, setStudent] = useState<any>(null);
@@ -136,7 +137,7 @@ export default function PayAdmissionPage() {
         </div>
 
         <button
-          onClick={() => router.push('/students')}
+          onClick={() => push('/students')}
           className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl"
         >
           Go to Student List
