@@ -33,11 +33,25 @@ from django.db import transaction
 from django.db.models import Q
 from rest_framework.response import Response
 
-from accounts.permissions import normalize_role
+from django.core.exceptions import ValidationError as DjangoValidationError
+
+from accounts.permissions import BRANCH_SCOPED_ROLES, normalize_role
 from tenants.models import AcademicYear, Branch
 from students.models import ClassSection, Student, GRADE_CHOICES, CsvImportJob
 from fees.models import FeeInvoice, Payment, FeeCarryForward, DocumentSequence
 from .services import create_student_fees, link_parent_accounts_to_student
+
+
+def _scalar_form_value(val):
+    """Normalize multipart / DRF request values (avoid list duplicates, whitespace)."""
+    if val is None or val in ('undefined', ''):
+        return None
+    if isinstance(val, (list, tuple)):
+        val = val[0] if val else None
+    if val is None:
+        return None
+    s = str(val).strip()
+    return s if s else None
 
 
 def handle_csv_import(request):
@@ -46,8 +60,8 @@ def handle_csv_import(request):
     """
     try:
         user = request.user
-        branch_id = request.data.get('branch_id')
-        academic_year_id = request.data.get('academic_year_id')
+        branch_id = _scalar_form_value(request.data.get('branch_id'))
+        academic_year_id = _scalar_form_value(request.data.get('academic_year_id'))
         file_obj = request.FILES.get('file') or request.data.get('file')
         if not file_obj:
             return Response(
@@ -85,21 +99,44 @@ def handle_csv_import(request):
                 status=400,
             )
 
-        # Handle 'undefined' and empty strings from FormData
-        if branch_id in ['undefined', '']: branch_id = None
-        if academic_year_id in ['undefined', '']: academic_year_id = None
+        role = normalize_role(user.role)
 
         try:
-            if normalize_role(user.role) == 'OWNER':
+            if role == 'OWNER':
                 if not branch_id:
                     return Response({'success': False, 'detail': 'Owner must provide a branch_id.'}, status=400)
                 branch = Branch.objects.get(id=branch_id)
                 tenant = branch.tenant
             else:
-                branch = Branch.objects.get(id=branch_id, tenant=user.tenant) if branch_id else user.branch
+                if not user.tenant:
+                    return Response(
+                        {
+                            'success': False,
+                            'detail': 'Your account is not linked to a school. Contact an administrator.',
+                        },
+                        status=400,
+                    )
+
+                branch = None
+                # Branch-scoped roles (accountant, teacher, etc.): always use the assigned branch.
+                # Client branch_id comes from localStorage and is often stale → wrong id caused
+                # "Invalid branch or academic year" even when the UI looks correct.
+                if role in BRANCH_SCOPED_ROLES and getattr(user, 'branch_id', None):
+                    branch = user.branch
+                elif branch_id:
+                    branch = Branch.objects.get(id=branch_id, tenant=user.tenant)
+                else:
+                    branch = user.branch
+
                 if not branch:
-                    return Response({'success': False, 'detail': 'No branch associated with your account.'}, status=400)
-                tenant = user.tenant
+                    return Response(
+                        {
+                            'success': False,
+                            'detail': 'No branch associated with your account. Pick a branch in the header or ask an admin to assign you to a branch.',
+                        },
+                        status=400,
+                    )
+                tenant = branch.tenant
 
             if academic_year_id:
                 ay = AcademicYear.objects.get(id=academic_year_id, tenant=tenant)
@@ -107,8 +144,27 @@ def handle_csv_import(request):
                 ay = AcademicYear.objects.filter(tenant=tenant, is_active=True).first()
                 if not ay:
                     return Response({'success': False, 'detail': 'No active academic year found. Please select one.'}, status=400)
-        except (Branch.DoesNotExist, AcademicYear.DoesNotExist):
-            return Response({'success': False, 'detail': 'Invalid branch or academic year.'}, status=400)
+        except Branch.DoesNotExist:
+            return Response(
+                {
+                    'success': False,
+                    'detail': 'That branch was not found for your school. Clear site data or pick another branch in the header, then try again.',
+                },
+                status=400,
+            )
+        except AcademicYear.DoesNotExist:
+            return Response(
+                {
+                    'success': False,
+                    'detail': 'That academic year was not found for this school. Refresh the page and choose the year again.',
+                },
+                status=400,
+            )
+        except (ValueError, DjangoValidationError):
+            return Response(
+                {'success': False, 'detail': 'Invalid branch or academic year id. Refresh and try again.'},
+                status=400,
+            )
 
         # Create the background job
         job = CsvImportJob.objects.create(
