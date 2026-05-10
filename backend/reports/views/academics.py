@@ -14,6 +14,13 @@ from ..permissions import ReportAccessPermission
 from ..pagination import ReportPagination
 from ..filters import BaseReportFilter
 from ..services.academics import AcademicsService
+from ..summary import (
+    list_len_summary,
+    simple_count_summary,
+    strength_total_students,
+    student_list_totals,
+    year_transition_rollups,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +52,8 @@ class AcademicsReportViewSet(viewsets.ViewSet):
     def students_list(self, request):
         filters = BaseReportFilter(request, request.user)
         qs = AcademicsService.get_students(filters)
-        
+        summary = student_list_totals(qs)
+
         data = qs.values(
             'id', 'admission_number', 'first_name', 'last_name', 
             'class_section__grade', 'class_section__section', 
@@ -57,13 +65,14 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
-        return paginator.get_paginated_response(page)
+        return paginator.get_paginated_response(page, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='student-strength')
     def student_strength(self, request):
         filters = BaseReportFilter(request, request.user)
-        data = AcademicsService.get_student_strength(filters)
-        return ReportPagination().get_unpaginated_response(list(data))
+        data = list(AcademicsService.get_student_strength(filters))
+        summary = strength_total_students(data)
+        return ReportPagination().get_unpaginated_response(data, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='year-transition-summary')
     def year_transition_summary(self, request):
@@ -72,29 +81,32 @@ class AcademicsReportViewSet(viewsets.ViewSet):
             data = AcademicsService.get_year_transition_summary(filters)
         except ValueError as e:
             return Response({'success': False, 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return ReportPagination.get_unpaginated_response(data)
+        summary = year_transition_rollups(data)
+        return ReportPagination.get_unpaginated_response(data, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='student-attendance-daily')
     def student_attendance_daily(self, request):
         filters = BaseReportFilter(request, request.user)
         qs = AcademicsService.get_student_attendance_daily(filters)
-        
+        summary = simple_count_summary(qs)
+
         data = qs.values(
-            'date', 'status', 'student__first_name', 'student__last_name',
+            'date', 'status', 'student__admission_number', 'student__first_name', 'student__last_name',
             'class_section__grade', 'class_section__section'
         )
         
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
-        return paginator.get_paginated_response(page)
+        return paginator.get_paginated_response(page, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='student-notes')
     def student_notes(self, request):
         filters = BaseReportFilter(request, request.user)
         data = AcademicsService.get_student_notes(filters)
+        summary = list_len_summary(data)
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
-        return paginator.get_paginated_response(page)
+        return paginator.get_paginated_response(page, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='hall-tickets')
     def hall_tickets(self, request):
@@ -110,6 +122,7 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         if not term:
             return Response({'success': False, 'error': 'Exam not found for this school.'}, status=404)
         qs = AcademicsService.get_students_for_exam_print(filters)
+        summary = simple_count_summary(qs)
         data = qs.values(
             'id', 'admission_number', 'first_name', 'last_name',
             'class_section__grade', 'class_section__section',
@@ -117,12 +130,13 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
         enriched = [{**row, 'exam_term__name': term.name} for row in page]
-        return paginator.get_paginated_response(enriched)
+        return paginator.get_paginated_response(enriched, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='consolidated-marks')
     def consolidated_marks(self, request):
         filters = BaseReportFilter(request, request.user)
         qs = AcademicsService.get_consolidated_marks_flat(filters)
+        summary = simple_count_summary(qs)
         data = qs.values(
             'student__admission_number', 'student__first_name', 'student__last_name',
             'student__class_section__grade', 'student__class_section__section',
@@ -130,7 +144,7 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         )
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
-        return paginator.get_paginated_response(page)
+        return paginator.get_paginated_response(page, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='section-report-cards')
     def section_report_cards(self, request):
@@ -146,6 +160,7 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         if not term:
             return Response({'success': False, 'error': 'Exam not found for this school.'}, status=404)
         qs = AcademicsService.get_students_for_exam_print(filters)
+        summary = simple_count_summary(qs)
         data = qs.values(
             'id', 'admission_number', 'first_name', 'last_name',
             'class_section__grade', 'class_section__section',
@@ -153,7 +168,7 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
         enriched = [{**row, 'exam_term__name': term.name} for row in page]
-        return paginator.get_paginated_response(enriched)
+        return paginator.get_paginated_response(enriched, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='section-report-cards-summary')
     def section_report_cards_summary(self, request):
@@ -169,9 +184,10 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         if not term:
             return Response({'success': False, 'error': 'Exam not found for this school.'}, status=404)
         data = AcademicsService.get_report_card_summary_preview_rows(filters)
+        summary = list_len_summary(data)
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
-        return paginator.get_paginated_response(page)
+        return paginator.get_paginated_response(page, summary=summary)
 
     def _hall_tickets_pdf(self, filters):
         if not filters.exam_id:
@@ -263,21 +279,23 @@ class AcademicsReportViewSet(viewsets.ViewSet):
     def student_ranks(self, request):
         filters = BaseReportFilter(request, request.user)
         data = AcademicsService.get_student_ranks(filters)
+        summary = list_len_summary(data)
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
-        return paginator.get_paginated_response(page)
+        return paginator.get_paginated_response(page, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='missing-parent-logins')
     def missing_parent_logins(self, request):
         filters = BaseReportFilter(request, request.user)
         qs = AcademicsService.get_students_missing_parent_login(filters)
+        summary = simple_count_summary(qs)
         data = qs.values(
             'admission_number', 'first_name', 'last_name',
             'class_section__grade', 'class_section__section',
         )
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
-        return paginator.get_paginated_response(page)
+        return paginator.get_paginated_response(page, summary=summary)
         
     @action(detail=False, methods=['get'], url_path='student-id-cards')
     def student_id_cards(self, request):
@@ -285,6 +303,7 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         if request.query_params.get('file') == 'pdf':
             return self._student_id_cards_pdf(filters)
         qs = AcademicsService.get_students(filters)
+        summary = simple_count_summary(qs)
         data = qs.values(
             'id', 'admission_number', 'first_name', 'last_name',
             'class_section__grade', 'class_section__section',
@@ -292,7 +311,7 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         )
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
-        return paginator.get_paginated_response(page)
+        return paginator.get_paginated_response(page, summary=summary)
 
     def _student_id_cards_pdf(self, filters):
         template = _pick_document_template(filters.user.tenant, 'ID_CARD', filters.branch_id)

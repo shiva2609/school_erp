@@ -154,7 +154,7 @@ class PaymentsService:
 
     @staticmethod
     def get_mismatch_detection(filters):
-        qs = FeeInvoice.objects.exclude(status='CANCELLED')
+        qs = FeeInvoice.objects.select_related('student').exclude(status='CANCELLED')
         qs = BaseReportService.apply_branch_scope(qs, filters)
         qs = BaseReportService.apply_academic_year(qs, filters.academic_year_id)
         
@@ -168,6 +168,7 @@ class PaymentsService:
             if inv.paid_amount != payment_sum:
                 drifts.append({
                     'invoice_number': inv.invoice_number,
+                    'student_admission_number': getattr(inv.student, 'admission_number', None) or '',
                     'student_name': f"{inv.student.first_name} {inv.student.last_name}",
                     'invoice_paid': float(inv.paid_amount),
                     'payment_sum': float(payment_sum),
@@ -194,7 +195,8 @@ class PaymentsService:
         return qs.order_by('-transaction_date')
 
     @staticmethod
-    def get_student_balance_summary(filters):
+    def get_student_balance_base_invoices(filters):
+        """Same scope as student detailed balances, before grouping by student."""
         qs = FeeInvoice.objects.exclude(status='CANCELLED')
         qs = BaseReportService.apply_branch_scope(qs, filters)
         qs = BaseReportService.apply_academic_year(qs, filters.academic_year_id)
@@ -202,6 +204,11 @@ class PaymentsService:
             qs = qs.filter(student__class_section__grade=filters.class_id)
         if filters.section_id:
             qs = qs.filter(student__class_section_id=filters.section_id)
+        return qs
+
+    @staticmethod
+    def get_student_balance_summary(filters):
+        qs = PaymentsService.get_student_balance_base_invoices(filters)
         return qs.values(
             'student__admission_number', 'student__first_name', 'student__last_name',
             'student__class_section__grade', 'student__class_section__section',

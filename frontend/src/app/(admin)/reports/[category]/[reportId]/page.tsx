@@ -6,15 +6,27 @@ import { notFound } from 'next/navigation';
 import { CheckCircle, AlertTriangle, XCircle, Filter, Clock, FileDown } from 'lucide-react';
 import ReportFilters from '@/components/reports/ReportFilters';
 import ReportTable from '@/components/reports/ReportTable';
+import ReportSummaryStrip from '@/components/reports/ReportSummaryStrip';
 import ExportButton from '@/components/reports/ExportButton';
 import api from '@/lib/axios';
 import { getReportConfig, reportsRegistry } from '@/lib/reportsRegistry';
+import { getSummaryCardsForExportKey } from '@/lib/reportSummaryCards';
 
 type FetchStatus = 
   | { state: 'idle' }
   | { state: 'loading' }
   | { state: 'success'; message: string; count: number; durationMs: number }
   | { state: 'error'; message: string; statusCode?: number; endpoint: string };
+
+function normalizeSummary(raw: unknown): Record<string, string> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (v === null || v === undefined) out[k] = '';
+    else out[k] = typeof v === 'string' ? v : String(v);
+  }
+  return out;
+}
 
 export default function DynamicReportPage({ params }: { params: Promise<{ category: string; reportId: string }> }) {
   const unwrappedParams = use(params);
@@ -32,11 +44,14 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
     pageSize: 50,
     totalCount: 0
   });
+  const [summary, setSummary] = useState<Record<string, string> | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const summaryCards = getSummaryCardsForExportKey(config.exportKey);
 
   const fetchReport = useCallback(async (page = 1, overrideFilters?: any) => {
     const activeFilters = overrideFilters ?? filters ?? {};
     setFetchStatus({ state: 'loading' });
+    setSummary(null);
     const startTime = Date.now();
 
     try {
@@ -51,6 +66,7 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
       if (d) {
         const results = Array.isArray(d) ? d : (d.results ?? []);
         setData(results);
+        setSummary(normalizeSummary(d.summary));
 
         if (d.current_page) {
           setPagination({
@@ -79,6 +95,7 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
         });
       } else {
         setData([]);
+        setSummary(null);
         setFetchStatus({
           state: 'success',
           message: 'Query executed successfully — no data returned',
@@ -89,6 +106,7 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
     } catch (e: any) {
       console.error('Report fetch error:', e);
       setData([]);
+      setSummary(null);
 
       const status = e?.response?.status;
       const serverMessage = e?.response?.data?.detail 
@@ -236,6 +254,10 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
             }
           </span>
         </div>
+      )}
+
+      {fetchStatus.state === 'success' && summaryCards.length > 0 && summary && (
+        <ReportSummaryStrip cards={summaryCards} summary={summary} />
       )}
 
       {fetchStatus.state === 'error' && (

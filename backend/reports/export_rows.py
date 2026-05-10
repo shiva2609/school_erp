@@ -134,16 +134,16 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
 
     if report_type == 'ACADEMICS_ATTENDANCE':
         qs = AcademicsService.get_student_attendance_daily(bundle).values(
-            'date', 'status', 'student__first_name', 'student__last_name',
+            'date', 'status', 'student__admission_number', 'student__first_name', 'student__last_name',
             'class_section__grade', 'class_section__section',
         )
-        headers = ['Date', 'Status', 'Student first name', 'Student last name', 'Grade', 'Section']
+        headers = ['Date', 'Status', 'Admission number', 'Student first name', 'Student last name', 'Grade', 'Section']
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                _cell(row['date']), _cell(row['status']), _cell(row['student__first_name']),
-                _cell(row['student__last_name']), _cell(row['class_section__grade']),
-                _cell(row['class_section__section']),
+                _cell(row['date']), _cell(row['status']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']),
+                _cell(row['class_section__grade']), _cell(row['class_section__section']),
             ])
         return headers, rows
 
@@ -191,11 +191,12 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
 
     if report_type == 'ACADEMICS_NOTES':
         data = AcademicsService.get_student_notes(bundle)
-        headers = ['Date', 'Source', 'Student', 'Grade', 'Section', 'Note']
+        headers = ['Date', 'Source', 'Admission number', 'Student', 'Grade', 'Section', 'Note']
         rows = [
             [
-                _cell(r.get('date')), _cell(r.get('source')), _cell(r.get('student_name')),
-                _cell(r.get('grade')), _cell(r.get('section')), _cell(r.get('note')),
+                _cell(r.get('date')), _cell(r.get('source')), _cell(r.get('admission_number')),
+                _cell(r.get('student_name')), _cell(r.get('grade')), _cell(r.get('section')),
+                _cell(r.get('note')),
             ]
             for r in data
         ]
@@ -256,22 +257,22 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
     # ─── Payments / fees ───────────────────────────────────────
     if report_type == 'PAYMENTS_FEE_BALANCES':
         qs = PaymentsService.get_fee_balances(bundle).values(
-            'invoice_number', 'student__first_name', 'student__last_name',
+            'invoice_number', 'student__admission_number', 'student__first_name', 'student__last_name',
             'student__class_section__grade', 'student__class_section__section',
             'gross_amount', 'net_amount', 'paid_amount', 'outstanding_amount', 'due_date', 'status',
         )
         headers = [
-            'Invoice', 'Student first name', 'Student last name', 'Grade', 'Section',
+            'Invoice', 'Admission number', 'Student first name', 'Student last name', 'Grade', 'Section',
             'Gross', 'Net', 'Paid', 'Outstanding', 'Due date', 'Status',
         ]
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                _cell(row['invoice_number']), _cell(row['student__first_name']),
-                _cell(row['student__last_name']), _cell(row['student__class_section__grade']),
-                _cell(row['student__class_section__section']), _cell(row['gross_amount']),
-                _cell(row['net_amount']), _cell(row['paid_amount']), _cell(row['outstanding_amount']),
-                _cell(row['due_date']), _cell(row['status']),
+                _cell(row['invoice_number']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']),
+                _cell(row['student__class_section__grade']), _cell(row['student__class_section__section']),
+                _cell(row['gross_amount']), _cell(row['net_amount']), _cell(row['paid_amount']),
+                _cell(row['outstanding_amount']), _cell(row['due_date']), _cell(row['status']),
             ])
         return headers, rows
 
@@ -280,81 +281,81 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
 
     if report_type == 'PAYMENTS_FEE_BALANCES_NO_CONCESSION':
         qs = PaymentsService.get_fee_balances(bundle).filter(concession_amount=0).values(
-            'invoice_number', 'student__first_name', 'student__last_name',
+            'invoice_number', 'student__admission_number', 'student__first_name', 'student__last_name',
             'student__class_section__grade', 'student__class_section__section',
             'gross_amount', 'net_amount', 'paid_amount', 'outstanding_amount', 'due_date', 'status',
         )
         headers = [
-            'Invoice', 'Student first name', 'Student last name', 'Grade', 'Section',
+            'Invoice', 'Admission number', 'Student first name', 'Student last name', 'Grade', 'Section',
             'Gross', 'Net', 'Paid', 'Outstanding', 'Due date', 'Status',
         ]
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                _cell(row['invoice_number']), _cell(row['student__first_name']),
-                _cell(row['student__last_name']), _cell(row['student__class_section__grade']),
-                _cell(row['student__class_section__section']), _cell(row['gross_amount']),
-                _cell(row['net_amount']), _cell(row['paid_amount']), _cell(row['outstanding_amount']),
-                _cell(row['due_date']), _cell(row['status']),
+                _cell(row['invoice_number']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']),
+                _cell(row['student__class_section__grade']), _cell(row['student__class_section__section']),
+                _cell(row['gross_amount']), _cell(row['net_amount']), _cell(row['paid_amount']),
+                _cell(row['outstanding_amount']), _cell(row['due_date']), _cell(row['status']),
             ])
         return headers, rows
 
     if report_type == 'PAYMENTS_DAILY_COLLECTIONS':
         qs = PaymentsService.get_daily_collections(bundle).values(
-            'receipt_number', 'student__first_name', 'student__last_name',
+            'receipt_number', 'student__admission_number', 'student__first_name', 'student__last_name',
             'amount', 'payment_mode', 'payment_date',
         )
-        headers = ['Receipt', 'Student first name', 'Student last name', 'Amount', 'Mode', 'Date']
+        headers = ['Receipt', 'Admission number', 'Student first name', 'Student last name', 'Amount', 'Mode', 'Date']
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                _cell(row['receipt_number']), _cell(row['student__first_name']),
-                _cell(row['student__last_name']), _cell(row['amount']),
+                _cell(row['receipt_number']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']), _cell(row['amount']),
                 _cell(row['payment_mode']), _cell(row['payment_date']),
             ])
         return headers, rows
 
     if report_type == 'PAYMENTS_RECEIPTS':
         qs = PaymentsService.get_receipts(bundle, is_deleted=False).values(
-            'receipt_number', 'student__first_name', 'student__last_name',
+            'receipt_number', 'student__admission_number', 'student__first_name', 'student__last_name',
             'amount', 'payment_mode', 'payment_date', 'status',
         )
-        headers = ['Receipt', 'Student first name', 'Student last name', 'Amount', 'Mode', 'Date', 'Status']
+        headers = ['Receipt', 'Admission number', 'Student first name', 'Student last name', 'Amount', 'Mode', 'Date', 'Status']
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                _cell(row['receipt_number']), _cell(row['student__first_name']),
-                _cell(row['student__last_name']), _cell(row['amount']),
+                _cell(row['receipt_number']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']), _cell(row['amount']),
                 _cell(row['payment_mode']), _cell(row['payment_date']), _cell(row['status']),
             ])
         return headers, rows
 
     if report_type == 'PAYMENTS_DELETED_RECEIPTS':
         qs = PaymentsService.get_receipts(bundle, is_deleted=True).values(
-            'receipt_number', 'student__first_name', 'student__last_name',
+            'receipt_number', 'student__admission_number', 'student__first_name', 'student__last_name',
             'amount', 'payment_mode', 'payment_date', 'status',
         )
-        headers = ['Receipt', 'Student first name', 'Student last name', 'Amount', 'Mode', 'Date', 'Status']
+        headers = ['Receipt', 'Admission number', 'Student first name', 'Student last name', 'Amount', 'Mode', 'Date', 'Status']
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                _cell(row['receipt_number']), _cell(row['student__first_name']),
-                _cell(row['student__last_name']), _cell(row['amount']),
+                _cell(row['receipt_number']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']), _cell(row['amount']),
                 _cell(row['payment_mode']), _cell(row['payment_date']), _cell(row['status']),
             ])
         return headers, rows
 
     if report_type == 'PAYMENTS_ALL_RECEIPTS':
         qs = PaymentsService.get_all_receipts(bundle).values(
-            'receipt_number', 'student__first_name', 'student__last_name',
+            'receipt_number', 'student__admission_number', 'student__first_name', 'student__last_name',
             'amount', 'payment_mode', 'payment_date', 'status',
         )
-        headers = ['Receipt', 'Student first name', 'Student last name', 'Amount', 'Mode', 'Date', 'Status']
+        headers = ['Receipt', 'Admission number', 'Student first name', 'Student last name', 'Amount', 'Mode', 'Date', 'Status']
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                _cell(row['receipt_number']), _cell(row['student__first_name']),
-                _cell(row['student__last_name']), _cell(row['amount']),
+                _cell(row['receipt_number']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']), _cell(row['amount']),
                 _cell(row['payment_mode']), _cell(row['payment_date']), _cell(row['status']),
             ])
         return headers, rows
@@ -432,45 +433,47 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
 
     if report_type == 'PAYMENTS_BANK_TRANSACTIONS':
         qs = PaymentsService.get_bank_transactions(bundle).values(
-            'receipt_number', 'student__first_name', 'student__last_name',
+            'receipt_number', 'student__admission_number', 'student__first_name', 'student__last_name',
             'amount', 'payment_mode', 'payment_date', 'reference_number', 'bank_name', 'status',
         )
         headers = [
-            'Receipt', 'Student first name', 'Student last name', 'Amount', 'Mode',
+            'Receipt', 'Admission number', 'Student first name', 'Student last name', 'Amount', 'Mode',
             'Date', 'Reference', 'Bank', 'Status',
         ]
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                _cell(row['receipt_number']), _cell(row['student__first_name']),
-                _cell(row['student__last_name']), _cell(row['amount']), _cell(row['payment_mode']),
-                _cell(row['payment_date']), _cell(row['reference_number']), _cell(row['bank_name']),
-                _cell(row['status']),
+                _cell(row['receipt_number']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']), _cell(row['amount']),
+                _cell(row['payment_mode']), _cell(row['payment_date']), _cell(row['reference_number']),
+                _cell(row['bank_name']), _cell(row['status']),
             ])
         return headers, rows
 
     if report_type == 'PAYMENTS_CHEQUES':
         qs = PaymentsService.get_bank_transactions(bundle).filter(payment_mode='CHEQUE').values(
-            'receipt_number', 'student__first_name', 'student__last_name',
+            'receipt_number', 'student__admission_number', 'student__first_name', 'student__last_name',
             'amount', 'payment_date', 'reference_number', 'bank_name', 'status',
         )
-        headers = ['Receipt', 'Student first name', 'Student last name', 'Amount', 'Date', 'Cheque ref', 'Bank', 'Status']
+        headers = ['Receipt', 'Admission number', 'Student first name', 'Student last name', 'Amount', 'Date', 'Cheque ref', 'Bank', 'Status']
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                _cell(row['receipt_number']), _cell(row['student__first_name']),
-                _cell(row['student__last_name']), _cell(row['amount']), _cell(row['payment_date']),
-                _cell(row['reference_number']), _cell(row['bank_name']), _cell(row['status']),
+                _cell(row['receipt_number']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']), _cell(row['amount']),
+                _cell(row['payment_date']), _cell(row['reference_number']), _cell(row['bank_name']),
+                _cell(row['status']),
             ])
         return headers, rows
 
     if report_type == 'PAYMENTS_ALL_RECEIPTS_WITH_MISMATCH':
         data = PaymentsService.get_mismatch_detection(bundle)
-        headers = ['Invoice', 'Student', 'Invoice paid', 'Payment sum', 'Delta']
+        headers = ['Invoice', 'Admission number', 'Student', 'Invoice paid', 'Payment sum', 'Delta']
         rows = [
             [
-                _cell(r.get('invoice_number')), _cell(r.get('student_name')),
-                r.get('invoice_paid', ''), r.get('payment_sum', ''), r.get('delta', ''),
+                _cell(r.get('invoice_number')), _cell(r.get('student_admission_number')),
+                _cell(r.get('student_name')), r.get('invoice_paid', ''), r.get('payment_sum', ''),
+                r.get('delta', ''),
             ]
             for r in data
         ]
@@ -536,43 +539,43 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
     # ─── Bus / past dues / staff ─────────────────────────────────
     if report_type == 'BUS_FEE_BALANCES':
         qs = BusService.get_bus_fee_balances(bundle).values(
-            'invoice_number', 'student__first_name', 'student__last_name',
+            'invoice_number', 'student__admission_number', 'student__first_name', 'student__last_name',
             'student__class_section__grade', 'student__class_section__section',
             'outstanding_amount', 'due_date',
         )
         headers = [
-            'Invoice', 'Student first name', 'Student last name', 'Grade', 'Section',
+            'Invoice', 'Admission number', 'Student first name', 'Student last name', 'Grade', 'Section',
             'Outstanding', 'Due date',
         ]
         rows = []
         for row in qs.iterator(chunk_size=500):
             rows.append([
-                _cell(row['invoice_number']), _cell(row['student__first_name']),
-                _cell(row['student__last_name']), _cell(row['student__class_section__grade']),
-                _cell(row['student__class_section__section']), _cell(row['outstanding_amount']),
-                _cell(row['due_date']),
+                _cell(row['invoice_number']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']),
+                _cell(row['student__class_section__grade']), _cell(row['student__class_section__section']),
+                _cell(row['outstanding_amount']), _cell(row['due_date']),
             ])
         return headers, rows
 
     if report_type == 'PAST_DUES_LIST':
         qs = PastDuesService.get_past_dues(bundle)
         headers = [
-            'Invoice', 'Student first name', 'Student last name', 'Grade', 'Section',
+            'Invoice', 'Admission number', 'Student first name', 'Student last name', 'Grade', 'Section',
             'Outstanding', 'Due date', 'Days overdue',
         ]
         rows = []
         for row in qs.values(
-            'invoice_number', 'student__first_name', 'student__last_name',
+            'invoice_number', 'student__admission_number', 'student__first_name', 'student__last_name',
             'student__class_section__grade', 'student__class_section__section',
             'outstanding_amount', 'due_date', 'days_overdue',
         ).iterator(chunk_size=500):
             overdue = row.get('days_overdue')
             days = overdue.days if overdue and hasattr(overdue, 'days') else 0
             rows.append([
-                _cell(row['invoice_number']), _cell(row['student__first_name']),
-                _cell(row['student__last_name']), _cell(row['student__class_section__grade']),
-                _cell(row['student__class_section__section']), _cell(row['outstanding_amount']),
-                _cell(row['due_date']), days,
+                _cell(row['invoice_number']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']),
+                _cell(row['student__class_section__grade']), _cell(row['student__class_section__section']),
+                _cell(row['outstanding_amount']), _cell(row['due_date']), days,
             ])
         return headers, rows
 

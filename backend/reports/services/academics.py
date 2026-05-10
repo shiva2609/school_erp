@@ -196,6 +196,7 @@ class AcademicsService:
             notes.append({
                 'date': str(r.date),
                 'source': 'ATTENDANCE',
+                'admission_number': getattr(r.student, 'admission_number', None) or '',
                 'student_name': f'{r.student.first_name} {r.student.last_name or ""}'.strip(),
                 'grade': cs.grade if cs else '',
                 'section': cs.section if cs else '',
@@ -220,6 +221,7 @@ class AcademicsService:
             notes.append({
                 'date': str(r.evaluated_at.date()) if r.evaluated_at else '',
                 'source': 'EXAM',
+                'admission_number': getattr(r.student, 'admission_number', None) or '',
                 'student_name': f'{r.student.first_name} {r.student.last_name or ""}'.strip(),
                 'grade': cs.grade if cs else '',
                 'section': cs.section if cs else '',

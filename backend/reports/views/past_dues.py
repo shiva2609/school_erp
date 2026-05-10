@@ -5,6 +5,7 @@ from ..permissions import ReportAccessPermission
 from ..pagination import ReportPagination
 from ..filters import BaseReportFilter
 from ..services.past_dues import PastDuesService
+from ..summary import fee_invoice_totals
 
 class PastDuesReportViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, ReportAccessPermission]
@@ -13,11 +14,12 @@ class PastDuesReportViewSet(viewsets.ViewSet):
     def list_past_dues(self, request):
         filters = BaseReportFilter(request, request.user)
         qs = PastDuesService.get_past_dues(filters)
-        
+        summary = fee_invoice_totals(qs)
+
         # days_overdue is a DurationField annotation — extract .days in Python
         # Use values on regular fields, then annotate days manually
         data = qs.values(
-            'invoice_number', 'student__first_name', 'student__last_name',
+            'invoice_number', 'student__admission_number', 'student__first_name', 'student__last_name',
             'student__class_section__grade', 'student__class_section__section',
             'outstanding_amount', 'due_date', 'days_overdue'
         )
@@ -35,4 +37,4 @@ class PastDuesReportViewSet(viewsets.ViewSet):
         
         paginator = ReportPagination()
         page = paginator.paginate_queryset(results, request, view=self)
-        return paginator.get_paginated_response(page)
+        return paginator.get_paginated_response(page, summary=summary)
