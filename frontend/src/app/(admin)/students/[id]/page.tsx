@@ -154,14 +154,18 @@ export default function StudentProfilePage() {
   const refundedPayments = (student?.payments || []).filter((p: any) => p.status === 'REFUNDED');
   const completedAmount = completedPayments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
   const refundedAmount = refundedPayments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
-  const completedAdmissionPayments = completedPayments.filter((p: any) => String(p?.invoice_number || '').startsWith('ADM-'));
-  const completedFixedDepositPayments = completedPayments.filter((p: any) => String(p?.invoice_number || '').startsWith('FDP-'));
-  const admissionPaidTotal = completedAdmissionPayments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
-  const fixedDepositPaidTotal = completedFixedDepositPayments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+  const admissionInvoices = (student?.invoices || []).filter((inv: any) => String(inv?.invoice_number || '').startsWith('ADM-'));
+  const fixedDepositInvoices = (student?.invoices || []).filter((inv: any) => String(inv?.invoice_number || '').startsWith('FDP-'));
+  const admissionPaidTotal = admissionInvoices.reduce((sum: number, inv: any) => sum + Number(inv.paid_amount || 0), 0);
+  const fixedDepositPaidTotal = fixedDepositInvoices.reduce((sum: number, inv: any) => sum + Number(inv.paid_amount || 0), 0);
+  const admissionOutstandingTotal = admissionInvoices.reduce((sum: number, inv: any) => sum + Number(inv.outstanding_amount || 0), 0);
+  const fixedDepositOutstandingTotal = fixedDepositInvoices.reduce((sum: number, inv: any) => sum + Number(inv.outstanding_amount || 0), 0);
+  const admissionPartiallyPaid = admissionPaidTotal > 0 && admissionOutstandingTotal > 0;
+  const fixedDepositPartiallyPaid = fixedDepositPaidTotal > 0 && fixedDepositOutstandingTotal > 0;
   const admissionMarkedEarlier = !!student?.admission_fee_marked_paid_earlier;
   const fixedDepositMarkedEarlier = !!student?.fixed_deposit_marked_paid_earlier;
-  const admissionPaid = admissionPaidTotal > 0 || admissionMarkedEarlier;
-  const fixedDepositPaid = fixedDepositPaidTotal > 0 || fixedDepositMarkedEarlier;
+  const admissionPaid = (admissionInvoices.length > 0 && admissionOutstandingTotal <= 0) || admissionMarkedEarlier;
+  const fixedDepositPaid = (fixedDepositInvoices.length > 0 && fixedDepositOutstandingTotal <= 0) || fixedDepositMarkedEarlier;
   const transferNote = String(student?.leaving_reason || '');
   const hasTransferTrail = transferNote.toLowerCase().startsWith('transferred from ');
   const requiresInitialPayment = !!student?.requires_initial_payment && !student?.is_csv_imported;
@@ -861,7 +865,7 @@ export default function StudentProfilePage() {
                           onClick={() => push(`/students/${id}/pay-admission`)}
                           className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest"
                         >
-                          Pay now
+                          {admissionPartiallyPaid ? 'Extra Payment' : 'Pay now'}
                         </button>
                         <button
                           onClick={() => markInitialPaymentAsEarlier('ADMISSION_FEE')}
@@ -895,7 +899,7 @@ export default function StudentProfilePage() {
                           onClick={() => push(`/students/${id}/pay-admission`)}
                           className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest"
                         >
-                          Pay now
+                          {fixedDepositPartiallyPaid ? 'Extra Payment' : 'Pay now'}
                         </button>
                         <button
                           onClick={() => markInitialPaymentAsEarlier('FIXED_DEPOSIT')}
