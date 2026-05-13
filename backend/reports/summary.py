@@ -72,13 +72,22 @@ def applicant_fee_totals(qs):
 
 
 def student_list_totals(qs):
+    """Roll up collected amounts; avoid Sum(total_initial_income) on a combined annotation (fragile on some DB backends)."""
     a = qs.aggregate(
-        total_initial_income=Sum('total_initial_income'),
         admission_fee_collected=Sum('admission_fee_collected'),
         fixed_deposit_collected=Sum('fixed_deposit_collected'),
         special_fee_collected=Sum('special_fee_collected'),
     )
-    return {k: _s(a[k]) for k in a}
+    ad = a['admission_fee_collected'] or Decimal('0')
+    fd = a['fixed_deposit_collected'] or Decimal('0')
+    sp = a['special_fee_collected'] or Decimal('0')
+    ti = ad + fd + sp
+    return {
+        'total_initial_income': _s(ti),
+        'admission_fee_collected': _s(ad),
+        'fixed_deposit_collected': _s(fd),
+        'special_fee_collected': _s(sp),
+    }
 
 
 def simple_count_summary(qs):
@@ -162,12 +171,18 @@ def footer_concession_columns(qs):
 
 
 def footer_student_detailed_balance_columns(student_summary_qs):
+    # Use aggregate aliases distinct from annotation names — Django otherwise emits wrong SQL
+    # (e.g. total_net=Sum('total_net') on a queryset already annotated total_net sums to 0 / can error).
     a = student_summary_qs.aggregate(
-        total_net=Sum('total_net'),
-        total_paid=Sum('total_paid'),
-        total_outstanding=Sum('total_outstanding'),
+        _sum_net=Sum('total_net'),
+        _sum_paid=Sum('total_paid'),
+        _sum_outstanding=Sum('total_outstanding'),
     )
-    return {k: _s(a[k]) for k in a}
+    return {
+        'total_net': _s(a['_sum_net']),
+        'total_paid': _s(a['_sum_paid']),
+        'total_outstanding': _s(a['_sum_outstanding']),
+    }
 
 
 def footer_mismatch_amount_columns(rows):
