@@ -1,4 +1,7 @@
 from rest_framework import serializers
+from decimal import Decimal
+
+from .approval import EXPENSE_AUTO_APPROVE_MAX, EXPENSE_ZONAL_APPROVE_MAX
 from .models import ExpenseCategory, Vendor, Expense, TransactionLog
 from tenants.models import Branch
 
@@ -17,6 +20,8 @@ class VendorSerializer(serializers.ModelSerializer):
 class ExpenseSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     vendor_display = serializers.CharField(source='vendor.name', read_only=True, default=None)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    approval_routing = serializers.SerializerMethodField()
     submitted_by_name = serializers.SerializerMethodField()
     
     # Make these optional/read-only for creation since perform_create auto-populates them
@@ -37,6 +42,17 @@ class ExpenseSerializer(serializers.ModelSerializer):
             name = f"{obj.submitted_by.first_name} {obj.submitted_by.last_name}".strip()
             return name if name else obj.submitted_by.email
         return None
+
+    def get_approval_routing(self, obj):
+        """UI hint: who must approve a SUBMITTED expense (amount tiers)."""
+        if obj.status != 'SUBMITTED':
+            return None
+        amt = obj.amount if obj.amount is not None else Decimal('0')
+        if amt <= EXPENSE_AUTO_APPROVE_MAX:
+            return 'AUTO'
+        if amt > EXPENSE_ZONAL_APPROVE_MAX:
+            return 'SUPER_ADMIN'
+        return 'ZONAL_ADMIN'
 
 class TransactionLogSerializer(serializers.ModelSerializer):
     class Meta:

@@ -45,7 +45,7 @@ const tenantSuperAdminNavGroups: NavGroup[] = [
       { href: '/reports', label: 'Reports Center', icon: BarChart3 },
       { href: '/audit-logs', label: 'Activity ledger', icon: ClipboardCheck },
       { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
-      { href: '/approvals', label: 'Fee approvals', icon: ClipboardCheck },
+      { href: '/approvals', label: 'Approvals', icon: ClipboardCheck },
     ],
   },
   {
@@ -98,7 +98,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
           items: [
             { href: '/fees', label: 'Fee Collection', icon: Receipt },
             { href: '/expenses', label: 'Expenses & Approvals', icon: TrendingDown },
-            { href: '/approvals', label: 'Fee approvals', icon: ClipboardCheck },
+            { href: '/approvals', label: 'Approvals', icon: ClipboardCheck },
             { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
             { href: '/academic-transition', label: 'Year Transition', icon: ArrowUpRight },
           ],
@@ -124,7 +124,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
           items: [
             { href: '/fees', label: 'Fee Collection', icon: Receipt },
             { href: '/expenses', label: 'Expenses', icon: TrendingDown },
-            { href: '/approvals', label: 'Fee approvals', icon: ClipboardCheck },
+            { href: '/approvals', label: 'Approvals', icon: ClipboardCheck },
             { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
           ],
         },

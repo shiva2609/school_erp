@@ -10,14 +10,16 @@ from django.db.models import Sum, Max
 from django.db import transaction
 from decimal import Decimal
 
-from accounts.permissions import IsAccountantOrAbove, normalize_role, role_in
+from accounts.permissions import IsAccountantOrAbove, has_min_role, normalize_role
 from accounts.utils import (
+    apply_scope_filter,
     get_validated_branch_id,
     log_audit_action,
     log_bulk_action,
     filter_queryset_for_user_tenant,
 )
 from tenants.models import Branch
+from .approval import EXPENSE_AUTO_APPROVE_MAX, user_can_approve_submitted_expense
 from .models import ExpenseCategory, Vendor, Expense, TransactionLog
 from .other_income_presets import (
     MANUAL_OTHER_INCOME_CATEGORY_PRESETS,
@@ -67,10 +69,18 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = filter_queryset_for_user_tenant(
             Expense.objects.all(), self.request.user, 'branch__tenant'
-        ).select_related('category', 'vendor')
+        ).select_related('category', 'vendor', 'branch', 'submitted_by')
         branch_id = get_validated_branch_id(self.request.user, self.request.query_params.get('branch_id'))
         if branch_id:
             qs = qs.filter(branch_id=branch_id)
+        if normalize_role(getattr(self.request.user, 'role', None)) == 'ZONAL_ADMIN':
+            qs = apply_scope_filter(
+                qs,
+                self.request.user,
+                tenant_lookup='tenant_id',
+                branch_lookup='branch_id',
+                zone_lookup='branch__zone_id',
+            )
         stat = self.request.query_params.get('status')
         if stat:
             qs = qs.filter(status=stat)
@@ -142,7 +152,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         amount_val = Decimal(str(self.request.data.get('amount', 0)))
         
         # Smart routing: auto-approve if under threshold
-        if amount_val <= 3000:
+        if amount_val <= EXPENSE_AUTO_APPROVE_MAX:
             initial_status = 'APPROVED'
             expense = serializer.save(
                 tenant=user.tenant,
@@ -181,9 +191,21 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         expense = self.get_object()
         new_status = request.data.get('status')
         
-        # Only School Admin or Super Admin can approve
-        if new_status == 'APPROVED' and not role_in(request.user, ['OWNER', 'SUPER_ADMIN']):
-            return Response({'detail': 'Only School Admin or Super Admin can approve expenses'}, status=403)
+        if new_status == 'APPROVED' and expense.status == 'SUBMITTED':
+            if not user_can_approve_submitted_expense(request.user, expense.amount):
+                return Response(
+                    {
+                        'detail': 'You are not authorized to approve this expense amount. '
+                        'Above ₹3,000 up to ₹5,000: zonal or chief accountant. Above ₹5,000: school super admin only.',
+                    },
+                    status=403,
+                )
+        if new_status == 'REJECTED' and expense.status == 'SUBMITTED':
+            if not user_can_approve_submitted_expense(request.user, expense.amount):
+                return Response(
+                    {'detail': 'You are not authorized to reject this expense for the same routing rules as approval.'},
+                    status=403,
+                )
 
         VALID = {'DRAFT': ['SUBMITTED'], 'SUBMITTED': ['APPROVED', 'REJECTED'], 'REJECTED': ['DRAFT']}
         allowed = VALID.get(expense.status, [])
@@ -221,30 +243,47 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='bulk-approve')
     def bulk_approve(self, request):
-        if not role_in(request.user, ['OWNER', 'SUPER_ADMIN']):
-            return Response({'detail': 'Only School Admin or Super Admin can approve expenses'}, status=403)
-            
+        if not has_min_role(request.user, 'ZONAL_ADMIN'):
+            return Response({'detail': 'Insufficient permission to bulk-approve expenses.'}, status=403)
+
         expense_ids = request.data.get('expense_ids', [])
         if not expense_ids:
             return Response({'detail': 'No expenses selected.'}, status=400)
 
         expenses_qs = filter_queryset_for_user_tenant(
-            Expense.objects.filter(id__in=expense_ids, status='SUBMITTED').select_related('category'),
+            Expense.objects.filter(id__in=expense_ids, status='SUBMITTED').select_related('category', 'branch'),
             request.user,
             'branch__tenant',
         )
+        if normalize_role(getattr(request.user, 'role', None)) == 'ZONAL_ADMIN':
+            expenses_qs = apply_scope_filter(
+                expenses_qs,
+                request.user,
+                tenant_lookup='tenant_id',
+                branch_lookup='branch_id',
+                zone_lookup='branch__zone_id',
+            )
 
         approved_count = 0
+        skipped = []
         tenant_for_log = request.user.tenant
-        from django.db import transaction
-        
+
         with transaction.atomic():
             for expense in expenses_qs:
+                if not user_can_approve_submitted_expense(request.user, expense.amount):
+                    skipped.append(
+                        {
+                            'id': str(expense.id),
+                            'amount': str(expense.amount),
+                            'detail': 'Not authorized for this amount tier.',
+                        }
+                    )
+                    continue
                 expense.status = 'APPROVED'
                 expense.approved_by = request.user
                 expense.approved_at = timezone.now()
                 expense.save()
-                
+
                 TransactionLog.objects.create(
                     tenant=expense.tenant, branch=expense.branch,
                     transaction_type='EXPENSE', category=expense.category.name,
@@ -261,15 +300,17 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                     user=request.user,
                     action_type='EXPENSE_APPROVAL',
                     record_count=approved_count,
-                    details={'expense_ids': expense_ids},
+                    details={'expense_ids': expense_ids, 'skipped': skipped},
                     tenant=tenant_for_log,
                 )
-                
+
         return Response({
             'success': True,
             'data': {
                 'approved': approved_count,
+                'skipped': skipped,
                 'message': f'{approved_count} expense(s) approved successfully.'
+                + (f' {len(skipped)} skipped (not authorized for amount).' if skipped else ''),
             }
         })
 
