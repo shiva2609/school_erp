@@ -67,7 +67,7 @@ export default function PayAdmissionPage() {
 
     setSaving(true);
     try {
-      const res = await api.post('payments/initial-payment/', {
+      const res = await api.post('fees/payments/initial-payment/', {
         student_id: studentId,
         admission_fee: amountPayingAdmission,
         fixed_deposit: fixedDeposit,
@@ -80,21 +80,41 @@ export default function PayAdmissionPage() {
       setResult(res.data.data);
       setSuccess(true);
     } catch (err: any) {
-      const payload = err.response?.data;
+      const status = err?.response?.status;
+      const payload = err?.response?.data;
       const detail = payload?.detail;
-      const fieldErrors = payload && typeof payload === 'object'
-        ? Object.entries(payload)
-            .filter(([k]) => k !== 'detail')
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : String(v)}`)
-            .join(' | ')
-        : '';
+
+      const flattenError = (value: unknown): string => {
+        if (typeof value === 'string') return value;
+        if (Array.isArray(value)) return value.map(flattenError).filter(Boolean).join(', ');
+        if (value && typeof value === 'object') {
+          return Object.entries(value as Record<string, unknown>)
+            .map(([k, v]) => {
+              const child = flattenError(v);
+              return child ? `${k}: ${child}` : '';
+            })
+            .filter(Boolean)
+            .join(' | ');
+        }
+        return '';
+      };
+
+      const detailText = flattenError(detail);
+      const payloadText = flattenError(payload);
+      const genericByStatus =
+        status === 400
+          ? 'Invalid payment input. Please review the amounts and try again.'
+          : status === 404
+            ? 'Payment service endpoint not found. Please refresh and try again.'
+            : status === 500
+              ? 'Server error while recording payment. Please try again in a moment.'
+              : 'Error processing payment';
+
       const msg =
-        (typeof detail === 'string' && detail) ||
-        (Array.isArray(detail) && detail.length ? detail.join(', ') : '') ||
-        fieldErrors ||
+        detailText ||
         payload?.error ||
-        err.message ||
-        'Error processing payment';
+        payloadText ||
+        genericByStatus;
       toast.error(msg);
     } finally {
       setSaving(false);
