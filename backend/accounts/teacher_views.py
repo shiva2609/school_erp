@@ -38,7 +38,8 @@ def teacher_dashboard(request):
 
     if teacher_profile:
         assignments = TeacherAssignment.objects.filter(
-            teacher=teacher_profile
+            teacher=teacher_profile,
+            academic_year__is_active=True
         ).select_related('class_section').values(
             'class_section__id', 'class_section__display_name', 'is_class_teacher'
         ).distinct()
@@ -79,7 +80,9 @@ def teacher_dashboard(request):
     try:
         from timetable.models import TimetableSlot, Period
         slots = TimetableSlot.objects.filter(
-            teacher=user, day_of_week=day_of_week
+            teacher=user,
+            day_of_week=day_of_week,
+            class_section__academic_year__is_active=True
         ).select_related('period', 'subject', 'class_section').order_by('period__order')
 
         for slot in slots:

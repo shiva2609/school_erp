@@ -254,4 +254,8 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'fees.tasks.automatic_fee_reminder_notifications',
         'schedule': crontab(day_of_month=1, hour=8, minute=30),
     },
+    'publish-scheduled-announcements': {
+        'task': 'announcements.tasks.publish_scheduled_announcements',
+        'schedule': crontab(minute='*/5'),
+    },
 }

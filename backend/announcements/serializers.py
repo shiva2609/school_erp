@@ -6,6 +6,7 @@ from .models import Announcement, AnnouncementReadReceipt
 class AnnouncementSerializer(serializers.ModelSerializer):
     read_count = serializers.SerializerMethodField()
     target_class_labels = serializers.SerializerMethodField()
+    is_read = serializers.SerializerMethodField()
 
     class Meta:
         model = Announcement
@@ -32,6 +33,12 @@ class AnnouncementSerializer(serializers.ModelSerializer):
         if obj.target_audience != 'CLASS':
             return []
         return [c.display_name for c in obj.target_classes.all()]
+
+    def get_is_read(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        return obj.read_receipts.filter(user=request.user).exists()
 
     def validate(self, attrs):
         if 'target_audience' in attrs and attrs.get('target_audience') != 'INDIVIDUAL':

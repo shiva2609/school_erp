@@ -244,15 +244,24 @@ def parent_child_timetable(request, student_id):
 def parent_announcements(request):
     relations = ParentStudentRelation.objects.filter(parent=request.user).select_related('student', 'student__class_section')
     class_ids = set()
+    parent_branch_ids = set()
     for r in relations:
         if r.student.class_section:
             class_ids.add(r.student.class_section_id)
+        if r.student.branch_id:
+            parent_branch_ids.add(r.student.branch_id)
+
+    if not parent_branch_ids:
+        return Response({'success': True, 'data': []})
+
     anns = Announcement.objects.filter(
-        branch__tenant=request.user.tenant, is_published=True
+        branch__tenant=request.user.tenant,
+        branch_id__in=parent_branch_ids,
+        is_published=True
     ).filter(
         models.Q(target_audience__in=['ALL', 'PARENTS']) | models.Q(target_classes__id__in=class_ids)
     ).distinct().order_by('-published_at')[:20]
-    return Response({'success': True, 'data': AnnouncementSerializer(anns, many=True).data})
+    return Response({'success': True, 'data': AnnouncementSerializer(anns, many=True, context={'request': request}).data})
 
 
 @api_view(['GET'])

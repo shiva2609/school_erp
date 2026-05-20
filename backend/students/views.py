@@ -77,6 +77,9 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
             qs = qs.filter(branch_id=branch)
         if ay:
             qs = qs.filter(academic_year_id=ay)
+        else:
+            if role == 'TEACHER':
+                qs = qs.filter(academic_year__is_active=True)
             
         # Filter for primary teacher only (used by Attendance)
         teacher_only = self.request.query_params.get('teacher_only')
@@ -378,7 +381,10 @@ class StudentViewSet(viewsets.ModelViewSet):
         
         # Teachers strictly see only students in their classes unless assigned otherwise
         if role == 'TEACHER':
-            qs = qs.filter(class_section__teacher_assignments__teacher__user=user).distinct()
+            qs = qs.filter(
+                class_section__teacher_assignments__teacher__user=user,
+                class_section__teacher_assignments__academic_year__is_active=True
+            ).distinct()
             
         # Branch Isolation
         if role not in ['OWNER', 'SUPER_ADMIN'] and user.branch:

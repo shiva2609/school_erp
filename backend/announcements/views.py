@@ -28,92 +28,80 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated(), IsAccountantOrAbove()]
 
     def get_queryset(self):
+        user = self.request.user
         qs = (
-            Announcement.objects.filter(branch__tenant=self.request.user.tenant)
+            Announcement.objects.filter(branch__tenant=user.tenant)
             .select_related('branch')
             .prefetch_related('target_classes')
         )
-        if self.request.user.role not in ANNOUNCEMENT_ADMIN_ROLES:
-            qs = qs.filter(is_published=True)
-        return qs
+
+        from accounts.permissions import get_user_scope
+        scope = get_user_scope(user)
+
+        if user.role in ANNOUNCEMENT_ADMIN_ROLES:
+            # Enforce Branch Isolation for Admins
+            if scope.get('level') == 'branch':
+                qs = qs.filter(branch_id=scope['branch_id'])
+            return qs
+
+        # Non-admins: can only see published announcements
+        qs = qs.filter(is_published=True)
+
+        # Enforce strict audience filtering
+        if user.role == 'TEACHER':
+            qs = qs.filter(
+                Q(target_audience__in=['ALL', 'TEACHERS', 'STAFF']) |
+                Q(target_audience='INDIVIDUAL', recipient_email__iexact=user.email)
+            )
+            if getattr(user, 'branch_id', None):
+                qs = qs.filter(Q(branch_id=user.branch_id) | Q(branch__isnull=True))
+        elif user.role == 'PARENT':
+            from students.models import ParentStudentRelation
+            class_ids = ParentStudentRelation.objects.filter(
+                parent=user
+            ).values_list('student__class_section_id', flat=True).distinct()
+            qs = qs.filter(
+                Q(target_audience__in=['ALL', 'PARENTS']) |
+                Q(target_audience='CLASS', target_classes__id__in=class_ids) |
+                Q(target_audience='INDIVIDUAL', recipient_email__iexact=user.email)
+            )
+            parent_branch_ids = ParentStudentRelation.objects.filter(
+                parent=user
+            ).values_list('student__branch_id', flat=True).distinct()
+            if parent_branch_ids:
+                qs = qs.filter(Q(branch_id__in=parent_branch_ids) | Q(branch__isnull=True))
+            else:
+                qs = qs.none()
+        else:
+            # Fallback security clamp: other roles only see ALL targeted to their branch
+            qs = qs.filter(target_audience='ALL')
+            if getattr(user, 'branch_id', None):
+                qs = qs.filter(Q(branch_id=user.branch_id) | Q(branch__isnull=True))
+
+        return qs.distinct()
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant, created_by=self.request.user)
+        user = self.request.user
+        from accounts.permissions import get_user_scope
+        scope = get_user_scope(user)
+        if scope.get('level') == 'branch':
+            branch = serializer.validated_data.get('branch')
+            if branch and str(branch.id) != str(scope['branch_id']):
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You do not have permission to create announcements for this branch.")
+            serializer.save(tenant=user.tenant, branch_id=scope['branch_id'], created_by=user)
+        else:
+            serializer.save(tenant=user.tenant, created_by=user)
 
     @action(detail=True, methods=['patch'], url_path='publish')
     def publish(self, request, pk=None):
         ann = self.get_object()
-
-        if ann.is_published:
-            return Response({'success': True, 'data': AnnouncementSerializer(ann).data})
-
-        from accounts.models import User
-        from notifications.dispatcher import dispatch_bulk_notifications
-
-        users = User.objects.filter(tenant=ann.tenant, is_active=True)
-        if ann.target_audience == 'PARENTS':
-            users = users.filter(role='PARENT')
-        elif ann.target_audience == 'TEACHERS':
-            users = users.filter(role='TEACHER')
-        elif ann.target_audience == 'STAFF':
-            users = users.filter(role__in=STAFF_AUDIENCE_ROLES)
-        elif ann.target_audience == 'CLASS':
-            from students.models import ParentStudentRelation
-            class_ids = list(ann.target_classes.values_list('id', flat=True))
-            if not class_ids:
-                return Response(
-                    {'detail': 'Choose at least one class before publishing a class-scoped announcement.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            parent_ids = ParentStudentRelation.objects.filter(
-                student__class_section_id__in=class_ids,
-            ).values_list('parent_id', flat=True).distinct()
-            users = users.filter(id__in=parent_ids, role='PARENT')
-        elif ann.target_audience == 'INDIVIDUAL':
-            email = (ann.recipient_email or '').strip()
-            if not email:
-                return Response(
-                    {'detail': 'recipient_email is required for individual announcements.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            target = User.objects.filter(
-                tenant=ann.tenant, email__iexact=email, is_active=True,
-            ).first()
-            if not target:
-                return Response(
-                    {'detail': f'No active user with email {email} in this organization.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            users = User.objects.filter(id=target.id)
-
-        if ann.branch and ann.target_audience != 'INDIVIDUAL':
-            users = users.filter(Q(branch=ann.branch) | Q(branch__isnull=True))
-
-        users = users.distinct()
-        if not users.exists():
-            return Response(
-                {'detail': 'No recipients match this announcement.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        ann.is_published = True
-        ann.published_at = timezone.now()
-        if ann.target_audience == 'INDIVIDUAL' and not ann.send_email:
-            ann.send_email = True
-        ann.save()
-
-        dispatch_bulk_notifications(
-            tenant=ann.tenant,
-            branch=ann.branch,
-            event_type='CUSTOM_ANNOUNCEMENT',
-            recipient_users=users,
-            payload={'title': ann.title, 'message': ann.body},
-            send_sms=ann.send_sms,
-            send_email=ann.send_email,
-            send_push=ann.send_push,
-        )
-
-        return Response({'success': True, 'data': AnnouncementSerializer(ann).data})
+        from .services import publish_announcement, AnnouncementPublishError
+        try:
+            published_ann = publish_announcement(ann)
+            return Response({'success': True, 'data': AnnouncementSerializer(published_ann).data})
+        except AnnouncementPublishError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='mark-read')
     def mark_read(self, request, pk=None):

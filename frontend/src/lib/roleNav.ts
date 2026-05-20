@@ -224,7 +224,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
         },
         {
           group: 'Communicate',
-          items: [{ href: '/announcements', label: 'Notices', icon: Megaphone }],
+          items: [{ href: '/teacher/notices', label: 'Notices', icon: Megaphone }],
         },
       ];
     case 'PARENT':
