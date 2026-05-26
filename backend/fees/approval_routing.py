@@ -40,7 +40,7 @@ def fee_approval_queryset_for_user(user, queryset):
     qs = filter_queryset_for_user_tenant(queryset, user, 'tenant')
     role = normalize_role(getattr(user, 'role', None))
     if role == 'SUPER_ADMIN':
-        return qs.filter(routing='TENANT_SUPER')
+        return qs
     if role == 'ZONAL_ADMIN':
         return apply_scope_filter(
             qs.filter(routing='ZONAL'),
@@ -56,8 +56,8 @@ def user_can_act_on_fee_approval(user, approval):
     role = normalize_role(getattr(user, 'role', None))
     if user.tenant_id != approval.tenant_id:
         return False
-    if approval.routing == 'TENANT_SUPER':
-        return role == 'SUPER_ADMIN'
+    if role == 'SUPER_ADMIN':
+        return True
     if approval.routing == 'ZONAL':
         if role != 'ZONAL_ADMIN':
             return False

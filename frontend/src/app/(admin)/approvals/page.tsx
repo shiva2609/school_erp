@@ -54,7 +54,7 @@ function canUserApproveExpense(role: string | undefined, amount: number): boolea
   if (!role) return false;
   const amt = Number(amount) || 0;
   if (amt <= AUTO_APPROVE_MAX) return false;
-  if (role === "OWNER" || role === "SUPER_ADMIN") return true;
+  if (role === "SUPER_ADMIN") return true;
   if (amt > ZONAL_MAX) return false;
   return role === "ZONAL_ADMIN" || role === "CHIEF_ACCOUNTANT";
 }
@@ -82,7 +82,7 @@ export default function AdminApprovalsQueue() {
   const canAccess = canReviewFees || canReviewExpenses;
 
   const branchQuery = useMemo(() => {
-    if (!["SUPER_ADMIN", "OWNER", "CHIEF_ACCOUNTANT", "ZONAL_ADMIN"].includes(user?.role || "")) return "";
+    if (!["SUPER_ADMIN", "CHIEF_ACCOUNTANT", "ZONAL_ADMIN"].includes(user?.role || "")) return "";
     if (selectedBranch && selectedBranch !== "all") return `&branch_id=${selectedBranch}`;
     return "";
   }, [selectedBranch, user?.role]);
