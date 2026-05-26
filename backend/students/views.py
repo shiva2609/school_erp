@@ -216,15 +216,38 @@ class AdmissionApplicationViewSet(viewsets.ModelViewSet):
             if not class_section_id:
                 return Response({'detail': 'Class Section is required for enrollment.'}, status=400)
 
-            # Fallback to Decimal
-            if offered_total is not None:
-                offered_total = Decimal(str(offered_total))
-            if standard_total is not None:
-                standard_total = Decimal(str(standard_total))
+            if offered_total is None:
+                return Response({'detail': 'Agreed total fee (offered_total) is required for enrollment.'}, status=400)
+            
+            try:
+                offered_total_val = Decimal(str(offered_total))
+            except (ValueError, TypeError, ArithmeticError):
+                return Response({'detail': 'Agreed total fee (offered_total) must be a valid number.'}, status=400)
+
+            if offered_total_val <= 0:
+                return Response({'detail': 'Agreed total fee (offered_total) must be greater than zero.'}, status=400)
 
             # Auto-generate admission number
             branch = application.branch
             ay = application.academic_year
+
+            try:
+                cs = ClassSection.objects.get(id=class_section_id)
+            except ClassSection.DoesNotExist:
+                return Response({'detail': 'Selected Class Section does not exist.'}, status=400)
+
+            structure = FeeStructure.objects.filter(
+                branch=branch, academic_year=ay, grade=cs.grade, is_active=True
+            ).first()
+            if not structure:
+                return Response({
+                    'detail': f"No active fee structure found for grade '{cs.grade}' in academic year '{ay.name}'."
+                }, status=400)
+
+            offered_total = offered_total_val
+            if standard_total is not None:
+                standard_total = Decimal(str(standard_total))
+
             admission_number = Student.generate_admission_number(branch, ay)
 
             student = Student.objects.create(
@@ -446,6 +469,32 @@ class StudentViewSet(viewsets.ModelViewSet):
 
         # Fee locking and approval logic
 
+        class_section = serializer.validated_data.get('class_section')
+        if not class_section:
+            raise ValidationError({'class_section': 'Class Section is required for enrollment.'})
+
+        offered_total_val = serializer.validated_data.get('offered_total')
+        if offered_total_val is None:
+            raise ValidationError({'offered_total': 'Agreed total fee (offered_total) is required for enrollment.'})
+        
+        try:
+            offered_total_decimal = Decimal(str(offered_total_val))
+        except (ValueError, TypeError, ArithmeticError):
+            raise ValidationError({'offered_total': 'Agreed total fee (offered_total) must be a valid number.'})
+
+        if offered_total_decimal <= 0:
+            raise ValidationError({'offered_total': 'Agreed total fee (offered_total) must be greater than zero.'})
+
+        # Check fee structure exists
+        if branch and ay:
+            structure = FeeStructure.objects.filter(
+                branch=branch, academic_year=ay, grade=class_section.grade, is_active=True
+            ).first()
+            if not structure:
+                raise ValidationError({
+                    'class_section': f"No active fee structure found for grade '{class_section.grade}' in academic year '{ay.name}'."
+                })
+
         offered_total = serializer.validated_data.pop('offered_total', None)
         standard_total = serializer.validated_data.pop('standard_total', None)
         fee_reason = serializer.validated_data.pop('reason', '')
@@ -658,6 +707,117 @@ class StudentViewSet(viewsets.ModelViewSet):
         create_student_fees(student, offered_total, standard_total, reason, request.user)
         serializer = self.get_serializer(student)
         return Response({'success': True, 'data': serializer.data})
+
+    @action(detail=True, methods=['post'], url_path='update-class-fees')
+    @transaction.atomic
+    def update_class_and_fees(self, request, pk=None):
+        """
+        Super Admin / Owner only: update a student's class and fees.
+        Cancels the existing annual invoice (if unpaid/partially paid),
+        removes the old StudentFeeItem rows, saves the new class,
+        and generates the new FeeInvoice/StudentFeeItems.
+        """
+        user = self.request.user
+        role = normalize_role(user.role)
+        if not role_in(role, ['SUPER_ADMIN', 'OWNER']):
+            raise PermissionDenied("Only Super Admins or School Owners can update a student's class and fees.")
+
+        student = self.get_object()
+        class_section_id = request.data.get('class_section_id')
+        offered_total = request.data.get('offered_total')
+        reason = (request.data.get('reason') or '').strip()
+
+        if not class_section_id:
+            raise ValidationError({'class_section_id': 'Class section is required.'})
+        if offered_total is None or str(offered_total).strip() == '':
+            raise ValidationError({'offered_total': 'Agreed total fee is required.'})
+        if not reason:
+            raise ValidationError({'reason': 'Reason for modification is required for audit logs.'})
+
+        try:
+            new_class_section = ClassSection.objects.get(id=class_section_id, tenant=student.tenant)
+        except ClassSection.DoesNotExist:
+            raise ValidationError({'class_section_id': 'Selected class section does not exist.'})
+
+        # Ensure same branch as the student, unless we are owner in multitenant
+        if new_class_section.branch_id != student.branch_id and role != 'OWNER':
+            raise ValidationError({'class_section_id': 'New class section must belong to the same branch.'})
+
+        # Try to parse offered_total
+        try:
+            offered_total_val = Decimal(str(offered_total))
+        except (ValueError, TypeError, ArithmeticError):
+            raise ValidationError({'offered_total': 'Agreed total fee must be a valid number.'})
+
+        if offered_total_val <= 0:
+            raise ValidationError({'offered_total': 'Agreed total fee must be greater than zero.'})
+
+        # Verify a fee structure exists for the new grade
+        from fees.models import FeeStructure, FeeInvoice, StudentFeeItem
+        ay = student.academic_year
+        structure = FeeStructure.objects.filter(
+            branch=student.branch, academic_year=ay, grade=new_class_section.grade, is_active=True
+        ).first()
+        if not structure:
+            raise ValidationError({
+                'class_section_id': f"No active fee structure found for grade '{new_class_section.grade}' in academic year '{ay.name}'."
+            })
+
+        # Cancel existing ANNUAL invoice(s)
+        # Note: Academic-year fees only — exclude one-time admission (ADM-), transport (TRN-), caution (FDP-), special (SPF-)
+        # Cancel any invoices that are not CANCELLED
+        old_invoices = FeeInvoice.objects.filter(
+            student=student,
+            academic_year=ay,
+            month='ANNUAL'
+        ).exclude(
+            invoice_number__startswith='ADM-'
+        ).exclude(
+            invoice_number__startswith='TRN-'
+        ).exclude(
+            invoice_number__startswith='FDP-'
+        ).exclude(
+            invoice_number__startswith='SPF-'
+        ).exclude(
+            status='CANCELLED'
+        )
+
+        for invoice in old_invoices:
+            invoice.status = 'CANCELLED'
+            invoice.save(update_fields=['status'])
+
+        # Delete existing StudentFeeItem rows for this student and academic year
+        StudentFeeItem.objects.filter(student=student, academic_year=ay).delete()
+
+        # Update student class
+        old_class_name = student.class_section.display_name if student.class_section else 'None'
+        student.class_section = new_class_section
+        student.save(update_fields=['class_section', 'updated_at'])
+
+        # Call create_student_fees to recreate fees
+        create_student_fees(student, offered_total_val, None, reason, user)
+
+        # Audit log the action
+        log_audit_action(
+            user=user,
+            action='UPDATE_STUDENT_CLASS_AND_FEES',
+            model_name='Student',
+            record_id=student.id,
+            details={
+                'admission_number': student.admission_number,
+                'old_class': old_class_name,
+                'new_class': new_class_section.display_name,
+                'offered_total': float(offered_total_val),
+                'reason': reason
+            },
+            tenant=student.tenant
+        )
+
+        return Response({
+            'success': True,
+            'message': 'Student class and fees updated successfully.',
+            'data': StudentSerializer(student).data
+        })
 
     @action(detail=False, methods=['post'], url_path='promote')
     @transaction.atomic

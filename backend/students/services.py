@@ -51,6 +51,38 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
     class_section = student.class_section
     tenant = student.tenant
 
+    if not class_section:
+        raise ValidationError('Class section is required for setting up fees.')
+
+    if not ay:
+        raise ValidationError('Academic year is required for setting up fees.')
+
+    structure = FeeStructure.objects.filter(
+        branch=branch, academic_year=ay, grade=class_section.grade, is_active=True
+    ).first()
+    if not structure:
+        raise ValidationError(
+            f"No active fee structure found for grade '{class_section.grade}' in academic year '{ay.name}'."
+        )
+
+    # 1. Calculate REAL standard_total from FeeStructure
+    actual_total = structure.items.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    locked_total = structure.items.aggregate(
+        total=Sum(Coalesce('locked_amount', F('amount')))
+    )['total'] or Decimal('0.00')
+
+    # Defensive: ensure offered is Decimal or fall back to actual_total if None/not provided
+    if offered_total is not None:
+        try:
+            offered_total = Decimal(str(offered_total))
+        except (ValueError, TypeError, ArithmeticError):
+            raise ValidationError('Agreed total fee (offered_total) must be a valid number.')
+    else:
+        offered_total = actual_total
+
+    if offered_total <= 0:
+        raise ValidationError('Agreed total fee (offered_total) must be greater than zero.')
+
     if FeeInvoice.objects.filter(
         student=student,
         academic_year=ay,
@@ -63,28 +95,6 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
         raise ValidationError(
             'Academic fee for this academic year is already set for this student.'
         )
-
-    # 1. Calculate REAL standard_total from FeeStructure
-    actual_total = Decimal('0.00')
-    locked_total = Decimal('0.00')
-    structure = None
-    
-    if class_section:
-        structure = FeeStructure.objects.filter(
-            branch=student.branch, academic_year=ay, grade=class_section.grade, is_active=True
-        ).first()
-        
-        if structure:
-            actual_total = structure.items.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-            locked_total = structure.items.aggregate(
-                total=Sum(Coalesce('locked_amount', F('amount')))
-            )['total'] or Decimal('0.00')
-
-    # Defensive: ensure offered is Decimal
-    if offered_total is not None and Decimal(str(offered_total)) > 0:
-        offered_total = Decimal(str(offered_total))
-    else:
-        offered_total = actual_total
 
     # 2. Create Locked Fee Items if a structure exists
     if structure:

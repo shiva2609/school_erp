@@ -249,6 +249,24 @@ export default function StudentForm({
     if (!isEdit && activeTab !== 'fees') return;
     if (isEdit && activeTab !== 'academic') return;
 
+    if (!isEdit) {
+      if (!formData.class_section) {
+        toast.error('Class Section is required for enrollment. Please select a class.');
+        setActiveTab('academic');
+        return;
+      }
+      if (!feeStructure) {
+        toast.error('No active fee structure found for the selected class. Enrollment cannot proceed without valid fees.');
+        setActiveTab('fees');
+        return;
+      }
+      if (Number(formData.offered_total || 0) <= 0) {
+        toast.error('Agreed total fee (offered_total) must be greater than zero.');
+        setActiveTab('fees');
+        return;
+      }
+    }
+
     if (!isEdit && activeTab === 'fees') {
       const ok = window.confirm(
         'Submit this admission? Fees and student details will be saved and enrollment will proceed.',
@@ -799,13 +817,20 @@ export default function StudentForm({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-48 space-y-4 text-slate-300">
-                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
+                  <div className="flex flex-col items-center justify-center p-8 bg-red-50/50 rounded-3xl border border-red-100/70 text-center space-y-4">
+                    <div className="w-16 h-16 bg-red-100/50 text-red-600 rounded-full flex items-center justify-center shadow-inner shadow-red-200">
                       <Receipt size={32} />
                     </div>
-                    <p className="text-sm font-black uppercase tracking-widest italic animate-pulse">
-                      {formData.class_section ? 'Fee Structure Missing' : 'Select class to load fees'}
-                    </p>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-black text-red-800 uppercase tracking-widest">
+                        {formData.class_section ? 'Fee Structure Missing' : 'Select Class to Load Fees'}
+                      </h4>
+                      <p className="text-xs text-red-600 max-w-sm leading-relaxed">
+                        {formData.class_section 
+                          ? 'This class does not have an active fee structure. You cannot proceed with enrollment until a fee structure is configured under Setup > Fees.'
+                          : 'Please navigate to the Academic tab and select a class to load the corresponding fee details.'}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

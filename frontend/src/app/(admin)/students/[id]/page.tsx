@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import StudentForm from '@/components/students/StudentForm';
 import PaymentModal from '@/components/students/PaymentModal';
+import EditClassFeesModal from '@/components/students/EditClassFeesModal';
 import Modal from '@/components/common/Modal';
 import { useAuth } from '@/components/common/AuthProvider';
 import { toast } from 'react-hot-toast';
@@ -40,6 +41,7 @@ export default function StudentProfilePage() {
   const [dropoutData, setDropoutData] = useState({ reason: '', stop_future_fees: true });
   const [droppingOut, setDroppingOut] = useState(false);
   const [reinstating, setReinstating] = useState(false);
+  const [showEditClassFees, setShowEditClassFees] = useState(false);
   const [markingInitialStatus, setMarkingInitialStatus] = useState<'ADMISSION_FEE' | 'FIXED_DEPOSIT' | null>(null);
   const [confirmInitialStatusChange, setConfirmInitialStatusChange] = useState<{
     target: 'ADMISSION_FEE' | 'FIXED_DEPOSIT';
@@ -563,7 +565,24 @@ export default function StudentProfilePage() {
           {activeTab === 'academic' && (
             <div className="space-y-10 animate-in fade-in slide-in-from-right-4">
               <div>
-                <SectionHeader title="Current Enrollment" icon={GraduationCap} />
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-100">
+                      <GraduationCap size={20} />
+                    </div>
+                    <h4 className="text-lg font-black text-slate-900 tracking-tight">Current Enrollment</h4>
+                  </div>
+                  {['SUPER_ADMIN', 'OWNER'].includes(user?.role) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowEditClassFees(true)}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100/60 rounded-2xl text-xs font-black transition-all hover:scale-[1.02] active:scale-[0.98] uppercase tracking-widest shadow-sm shadow-blue-100/50"
+                    >
+                      <Edit2 size={14} className="text-blue-600" />
+                      Edit Class & Fees
+                    </button>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InfoTag label="Academic Year" value={student.academic_year_name} icon={Calendar} />
                   <InfoTag label="Class & Section" value={student.class_section_display} icon={GraduationCap} />
@@ -1380,6 +1399,18 @@ export default function StudentProfilePage() {
           </div>
         </div>
       </Modal>
+
+      {/* Edit Class & Fees Modal */}
+      {showEditClassFees && student && (
+        <EditClassFeesModal
+          student={student}
+          isOpen={showEditClassFees}
+          onClose={() => setShowEditClassFees(false)}
+          onSuccess={() => {
+            refetch();
+          }}
+        />
+      )}
     </div>
   );
 }
