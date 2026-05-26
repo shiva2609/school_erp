@@ -301,7 +301,9 @@ def process_rows(job, rows):
                         processed_rows += 1
                         continue
 
-                    first_name = get_val(row, 'first name', 'first_name', 'student name', 'name').strip() or 'Unknown'
+                    first_name = get_val(row, 'first name', 'first_name', 'student name', 'name').strip()
+                    if not first_name:
+                        raise ValueError("Student name is required.")
                     last_name  = get_val(row, 'last name', 'last_name').strip()
                     if not last_name and ' ' in first_name:
                         parts = first_name.rsplit(' ', 1)
