@@ -476,7 +476,7 @@ def process_rows(job, rows):
                             )
 
                             if fee_paid > 0:
-                                receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{ay.start_date.year:04d}")
+                                receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
                                 payment = Payment.objects.create(
                                     tenant=tenant, branch=branch, invoice=invoice, student=student,
                                     amount=fee_paid, payment_mode='CASH', payment_date=date.today(),
@@ -516,7 +516,7 @@ def process_rows(job, rows):
                             )
 
                             if pd_paid > 0 and invoice:
-                                receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{ay.start_date.year:04d}")
+                                receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
                                 payment_cf = Payment.objects.create(
                                     tenant=tenant, branch=branch, invoice=invoice, student=student,
                                     amount=pd_paid, payment_mode='CASH', payment_date=date.today(),
