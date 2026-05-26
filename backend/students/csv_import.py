@@ -456,39 +456,45 @@ def process_rows(job, rows):
                         invoice = None
                         # We only create a FeeInvoice if total_fee > 0 or if total_fee is 0 but we want a placeholder for past due payments
                         if total_fee > 0 or (total_fee == 0 and past_due > 0 and has_granular and past_due_collected > 0):
-                            net_amount         = total_fee - concession
-                            outstanding_amount = net_amount - fee_paid
-                            
-                            invoice_status = 'PAID' if outstanding_amount <= 0 else ('PARTIALLY_PAID' if fee_paid > 0 else 'SENT')
-                            outstanding_amount = Decimal('0') if outstanding_amount <= 0 else outstanding_amount
+                            # Check if an annual invoice already exists for this student
+                            invoice = FeeInvoice.objects.filter(
+                                student=student, academic_year=ay, month="ANNUAL"
+                            ).first()
 
-                            due_date = parse_date(fee_due_date_raw) or date.today()
-                            if invoice_status not in ('PAID', 'CANCELLED', 'WAIVED') and due_date < date.today():
-                                invoice_status = 'OVERDUE'
+                            if not invoice:
+                                net_amount         = total_fee - concession
+                                outstanding_amount = net_amount - fee_paid
+                                
+                                invoice_status = 'PAID' if outstanding_amount <= 0 else ('PARTIALLY_PAID' if fee_paid > 0 else 'SENT')
+                                outstanding_amount = Decimal('0') if outstanding_amount <= 0 else outstanding_amount
 
-                            invoice_number = DocumentSequence.get_next_sequence(branch, 'INVOICE', f"INV-{ay.start_date.year:04d}")
-                            invoice = FeeInvoice.objects.create(
-                                tenant=tenant, branch=branch, academic_year=ay, student=student,
-                                invoice_number=invoice_number, month="ANNUAL",
-                                gross_amount=total_fee, concession_amount=concession, net_amount=net_amount,
-                                paid_amount=fee_paid, outstanding_amount=outstanding_amount,
-                                due_date=due_date, status=invoice_status, generated_by='MANUAL', created_by=user,
-                            )
+                                due_date = parse_date(fee_due_date_raw) or date.today()
+                                if invoice_status not in ('PAID', 'CANCELLED', 'WAIVED') and due_date < date.today():
+                                    invoice_status = 'OVERDUE'
 
-                            if fee_paid > 0:
-                                receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
-                                payment = Payment.objects.create(
-                                    tenant=tenant, branch=branch, invoice=invoice, student=student,
-                                    amount=fee_paid, payment_mode='CASH', payment_date=date.today(),
-                                    status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                invoice_number = DocumentSequence.get_next_sequence(branch, 'INVOICE', f"INV-{ay.start_date.year:04d}")
+                                invoice = FeeInvoice.objects.create(
+                                    tenant=tenant, branch=branch, academic_year=ay, student=student,
+                                    invoice_number=invoice_number, month="ANNUAL",
+                                    gross_amount=total_fee, concession_amount=concession, net_amount=net_amount,
+                                    paid_amount=fee_paid, outstanding_amount=outstanding_amount,
+                                    due_date=due_date, status=invoice_status, generated_by='MANUAL', created_by=user,
                                 )
-                                from fees.models import PaymentAllocation
-                                PaymentAllocation.objects.create(
-                                    payment=payment,
-                                    invoice=invoice,
-                                    allocated_amount=fee_paid,
-                                    allocation_type='CURRENT_YEAR',
-                                )
+
+                                if fee_paid > 0:
+                                    receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
+                                    payment = Payment.objects.create(
+                                        tenant=tenant, branch=branch, invoice=invoice, student=student,
+                                        amount=fee_paid, payment_mode='CASH', payment_date=date.today(),
+                                        status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                    )
+                                    from fees.models import PaymentAllocation
+                                    PaymentAllocation.objects.create(
+                                        payment=payment,
+                                        invoice=invoice,
+                                        allocated_amount=fee_paid,
+                                        allocation_type='CURRENT_YEAR',
+                                    )
 
                         if past_due > 0:
                             legacy_ay_name = past_due_year_raw or "Legacy-Dues"
@@ -498,37 +504,43 @@ def process_rows(job, rows):
                                 defaults={'start_date': datetime.date(target_year, 4, 1), 'end_date': datetime.date(target_year + 1, 3, 31), 'is_active': False, 'status': 'CLOSED'}
                             )
 
-                            pd_paid = past_due_collected if has_granular else Decimal('0')
-                            pd_written_off = past_due_concession if has_granular else Decimal('0')
+                            # Check if carry forward already exists
+                            cf = FeeCarryForward.objects.filter(
+                                student=student, source_academic_year=legacy_ay, target_academic_year=ay
+                            ).first()
 
-                            remaining_cf = past_due - pd_paid - pd_written_off
-                            if remaining_cf <= 0:
-                                cf_status = 'PAID' if pd_paid > 0 else ('WRITTEN_OFF' if pd_written_off > 0 else 'PAID')
-                            elif pd_paid > 0:
-                                cf_status = 'PARTIALLY_PAID'
-                            else:
-                                cf_status = 'PENDING'
+                            if not cf:
+                                pd_paid = past_due_collected if has_granular else Decimal('0')
+                                pd_written_off = past_due_concession if has_granular else Decimal('0')
 
-                            cf = FeeCarryForward.objects.create(
-                                tenant=tenant, branch=branch, student=student, source_academic_year=legacy_ay, target_academic_year=ay,
-                                total_fee_amount=past_due, total_paid_amount=Decimal('0'), carry_forward_amount=past_due,
-                                paid_amount=pd_paid, written_off_amount=pd_written_off, status=cf_status, created_by=user,
-                            )
+                                remaining_cf = past_due - pd_paid - pd_written_off
+                                if remaining_cf <= 0:
+                                    cf_status = 'PAID' if pd_paid > 0 else ('WRITTEN_OFF' if pd_written_off > 0 else 'PAID')
+                                elif pd_paid > 0:
+                                    cf_status = 'PARTIALLY_PAID'
+                                else:
+                                    cf_status = 'PENDING'
 
-                            if pd_paid > 0 and invoice:
-                                receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
-                                payment_cf = Payment.objects.create(
-                                    tenant=tenant, branch=branch, invoice=invoice, student=student,
-                                    amount=pd_paid, payment_mode='CASH', payment_date=date.today(),
-                                    status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                cf = FeeCarryForward.objects.create(
+                                    tenant=tenant, branch=branch, student=student, source_academic_year=legacy_ay, target_academic_year=ay,
+                                    total_fee_amount=past_due, total_paid_amount=Decimal('0'), carry_forward_amount=past_due,
+                                    paid_amount=pd_paid, written_off_amount=pd_written_off, status=cf_status, created_by=user,
                                 )
-                                from fees.models import PaymentAllocation
-                                PaymentAllocation.objects.create(
-                                    payment=payment_cf,
-                                    carry_forward=cf,
-                                    allocated_amount=pd_paid,
-                                    allocation_type='PREVIOUS_YEAR_DUES',
-                                )
+
+                                if pd_paid > 0 and invoice:
+                                    receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
+                                    payment_cf = Payment.objects.create(
+                                        tenant=tenant, branch=branch, invoice=invoice, student=student,
+                                        amount=pd_paid, payment_mode='CASH', payment_date=date.today(),
+                                        status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                    )
+                                    from fees.models import PaymentAllocation
+                                    PaymentAllocation.objects.create(
+                                        payment=payment_cf,
+                                        carry_forward=cf,
+                                        allocated_amount=pd_paid,
+                                        allocation_type='PREVIOUS_YEAR_DUES',
+                                    )
                     else:
                         if is_new_student:
                             create_student_fees(student, None, None, 'Auto-generated on CSV Import', user)
