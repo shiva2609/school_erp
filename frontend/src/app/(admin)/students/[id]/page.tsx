@@ -572,7 +572,7 @@ export default function StudentProfilePage() {
                     </div>
                     <h4 className="text-lg font-black text-slate-900 tracking-tight">Current Enrollment</h4>
                   </div>
-                  {['SUPER_ADMIN', 'OWNER'].includes(user?.role) && (
+                  {user?.role && ['SUPER_ADMIN', 'OWNER'].includes(user.role) && (
                     <button
                       type="button"
                       onClick={() => setShowEditClassFees(true)}
