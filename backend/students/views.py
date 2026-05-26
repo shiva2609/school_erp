@@ -718,8 +718,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         and generates the new FeeInvoice/StudentFeeItems.
         """
         user = self.request.user
-        role = normalize_role(user.role)
-        if not role_in(role, ['SUPER_ADMIN', 'OWNER']):
+        if not role_in(user, ['SUPER_ADMIN', 'OWNER']):
             raise PermissionDenied("Only Super Admins or School Owners can update a student's class and fees.")
 
         student = self.get_object()
