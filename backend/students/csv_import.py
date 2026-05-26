@@ -260,6 +260,20 @@ def process_rows(job, rows):
             s = s[:max_len]
         return s or None
 
+    def parse_decimal(val_str):
+        if not val_str:
+            return Decimal('0')
+        val_str = str(val_str).strip()
+        if '(' in val_str:
+            val_str = val_str.split('(')[0]
+        cleaned = re.sub(r'[^\d\.\-]', '', val_str)
+        if not cleaned:
+            return Decimal('0')
+        try:
+            return Decimal(cleaned)
+        except InvalidOperation:
+            return Decimal('0')
+
     # Chunk processing: batch size of 50
     CHUNK_SIZE = 50
     
@@ -404,48 +418,77 @@ def process_rows(job, rows):
                             strict_parent_email=False,
                         )
 
-                    total_fee_raw   = get_val(row, 'total_fee', 'total amount (₹)', 'total fee').replace(',', '').replace('"', '').strip()
-                    fee_paid_raw    = get_val(row, 'fee_paid', 'amount paid (₹)', 'fee paid').replace(',', '').replace('"', '').strip()
-                    concession_raw  = get_val(row, 'concession_amount', 'concession (₹)', 'concession').replace(',', '').replace('"', '').strip()
-                    past_due_raw = get_val(row, 'past_due_amount', 'past due', 'old dues', 'arrears').replace(',', '').replace('"', '').strip()
+                    # Determine whether granular columns are present
+                    has_granular = any(k in row for k in ['tuition fee', 'transport fee', 'past due'])
                     past_due_year_raw = get_val(row, 'past_due_year', 'past due year', 'arrears year').strip()
                     fee_due_date_raw = get_val(row, 'fee_due_date', 'due date', 'fee due date').strip()
 
-                    if total_fee_raw:
-                        try:
-                            total_fee  = Decimal(total_fee_raw)  if total_fee_raw  else Decimal('0')
-                            fee_paid   = Decimal(fee_paid_raw)   if fee_paid_raw   else Decimal('0')
-                            concession = Decimal(concession_raw) if concession_raw else Decimal('0')
-                            past_due   = Decimal(past_due_raw)   if past_due_raw   else Decimal('0')
-                        except InvalidOperation:
-                            raise ValueError("Fee columns must be valid numbers.")
+                    has_fee_data = False
+                    if has_granular:
+                        tuition_fee = parse_decimal(get_val(row, 'tuition fee'))
+                        transport_fee = parse_decimal(get_val(row, 'transport fee'))
+                        past_due = parse_decimal(get_val(row, 'past due'))
 
-                        net_amount         = total_fee - concession
-                        outstanding_amount = net_amount - fee_paid
+                        tuition_collected = parse_decimal(get_val(row, 'tuition collected'))
+                        transport_collected = parse_decimal(get_val(row, 'transport collected'))
+                        past_due_collected = parse_decimal(get_val(row, 'past due collected'))
+
+                        tuition_concession = parse_decimal(get_val(row, 'tuition concession'))
+                        transport_concession = parse_decimal(get_val(row, 'transport concession'))
+                        past_due_concession = parse_decimal(get_val(row, 'past due concession'))
+
+                        total_fee = tuition_fee + transport_fee
+                        concession = tuition_concession + transport_concession
+                        fee_paid = tuition_collected + transport_collected
                         
-                        invoice_status = 'PAID' if outstanding_amount <= 0 else ('PARTIALLY_PAID' if fee_paid > 0 else 'SENT')
-                        outstanding_amount = Decimal('0') if outstanding_amount <= 0 else outstanding_amount
+                        if total_fee > 0 or past_due > 0:
+                            has_fee_data = True
+                    else:
+                        total_fee_raw = get_val(row, 'total_fee', 'total amount (₹)', 'total fee', 'total amount')
+                        if total_fee_raw:
+                            total_fee = parse_decimal(total_fee_raw)
+                            fee_paid = parse_decimal(get_val(row, 'fee_paid', 'amount paid (₹)', 'fee paid', 'total paid'))
+                            concession = parse_decimal(get_val(row, 'concession_amount', 'concession (₹)', 'concession', 'total concession'))
+                            past_due = parse_decimal(get_val(row, 'past_due_amount', 'past due', 'old dues', 'arrears'))
+                            has_fee_data = True
 
-                        due_date = parse_date(fee_due_date_raw) or date.today()
-                        if invoice_status not in ('PAID', 'CANCELLED', 'WAIVED') and due_date < date.today():
-                            invoice_status = 'OVERDUE'
+                    if has_fee_data:
+                        invoice = None
+                        # We only create a FeeInvoice if total_fee > 0 or if total_fee is 0 but we want a placeholder for past due payments
+                        if total_fee > 0 or (total_fee == 0 and past_due > 0 and has_granular and past_due_collected > 0):
+                            net_amount         = total_fee - concession
+                            outstanding_amount = net_amount - fee_paid
+                            
+                            invoice_status = 'PAID' if outstanding_amount <= 0 else ('PARTIALLY_PAID' if fee_paid > 0 else 'SENT')
+                            outstanding_amount = Decimal('0') if outstanding_amount <= 0 else outstanding_amount
 
-                        invoice_number = DocumentSequence.get_next_sequence(branch, 'INVOICE', f"INV-{ay.start_date.year:04d}")
-                        invoice = FeeInvoice.objects.create(
-                            tenant=tenant, branch=branch, academic_year=ay, student=student,
-                            invoice_number=invoice_number, month="ANNUAL",
-                            gross_amount=total_fee, concession_amount=concession, net_amount=net_amount,
-                            paid_amount=fee_paid, outstanding_amount=outstanding_amount,
-                            due_date=due_date, status=invoice_status, generated_by='MANUAL', created_by=user,
-                        )
+                            due_date = parse_date(fee_due_date_raw) or date.today()
+                            if invoice_status not in ('PAID', 'CANCELLED', 'WAIVED') and due_date < date.today():
+                                invoice_status = 'OVERDUE'
 
-                        if fee_paid > 0:
-                            receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{ay.start_date.year:04d}")
-                            Payment.objects.create(
-                                tenant=tenant, branch=branch, invoice=invoice, student=student,
-                                amount=fee_paid, payment_mode='CASH', payment_date=date.today(),
-                                status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                            invoice_number = DocumentSequence.get_next_sequence(branch, 'INVOICE', f"INV-{ay.start_date.year:04d}")
+                            invoice = FeeInvoice.objects.create(
+                                tenant=tenant, branch=branch, academic_year=ay, student=student,
+                                invoice_number=invoice_number, month="ANNUAL",
+                                gross_amount=total_fee, concession_amount=concession, net_amount=net_amount,
+                                paid_amount=fee_paid, outstanding_amount=outstanding_amount,
+                                due_date=due_date, status=invoice_status, generated_by='MANUAL', created_by=user,
                             )
+
+                            if fee_paid > 0:
+                                receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{ay.start_date.year:04d}")
+                                payment = Payment.objects.create(
+                                    tenant=tenant, branch=branch, invoice=invoice, student=student,
+                                    amount=fee_paid, payment_mode='CASH', payment_date=date.today(),
+                                    status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                )
+                                from fees.models import PaymentAllocation
+                                PaymentAllocation.objects.create(
+                                    payment=payment,
+                                    invoice=invoice,
+                                    allocated_amount=fee_paid,
+                                    allocation_type='CURRENT_YEAR',
+                                )
 
                         if past_due > 0:
                             legacy_ay_name = past_due_year_raw or "Legacy-Dues"
@@ -454,10 +497,38 @@ def process_rows(job, rows):
                                 tenant=tenant, name=legacy_ay_name,
                                 defaults={'start_date': datetime.date(target_year, 4, 1), 'end_date': datetime.date(target_year + 1, 3, 31), 'is_active': False, 'status': 'CLOSED'}
                             )
-                            FeeCarryForward.objects.create(
+
+                            pd_paid = past_due_collected if has_granular else Decimal('0')
+                            pd_written_off = past_due_concession if has_granular else Decimal('0')
+
+                            remaining_cf = past_due - pd_paid - pd_written_off
+                            if remaining_cf <= 0:
+                                cf_status = 'PAID' if pd_paid > 0 else ('WRITTEN_OFF' if pd_written_off > 0 else 'PAID')
+                            elif pd_paid > 0:
+                                cf_status = 'PARTIALLY_PAID'
+                            else:
+                                cf_status = 'PENDING'
+
+                            cf = FeeCarryForward.objects.create(
                                 tenant=tenant, branch=branch, student=student, source_academic_year=legacy_ay, target_academic_year=ay,
-                                total_fee_amount=past_due, total_paid_amount=Decimal('0'), carry_forward_amount=past_due, status='PENDING', created_by=user,
+                                total_fee_amount=past_due, total_paid_amount=Decimal('0'), carry_forward_amount=past_due,
+                                paid_amount=pd_paid, written_off_amount=pd_written_off, status=cf_status, created_by=user,
                             )
+
+                            if pd_paid > 0 and invoice:
+                                receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{ay.start_date.year:04d}")
+                                payment_cf = Payment.objects.create(
+                                    tenant=tenant, branch=branch, invoice=invoice, student=student,
+                                    amount=pd_paid, payment_mode='CASH', payment_date=date.today(),
+                                    status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                )
+                                from fees.models import PaymentAllocation
+                                PaymentAllocation.objects.create(
+                                    payment=payment_cf,
+                                    carry_forward=cf,
+                                    allocated_amount=pd_paid,
+                                    allocation_type='PREVIOUS_YEAR_DUES',
+                                )
                     else:
                         if is_new_student:
                             create_student_fees(student, None, None, 'Auto-generated on CSV Import', user)

@@ -26,7 +26,7 @@ from students.models import ClassSection, Student, ParentStudentRelation, GRADE_
 from timetable.models import Subject
 from staff.models import TeacherProfile, TeacherAssignment
 from fees.models import FeeCategory, FeeStructure, FeeStructureItem, StudentFeeItem
-from transport.models import TransportRoute, TransportRateSlab, StudentTransport
+from transport.models import TransportRateSlab, StudentTransport
 
 # ──────────────────────────────────────────────────────────────────
 # Configuration
