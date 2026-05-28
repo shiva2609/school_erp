@@ -421,11 +421,25 @@ def process_rows(job, rows):
                         )
 
                     # Determine whether granular columns are present
-                    has_granular = any(k in row for k in ['tuition fee', 'transport fee', 'past due'])
+                    has_granular = any(k in row for k in ['tuition fee', 'transport fee'])
                     past_due_year_raw = get_val(row, 'past_due_year', 'past due year', 'arrears year').strip()
                     fee_due_date_raw = get_val(row, 'fee_due_date', 'due date', 'fee due date').strip()
 
                     has_fee_data = False
+                    
+                    # Initialize all fee fields to Decimal('0')
+                    tuition_fee = Decimal('0')
+                    tuition_concession = Decimal('0')
+                    tuition_collected = Decimal('0')
+                    
+                    transport_fee = Decimal('0')
+                    transport_concession = Decimal('0')
+                    transport_collected = Decimal('0')
+                    
+                    past_due = Decimal('0')
+                    past_due_concession = Decimal('0')
+                    past_due_collected = Decimal('0')
+
                     if has_granular:
                         tuition_fee = parse_decimal(get_val(row, 'tuition fee'))
                         transport_fee = parse_decimal(get_val(row, 'transport fee'))
@@ -438,63 +452,186 @@ def process_rows(job, rows):
                         tuition_concession = parse_decimal(get_val(row, 'tuition concession'))
                         transport_concession = parse_decimal(get_val(row, 'transport concession'))
                         past_due_concession = parse_decimal(get_val(row, 'past due concession'))
-
-                        total_fee = tuition_fee + transport_fee
-                        concession = tuition_concession + transport_concession
-                        fee_paid = tuition_collected + transport_collected
                         
-                        if total_fee > 0 or past_due > 0:
+                        if tuition_fee > 0 or transport_fee > 0 or past_due > 0:
                             has_fee_data = True
                     else:
                         total_fee_raw = get_val(row, 'total_fee', 'total amount (₹)', 'total fee', 'total amount')
                         if total_fee_raw:
-                            total_fee = parse_decimal(total_fee_raw)
-                            fee_paid = parse_decimal(get_val(row, 'fee_paid', 'amount paid (₹)', 'fee paid', 'total paid'))
-                            concession = parse_decimal(get_val(row, 'concession_amount', 'concession (₹)', 'concession', 'total concession'))
+                            tuition_fee = parse_decimal(total_fee_raw)
+                            tuition_collected = parse_decimal(get_val(row, 'fee_paid', 'amount paid (₹)', 'fee paid', 'total paid'))
+                            tuition_concession = parse_decimal(get_val(row, 'concession_amount', 'concession (₹)', 'concession', 'total concession'))
+                            
                             past_due = parse_decimal(get_val(row, 'past_due_amount', 'past due', 'old dues', 'arrears'))
+                            past_due_collected = parse_decimal(get_val(row, 'past_due_collected', 'past due collected', 'old dues paid', 'arrears paid'))
+                            past_due_concession = parse_decimal(get_val(row, 'past_due_concession', 'past due concession', 'old dues concession', 'arrears concession'))
+                            
                             has_fee_data = True
 
                     if has_fee_data:
-                        invoice = None
-                        # We only create a FeeInvoice if total_fee > 0 or if total_fee is 0 but we want a placeholder for past due payments
-                        if total_fee > 0 or (total_fee == 0 and past_due > 0 and has_granular and past_due_collected > 0):
-                            # Check if an annual invoice already exists for this student
-                            invoice = FeeInvoice.objects.filter(
+                        # 1. Clamp Concessions to never exceed standard fee amount
+                        tuition_concession = min(tuition_concession, tuition_fee)
+                        transport_concession = min(transport_concession, transport_fee)
+                        past_due_concession = min(past_due_concession, past_due)
+                        
+                        # 2. Calculate Accepted/Net amounts
+                        accepted_tuition = tuition_fee - tuition_concession
+                        accepted_transport = transport_fee - transport_concession
+                        accepted_past_due = past_due - past_due_concession
+                        
+                        # 3. Clamp Collections to never exceed accepted net amounts
+                        tuition_collected = min(tuition_collected, accepted_tuition)
+                        transport_collected = min(transport_collected, accepted_transport)
+                        past_due_collected = min(past_due_collected, accepted_past_due)
+
+                        from fees.models import FeeCategory as FC, FeeInvoiceItem, StudentFeeItem, PaymentAllocation
+                        
+                        # Get/Create Tuition Category
+                        tuition_cat, _ = FC.objects.get_or_create(
+                            branch=branch,
+                            code='TUITION',
+                            defaults={
+                                'tenant': tenant,
+                                'name': 'Tuition Fee',
+                                'description': 'Academic tuition fee',
+                                'is_active': True,
+                                'order': 1,
+                            }
+                        )
+                        
+                        # Get/Create Transport Category
+                        transport_cat, _ = FC.objects.get_or_create(
+                            branch=branch,
+                            code='TRANSPORT',
+                            defaults={
+                                'tenant': tenant,
+                                'name': 'Transport Fee',
+                                'description': 'Monthly school transport fee',
+                                'is_active': True,
+                                'order': 99,
+                            }
+                        )
+
+                        tuition_invoice = None
+                        due_date = parse_date(fee_due_date_raw) or date.today()
+                        
+                        # We create a Tuition Invoice if tuition_fee > 0 or if we need a placeholder anchor for past dues
+                        need_placeholder = (tuition_fee == 0 and transport_fee == 0 and past_due > 0 and past_due_collected > 0)
+                        
+                        if tuition_fee > 0 or need_placeholder:
+                            # Check if annual tuition invoice already exists
+                            tuition_invoice = FeeInvoice.objects.filter(
                                 student=student, academic_year=ay, month="ANNUAL"
+                            ).exclude(invoice_number__startswith='TRN-').exclude(
+                                invoice_number__startswith='ADM-'
+                            ).exclude(
+                                invoice_number__startswith='FDP-'
+                            ).exclude(
+                                invoice_number__startswith='SPF-'
                             ).first()
-
-                            if not invoice:
-                                net_amount         = total_fee - concession
-                                outstanding_amount = net_amount - fee_paid
-                                
-                                invoice_status = 'PAID' if outstanding_amount <= 0 else ('PARTIALLY_PAID' if fee_paid > 0 else 'SENT')
-                                outstanding_amount = Decimal('0') if outstanding_amount <= 0 else outstanding_amount
-
-                                due_date = parse_date(fee_due_date_raw) or date.today()
-                                if invoice_status not in ('PAID', 'CANCELLED', 'WAIVED') and due_date < date.today():
-                                    invoice_status = 'OVERDUE'
-
-                                invoice_number = DocumentSequence.get_next_sequence(branch, 'INVOICE', f"INV-{ay.start_date.year:04d}")
-                                invoice = FeeInvoice.objects.create(
+                            
+                            if not tuition_invoice:
+                                tuition_net = accepted_tuition
+                                tuition_status = 'PAID' if tuition_net <= 0 or tuition_collected >= tuition_net else ('PARTIALLY_PAID' if tuition_collected > 0 else 'SENT')
+                                if tuition_status not in ('PAID', 'CANCELLED', 'WAIVED') and due_date < date.today():
+                                    tuition_status = 'OVERDUE'
+                                    
+                                tuition_inv_number = DocumentSequence.get_next_sequence(branch, 'INVOICE', f"INV-{ay.start_date.year:04d}")
+                                tuition_invoice = FeeInvoice.objects.create(
                                     tenant=tenant, branch=branch, academic_year=ay, student=student,
-                                    invoice_number=invoice_number, month="ANNUAL",
-                                    gross_amount=total_fee, concession_amount=concession, net_amount=net_amount,
-                                    paid_amount=fee_paid, outstanding_amount=outstanding_amount,
-                                    due_date=due_date, status=invoice_status, generated_by='MANUAL', created_by=user,
+                                    invoice_number=tuition_inv_number, month="ANNUAL",
+                                    gross_amount=tuition_fee, concession_amount=tuition_concession, net_amount=tuition_net,
+                                    paid_amount=tuition_collected, outstanding_amount=max(Decimal('0'), tuition_net - tuition_collected),
+                                    due_date=due_date, status=tuition_status, generated_by='MANUAL', created_by=user,
                                 )
-
-                                if fee_paid > 0:
+                                
+                                # Create FeeInvoiceItem
+                                FeeInvoiceItem.objects.create(
+                                    invoice=tuition_invoice,
+                                    category=tuition_cat,
+                                    original_amount=tuition_fee,
+                                    concession=tuition_concession,
+                                    final_amount=accepted_tuition,
+                                    description='Annual tuition fee',
+                                )
+                                
+                                # Create StudentFeeItem
+                                StudentFeeItem.objects.create(
+                                    student=student,
+                                    academic_year=ay,
+                                    category=tuition_cat,
+                                    amount=accepted_tuition,
+                                    is_locked=True
+                                )
+                                
+                                # Create Payment if tuition_collected > 0
+                                if tuition_collected > 0:
                                     receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
                                     payment = Payment.objects.create(
-                                        tenant=tenant, branch=branch, invoice=invoice, student=student,
-                                        amount=fee_paid, payment_mode='CASH', payment_date=date.today(),
+                                        tenant=tenant, branch=branch, invoice=tuition_invoice, student=student,
+                                        amount=tuition_collected, payment_mode='CASH', payment_date=date.today(),
                                         status='COMPLETED', collected_by=user, receipt_number=receipt_number,
                                     )
-                                    from fees.models import PaymentAllocation
                                     PaymentAllocation.objects.create(
                                         payment=payment,
-                                        invoice=invoice,
-                                        allocated_amount=fee_paid,
+                                        invoice=tuition_invoice,
+                                        allocated_amount=tuition_collected,
+                                        allocation_type='CURRENT_YEAR',
+                                    )
+
+                        transport_invoice = None
+                        if transport_fee > 0:
+                            # Check if annual transport invoice already exists
+                            transport_invoice = FeeInvoice.objects.filter(
+                                student=student, academic_year=ay, month="ANNUAL", invoice_number__startswith='TRN-'
+                            ).first()
+                            
+                            if not transport_invoice:
+                                transport_net = accepted_transport
+                                transport_status = 'PAID' if transport_net <= 0 or transport_collected >= transport_net else ('PARTIALLY_PAID' if transport_collected > 0 else 'SENT')
+                                if transport_status not in ('PAID', 'CANCELLED', 'WAIVED') and due_date < date.today():
+                                    transport_status = 'OVERDUE'
+                                    
+                                transport_inv_number = DocumentSequence.get_next_sequence(branch, 'INVOICE', f"TRN-{student.branch.branch_code}-{ay.start_date.year:04d}")
+                                transport_invoice = FeeInvoice.objects.create(
+                                    tenant=tenant, branch=branch, academic_year=ay, student=student,
+                                    invoice_number=transport_inv_number, month="ANNUAL",
+                                    gross_amount=transport_fee, concession_amount=transport_concession, net_amount=transport_net,
+                                    paid_amount=transport_collected, outstanding_amount=max(Decimal('0'), transport_net - transport_collected),
+                                    due_date=due_date, status=transport_status, generated_by='MANUAL', created_by=user,
+                                )
+                                
+                                # Create FeeInvoiceItem
+                                FeeInvoiceItem.objects.create(
+                                    invoice=transport_invoice,
+                                    category=transport_cat,
+                                    original_amount=transport_fee,
+                                    concession=transport_concession,
+                                    final_amount=accepted_transport,
+                                    description='Annual transport fee',
+                                )
+                                
+                                # Create StudentFeeItem
+                                StudentFeeItem.objects.create(
+                                    student=student,
+                                    academic_year=ay,
+                                    category=transport_cat,
+                                    amount=accepted_transport,
+                                    is_locked=True
+                                )
+                                
+                                # Create Payment if transport_collected > 0
+                                if transport_collected > 0:
+                                    receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
+                                    payment = Payment.objects.create(
+                                        tenant=tenant, branch=branch, invoice=transport_invoice, student=student,
+                                        amount=transport_collected, payment_mode='CASH', payment_date=date.today(),
+                                        status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                    )
+                                    PaymentAllocation.objects.create(
+                                        payment=payment,
+                                        invoice=transport_invoice,
+                                        allocated_amount=transport_collected,
                                         allocation_type='CURRENT_YEAR',
                                     )
 
@@ -512,37 +649,36 @@ def process_rows(job, rows):
                             ).first()
 
                             if not cf:
-                                pd_paid = past_due_collected if has_granular else Decimal('0')
-                                pd_written_off = past_due_concession if has_granular else Decimal('0')
-
-                                remaining_cf = past_due - pd_paid - pd_written_off
+                                remaining_cf = past_due - past_due_collected - past_due_concession
                                 if remaining_cf <= 0:
-                                    cf_status = 'PAID' if pd_paid > 0 else ('WRITTEN_OFF' if pd_written_off > 0 else 'PAID')
-                                elif pd_paid > 0:
+                                    cf_status = 'PAID' if past_due_collected > 0 else ('WRITTEN_OFF' if past_due_concession > 0 else 'PAID')
+                                elif past_due_collected > 0:
                                     cf_status = 'PARTIALLY_PAID'
                                 else:
                                     cf_status = 'PENDING'
 
                                 cf = FeeCarryForward.objects.create(
                                     tenant=tenant, branch=branch, student=student, source_academic_year=legacy_ay, target_academic_year=ay,
-                                    total_fee_amount=past_due, total_paid_amount=Decimal('0'), carry_forward_amount=past_due,
-                                    paid_amount=pd_paid, written_off_amount=pd_written_off, status=cf_status, created_by=user,
+                                    total_fee_amount=past_due, total_paid_amount=Decimal('0.00'), carry_forward_amount=past_due,
+                                    paid_amount=past_due_collected, written_off_amount=past_due_concession, status=cf_status, created_by=user,
                                 )
 
-                                if pd_paid > 0 and invoice:
-                                    receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
-                                    payment_cf = Payment.objects.create(
-                                        tenant=tenant, branch=branch, invoice=invoice, student=student,
-                                        amount=pd_paid, payment_mode='CASH', payment_date=date.today(),
-                                        status='COMPLETED', collected_by=user, receipt_number=receipt_number,
-                                    )
-                                    from fees.models import PaymentAllocation
-                                    PaymentAllocation.objects.create(
-                                        payment=payment_cf,
-                                        carry_forward=cf,
-                                        allocated_amount=pd_paid,
-                                        allocation_type='PREVIOUS_YEAR_DUES',
-                                    )
+                                if past_due_collected > 0:
+                                    # Anchor payment to Tuition Invoice or Transport Invoice
+                                    anchor_invoice = tuition_invoice or transport_invoice
+                                    if anchor_invoice:
+                                        receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
+                                        payment_cf = Payment.objects.create(
+                                            tenant=tenant, branch=branch, invoice=anchor_invoice, student=student,
+                                            amount=past_due_collected, payment_mode='CASH', payment_date=date.today(),
+                                            status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                        )
+                                        PaymentAllocation.objects.create(
+                                            payment=payment_cf,
+                                            carry_forward=cf,
+                                            allocated_amount=past_due_collected,
+                                            allocation_type='PREVIOUS_YEAR_DUES',
+                                        )
                     else:
                         if is_new_student:
                             create_student_fees(student, None, None, 'Auto-generated on CSV Import', user)
@@ -550,6 +686,8 @@ def process_rows(job, rows):
                     success_count += 1
                     
             except Exception as row_error:
+                import traceback
+                traceback.print_exc()
                 errors.append(f"{row_label}: {str(row_error)}")
             
             processed_rows += 1
