@@ -22,6 +22,7 @@ interface JobData {
   processed_rows: number;
   success_count: number;
   skipped_duplicates: number;
+  updated_count: number;
   errors: string[];
 }
 
@@ -35,6 +36,8 @@ export default function CsvImportModal({
   const [academicYears, setAcademicYears] = useState<any[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [ayId, setAyId] = useState<string>('');
+  const [updateStudentDetails, setUpdateStudentDetails] = useState(false);
+  const [updateFeeDetails, setUpdateFeeDetails] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [jobData, setJobData] = useState<JobData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -124,6 +127,9 @@ export default function CsvImportModal({
     const b = String(branchId || '').trim();
     if (b) formData.append('branch_id', b);
     if (String(ayId || '').trim()) formData.append('academic_year_id', ayId);
+    
+    formData.append('update_student_details', String(updateStudentDetails));
+    formData.append('update_fee_details', String(updateFeeDetails));
 
     try {
       // Do not set Content-Type manually — the browser/axios must add the multipart boundary.
@@ -140,6 +146,7 @@ export default function CsvImportModal({
           processed_rows: 0,
           success_count: 0,
           skipped_duplicates: 0,
+          updated_count: 0,
           errors: [],
         });
         startPolling(data.job_id);
@@ -159,6 +166,7 @@ export default function CsvImportModal({
           processed_rows: 0,
           success_count: 0,
           skipped_duplicates: 0,
+          updated_count: 0,
           errors: errMsgs,
         });
       }
@@ -320,6 +328,36 @@ export default function CsvImportModal({
             )}
           </div>
 
+          {/* Update Options */}
+          <div className="flex flex-col gap-2.5 mt-2 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+            <label className="flex items-start gap-3 text-sm text-slate-700 cursor-pointer select-none">
+              <input 
+                type="checkbox" 
+                checked={updateStudentDetails} 
+                onChange={(e) => setUpdateStudentDetails(e.target.checked)} 
+                disabled={!!isProcessing}
+                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50" 
+              />
+              <div>
+                <span className="font-bold text-slate-900 block">Update existing student details</span>
+                <span className="text-xs text-slate-500 block mt-0.5">Overwrite demographic data, addresses, and parent details if a matching student is found.</span>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 text-sm text-slate-700 cursor-pointer select-none">
+              <input 
+                type="checkbox" 
+                checked={updateFeeDetails} 
+                onChange={(e) => setUpdateFeeDetails(e.target.checked)} 
+                disabled={!!isProcessing}
+                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50" 
+              />
+              <div>
+                <span className="font-bold text-slate-900 block">Update existing fee records</span>
+                <span className="text-xs text-amber-600 font-medium block mt-0.5">WARNING: This will overwrite manually adjusted fee amounts and payments for matching students.</span>
+              </div>
+            </label>
+          </div>
+
           {/* Progress Tracker */}
           {isProcessing && (
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
@@ -357,6 +395,7 @@ export default function CsvImportModal({
                   </p>
                   <p className={`text-xs mt-0.5 ${jobData.errors?.length > 0 ? 'text-amber-600/80' : 'text-emerald-600/80'}`}>
                     {jobData.success_count} imported
+                    {jobData.updated_count > 0 ? ` · ${jobData.updated_count} updated` : ''}
                     {jobData.skipped_duplicates > 0 ? ` · ${jobData.skipped_duplicates} duplicate${jobData.skipped_duplicates !== 1 ? 's' : ''} skipped` : ''}
                     {jobData.errors?.length > 0 ? ` · ${jobData.errors.length} row(s) NOT imported (see below)` : ''}
                     {' · Fees and parent accounts created automatically'}

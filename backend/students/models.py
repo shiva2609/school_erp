@@ -492,6 +492,10 @@ class CsvImportJob(models.Model):
     processed_rows = models.PositiveIntegerField(default=0)
     success_count = models.PositiveIntegerField(default=0)
     skipped_duplicates = models.PositiveIntegerField(default=0)
+    updated_count = models.PositiveIntegerField(default=0)
+    
+    update_student_details = models.BooleanField(default=False)
+    update_fee_details = models.BooleanField(default=False)
     
     error_log = models.JSONField(default=list, blank=True)
     

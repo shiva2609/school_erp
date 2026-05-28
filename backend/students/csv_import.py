@@ -166,6 +166,9 @@ def handle_csv_import(request):
                 status=400,
             )
 
+        update_student_details = str(request.data.get('update_student_details', '')).lower() == 'true'
+        update_fee_details = str(request.data.get('update_fee_details', '')).lower() == 'true'
+
         # Create the background job
         job = CsvImportJob.objects.create(
             tenant=tenant,
@@ -173,7 +176,9 @@ def handle_csv_import(request):
             academic_year=ay,
             file=file_obj,
             created_by=user,
-            status='PENDING'
+            status='PENDING',
+            update_student_details=update_student_details,
+            update_fee_details=update_fee_details
         )
 
         # Trigger Celery Task
@@ -210,6 +215,7 @@ def process_rows(job, rows):
     errors = []
     success_count = 0
     skipped_duplicates = 0
+    updated_count = 0
     processed_rows = 0
 
     tenant = job.tenant
@@ -362,10 +368,105 @@ def process_rows(job, rows):
                             date_of_birth=parsed_dob, class_section=cs,
                         ).first()
 
+                    blood_group_raw = row.get('blood group', row.get('blood_group', '')).upper().strip()
+                    blood_group = blood_group_raw if blood_group_raw in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'UNKNOWN', ''] else 'UNKNOWN'
+                    caste_raw = row.get('caste category', row.get('caste_category', '')).upper().strip()
+                    caste_category = caste_raw if caste_raw in ['GEN', 'OBC', 'SC', 'ST', 'EWS', 'OTHER', ''] else None
+
+                    roll_raw = get_val(row, 'roll number', 'roll_number', 'roll no').strip()
+                    roll_num = int(roll_raw) if roll_raw.isdigit() else None
+                    
+                    religion = safe_str(row.get('religion'), 100)
+                    aadhar_number = safe_str(row.get('aadhar number', row.get('aadhar_number')), 12)
+                    mother_tongue = safe_str(row.get('mother tongue', row.get('mother_tongue')), 50)
+                    nationality = safe_str(row.get('nationality'), 50) or 'Indian'
+                    father_name = safe_str(get_val(row, 'father name', 'father_name', 'parent name'), 200)
+                    father_phone = safe_phone(get_val(row, 'father mobile', 'father_phone', 'parent mobile', 'father mobile'))
+                    father_email = safe_str(row.get('father email', row.get('father_email')), 254)
+                    father_qualification = safe_str(row.get('father_qualification'), 100)
+                    father_occupation = safe_str(row.get('father_occupation'), 100)
+                    father_aadhaar = safe_str(row.get('father_aadhaar'), 12)
+                    mother_name = safe_str(get_val(row, 'mother name', 'mother_name'), 200)
+                    mother_phone = safe_phone(get_val(row, 'mother mobile', 'mother_phone', 'mother mobile'))
+                    mother_email = safe_str(row.get('mother email', row.get('mother_email')), 254)
+                    mother_qualification = safe_str(row.get('mother_qualification'), 100)
+                    mother_occupation = safe_str(row.get('mother_occupation'), 100)
+                    mother_aadhaar = safe_str(row.get('mother_aadhaar'), 12)
+                    guardian_name = safe_str(get_val(row, 'guardian name', 'guardian_name'), 200)
+                    guardian_phone = safe_phone(get_val(row, 'guardian mobile', 'guardian_phone', 'guardian mobile'))
+                    guardian_relation = safe_str(row.get('guardian_relation'), 100)
+                    address_line1 = safe_str(row.get('address', row.get('address_line1')), 255)
+                    address_line2 = safe_str(row.get('address_line2'), 255)
+                    city = safe_str(row.get('city'), 100)
+                    district = safe_str(row.get('district'), 100)
+                    state = safe_str(row.get('state'), 100)
+                    pincode = safe_str(row.get('pincode'), 6)
+                    previous_school_name = safe_str(row.get('previous_school_name'), 200)
+                    previous_class = safe_str(row.get('previous_class'), 20)
+                    previous_school_ay = safe_str(row.get('previous_school_ay'), 20)
+                    emergency_contact_name = safe_str(row.get('emergency_contact_name'), 200)
+                    emergency_contact_phone = safe_phone(row.get('emergency_contact_phone'))
+                    emergency_contact_relation = safe_str(row.get('emergency_contact_relation'), 100)
+                    
                     is_new_student = False
+                    is_student_updated = False
+                    
                     if existing_student:
                         student = existing_student
-                        skipped_duplicates += 1
+                        if job.update_student_details:
+                            student.first_name = first_name
+                            student.last_name = last_name or ''
+                            student.date_of_birth = parsed_dob
+                            student.gender = gender
+                            if cs:
+                                student.class_section = cs
+                            student.roll_number = roll_num
+                            student.blood_group = blood_group or 'UNKNOWN'
+                            student.religion = religion
+                            student.caste_category = caste_category
+                            student.aadhar_number = aadhar_number
+                            student.mother_tongue = mother_tongue
+                            student.nationality = nationality
+                            student.father_name = father_name
+                            student.father_phone = father_phone
+                            student.father_email = father_email
+                            student.father_qualification = father_qualification
+                            student.father_occupation = father_occupation
+                            student.father_aadhaar = father_aadhaar
+                            student.mother_name = mother_name
+                            student.mother_phone = mother_phone
+                            student.mother_email = mother_email
+                            student.mother_qualification = mother_qualification
+                            student.mother_occupation = mother_occupation
+                            student.mother_aadhaar = mother_aadhaar
+                            student.guardian_name = guardian_name
+                            student.guardian_phone = guardian_phone
+                            student.guardian_relation = guardian_relation
+                            student.address_line1 = address_line1
+                            student.address_line2 = address_line2
+                            student.city = city
+                            student.district = district
+                            student.state = state
+                            student.pincode = pincode
+                            student.previous_school_name = previous_school_name
+                            student.previous_class = previous_class
+                            student.previous_school_ay = previous_school_ay
+                            student.emergency_contact_name = emergency_contact_name
+                            student.emergency_contact_phone = emergency_contact_phone
+                            student.emergency_contact_relation = emergency_contact_relation
+                            student.save()
+                            
+                            father_info = {'phone': student.father_phone, 'email': student.father_email, 'name': student.father_name or ''}
+                            mother_info = {'phone': student.mother_phone, 'email': student.mother_email, 'name': student.mother_name or ''}
+                            link_parent_accounts_to_student(
+                                student, father_info, mother_info, tenant, branch,
+                                strict_parent_email=False,
+                            )
+                            is_student_updated = True
+                            updated_count += 1
+                        else:
+                            if not job.update_fee_details:
+                                skipped_duplicates += 1
                     else:
                         is_new_student = True
                         platform_admission = Student.generate_admission_number(branch, ay)
@@ -375,41 +476,33 @@ def process_rows(job, rows):
                             platform_admission = Student.generate_admission_number(branch, ay)
                         legacy_stored = (csv_admission or '')[:64]
 
-                        blood_group_raw = row.get('blood group', row.get('blood_group', '')).upper().strip()
-                        blood_group = blood_group_raw if blood_group_raw in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'UNKNOWN', ''] else 'UNKNOWN'
-                        caste_raw = row.get('caste category', row.get('caste_category', '')).upper().strip()
-                        caste_category = caste_raw if caste_raw in ['GEN', 'OBC', 'SC', 'ST', 'EWS', 'OTHER', ''] else None
-
-                        roll_raw = get_val(row, 'roll number', 'roll_number', 'roll no').strip()
-                        roll_num = int(roll_raw) if roll_raw.isdigit() else None
-
                         student = Student.objects.create(
                             tenant=tenant, branch=branch, academic_year=ay, class_section=cs,
                             first_name=first_name, last_name=last_name or '', date_of_birth=parsed_dob,
                             gender=gender, admission_number=platform_admission,
                             legacy_admission_number=legacy_stored,
                             roll_number=roll_num,
-                            blood_group=blood_group or 'UNKNOWN', religion=safe_str(row.get('religion'), 100), caste_category=caste_category,
-                            aadhar_number=safe_str(row.get('aadhar number', row.get('aadhar_number')), 12), mother_tongue=safe_str(row.get('mother tongue', row.get('mother_tongue')), 50),
-                            nationality=safe_str(row.get('nationality'), 50) or 'Indian',
-                            father_name=safe_str(get_val(row, 'father name', 'father_name', 'parent name'), 200),
-                            father_phone=safe_phone(get_val(row, 'father mobile', 'father_phone', 'parent mobile', 'father mobile')),
-                            father_email=safe_str(row.get('father email', row.get('father_email')), 254), father_qualification=safe_str(row.get('father_qualification'), 100),
-                            father_occupation=safe_str(row.get('father_occupation'), 100), father_aadhaar=safe_str(row.get('father_aadhaar'), 12),
-                            mother_name=safe_str(get_val(row, 'mother name', 'mother_name'), 200),
-                            mother_phone=safe_phone(get_val(row, 'mother mobile', 'mother_phone', 'mother mobile')),
-                            mother_email=safe_str(row.get('mother email', row.get('mother_email')), 254), mother_qualification=safe_str(row.get('mother_qualification'), 100),
-                            mother_occupation=safe_str(row.get('mother_occupation'), 100), mother_aadhaar=safe_str(row.get('mother_aadhaar'), 12),
-                            guardian_name=safe_str(get_val(row, 'guardian name', 'guardian_name'), 200),
-                            guardian_phone=safe_phone(get_val(row, 'guardian mobile', 'guardian_phone', 'guardian mobile')),
-                            guardian_relation=safe_str(row.get('guardian_relation'), 100),
-                            address_line1=safe_str(row.get('address', row.get('address_line1')), 255), address_line2=safe_str(row.get('address_line2'), 255),
-                            city=safe_str(row.get('city'), 100), district=safe_str(row.get('district'), 100),
-                            state=safe_str(row.get('state'), 100), pincode=safe_str(row.get('pincode'), 6),
-                            previous_school_name=safe_str(row.get('previous_school_name'), 200), previous_class=safe_str(row.get('previous_class'), 20),
-                            previous_school_ay=safe_str(row.get('previous_school_ay'), 20),
-                            emergency_contact_name=safe_str(row.get('emergency_contact_name'), 200), emergency_contact_phone=safe_phone(row.get('emergency_contact_phone')),
-                            emergency_contact_relation=safe_str(row.get('emergency_contact_relation'), 100),
+                            blood_group=blood_group or 'UNKNOWN', religion=religion, caste_category=caste_category,
+                            aadhar_number=aadhar_number, mother_tongue=mother_tongue,
+                            nationality=nationality,
+                            father_name=father_name,
+                            father_phone=father_phone,
+                            father_email=father_email, father_qualification=father_qualification,
+                            father_occupation=father_occupation, father_aadhaar=father_aadhaar,
+                            mother_name=mother_name,
+                            mother_phone=mother_phone,
+                            mother_email=mother_email, mother_qualification=mother_qualification,
+                            mother_occupation=mother_occupation, mother_aadhaar=mother_aadhaar,
+                            guardian_name=guardian_name,
+                            guardian_phone=guardian_phone,
+                            guardian_relation=guardian_relation,
+                            address_line1=address_line1, address_line2=address_line2,
+                            city=city, district=district,
+                            state=state, pincode=pincode,
+                            previous_school_name=previous_school_name, previous_class=previous_class,
+                            previous_school_ay=previous_school_ay,
+                            emergency_contact_name=emergency_contact_name, emergency_contact_phone=emergency_contact_phone,
+                            emergency_contact_relation=emergency_contact_relation,
                             created_by=user, status='ACTIVE',
                         )
 
@@ -530,54 +623,86 @@ def process_rows(job, rows):
                                 invoice_number__startswith='SPF-'
                             ).first()
                             
-                            if not tuition_invoice:
+                            if not tuition_invoice or job.update_fee_details:
                                 tuition_net = accepted_tuition
                                 tuition_status = 'PAID' if tuition_net <= 0 or tuition_collected >= tuition_net else ('PARTIALLY_PAID' if tuition_collected > 0 else 'SENT')
                                 if tuition_status not in ('PAID', 'CANCELLED', 'WAIVED') and due_date < date.today():
                                     tuition_status = 'OVERDUE'
                                     
-                                tuition_inv_number = DocumentSequence.get_next_sequence(branch, 'INVOICE', f"INV-{ay.start_date.year:04d}")
-                                tuition_invoice = FeeInvoice.objects.create(
-                                    tenant=tenant, branch=branch, academic_year=ay, student=student,
-                                    invoice_number=tuition_inv_number, month="ANNUAL",
-                                    gross_amount=tuition_fee, concession_amount=tuition_concession, net_amount=tuition_net,
-                                    paid_amount=tuition_collected, outstanding_amount=max(Decimal('0'), tuition_net - tuition_collected),
-                                    due_date=due_date, status=tuition_status, generated_by='MANUAL', created_by=user,
-                                )
-                                
-                                # Create FeeInvoiceItem
-                                FeeInvoiceItem.objects.create(
-                                    invoice=tuition_invoice,
-                                    category=tuition_cat,
-                                    original_amount=tuition_fee,
-                                    concession=tuition_concession,
-                                    final_amount=accepted_tuition,
-                                    description='Annual tuition fee',
-                                )
-                                
-                                # Create StudentFeeItem
-                                StudentFeeItem.objects.create(
-                                    student=student,
-                                    academic_year=ay,
-                                    category=tuition_cat,
-                                    amount=accepted_tuition,
-                                    is_locked=True
-                                )
-                                
-                                # Create Payment if tuition_collected > 0
-                                if tuition_collected > 0:
-                                    receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
-                                    payment = Payment.objects.create(
-                                        tenant=tenant, branch=branch, invoice=tuition_invoice, student=student,
-                                        amount=tuition_collected, payment_mode='CASH', payment_date=date.today(),
-                                        status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                if not tuition_invoice:
+                                    tuition_inv_number = DocumentSequence.get_next_sequence(branch, 'INVOICE', f"INV-{ay.start_date.year:04d}")
+                                    tuition_invoice = FeeInvoice.objects.create(
+                                        tenant=tenant, branch=branch, academic_year=ay, student=student,
+                                        invoice_number=tuition_inv_number, month="ANNUAL",
+                                        gross_amount=tuition_fee, concession_amount=tuition_concession, net_amount=tuition_net,
+                                        paid_amount=tuition_collected, outstanding_amount=max(Decimal('0'), tuition_net - tuition_collected),
+                                        due_date=due_date, status=tuition_status, generated_by='MANUAL', created_by=user,
                                     )
-                                    PaymentAllocation.objects.create(
-                                        payment=payment,
+                                else:
+                                    tuition_invoice.gross_amount = tuition_fee
+                                    tuition_invoice.concession_amount = tuition_concession
+                                    tuition_invoice.net_amount = tuition_net
+                                    tuition_invoice.paid_amount = tuition_collected
+                                    tuition_invoice.outstanding_amount = max(Decimal('0'), tuition_net - tuition_collected)
+                                    tuition_invoice.due_date = due_date
+                                    tuition_invoice.status = tuition_status
+                                    tuition_invoice.save()
+                                
+                                # Create or Update FeeInvoiceItem
+                                item = FeeInvoiceItem.objects.filter(invoice=tuition_invoice, category=tuition_cat).first()
+                                if item:
+                                    item.original_amount = tuition_fee
+                                    item.concession = tuition_concession
+                                    item.final_amount = accepted_tuition
+                                    item.save()
+                                else:
+                                    FeeInvoiceItem.objects.create(
                                         invoice=tuition_invoice,
-                                        allocated_amount=tuition_collected,
-                                        allocation_type='CURRENT_YEAR',
+                                        category=tuition_cat,
+                                        original_amount=tuition_fee,
+                                        concession=tuition_concession,
+                                        final_amount=accepted_tuition,
+                                        description='Annual tuition fee',
                                     )
+                                
+                                # Create or Update StudentFeeItem
+                                sf_item = StudentFeeItem.objects.filter(student=student, academic_year=ay, category=tuition_cat).first()
+                                if sf_item:
+                                    sf_item.amount = accepted_tuition
+                                    sf_item.save()
+                                else:
+                                    StudentFeeItem.objects.create(
+                                        student=student,
+                                        academic_year=ay,
+                                        category=tuition_cat,
+                                        amount=accepted_tuition,
+                                        is_locked=True
+                                    )
+                                
+                                # Create or Update Payment if tuition_collected > 0
+                                if tuition_collected > 0:
+                                    payment = Payment.objects.filter(tenant=tenant, invoice=tuition_invoice).first()
+                                    if payment:
+                                        payment.amount = tuition_collected
+                                        payment.payment_date = date.today()
+                                        payment.save()
+                                        allocation = PaymentAllocation.objects.filter(payment=payment, invoice=tuition_invoice).first()
+                                        if allocation:
+                                            allocation.allocated_amount = tuition_collected
+                                            allocation.save()
+                                    else:
+                                        receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
+                                        payment = Payment.objects.create(
+                                            tenant=tenant, branch=branch, invoice=tuition_invoice, student=student,
+                                            amount=tuition_collected, payment_mode='CASH', payment_date=date.today(),
+                                            status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                        )
+                                        PaymentAllocation.objects.create(
+                                            payment=payment,
+                                            invoice=tuition_invoice,
+                                            allocated_amount=tuition_collected,
+                                            allocation_type='CURRENT_YEAR',
+                                        )
 
                         transport_invoice = None
                         if transport_fee > 0:
@@ -586,54 +711,86 @@ def process_rows(job, rows):
                                 student=student, academic_year=ay, month="ANNUAL", invoice_number__startswith='TRN-'
                             ).first()
                             
-                            if not transport_invoice:
+                            if not transport_invoice or job.update_fee_details:
                                 transport_net = accepted_transport
                                 transport_status = 'PAID' if transport_net <= 0 or transport_collected >= transport_net else ('PARTIALLY_PAID' if transport_collected > 0 else 'SENT')
                                 if transport_status not in ('PAID', 'CANCELLED', 'WAIVED') and due_date < date.today():
                                     transport_status = 'OVERDUE'
                                     
-                                transport_inv_number = DocumentSequence.get_next_sequence(branch, 'INVOICE', f"TRN-{student.branch.branch_code}-{ay.start_date.year:04d}")
-                                transport_invoice = FeeInvoice.objects.create(
-                                    tenant=tenant, branch=branch, academic_year=ay, student=student,
-                                    invoice_number=transport_inv_number, month="ANNUAL",
-                                    gross_amount=transport_fee, concession_amount=transport_concession, net_amount=transport_net,
-                                    paid_amount=transport_collected, outstanding_amount=max(Decimal('0'), transport_net - transport_collected),
-                                    due_date=due_date, status=transport_status, generated_by='MANUAL', created_by=user,
-                                )
-                                
-                                # Create FeeInvoiceItem
-                                FeeInvoiceItem.objects.create(
-                                    invoice=transport_invoice,
-                                    category=transport_cat,
-                                    original_amount=transport_fee,
-                                    concession=transport_concession,
-                                    final_amount=accepted_transport,
-                                    description='Annual transport fee',
-                                )
-                                
-                                # Create StudentFeeItem
-                                StudentFeeItem.objects.create(
-                                    student=student,
-                                    academic_year=ay,
-                                    category=transport_cat,
-                                    amount=accepted_transport,
-                                    is_locked=True
-                                )
-                                
-                                # Create Payment if transport_collected > 0
-                                if transport_collected > 0:
-                                    receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
-                                    payment = Payment.objects.create(
-                                        tenant=tenant, branch=branch, invoice=transport_invoice, student=student,
-                                        amount=transport_collected, payment_mode='CASH', payment_date=date.today(),
-                                        status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                if not transport_invoice:
+                                    transport_inv_number = DocumentSequence.get_next_sequence(branch, 'INVOICE', f"TRN-{student.branch.branch_code}-{ay.start_date.year:04d}")
+                                    transport_invoice = FeeInvoice.objects.create(
+                                        tenant=tenant, branch=branch, academic_year=ay, student=student,
+                                        invoice_number=transport_inv_number, month="ANNUAL",
+                                        gross_amount=transport_fee, concession_amount=transport_concession, net_amount=transport_net,
+                                        paid_amount=transport_collected, outstanding_amount=max(Decimal('0'), transport_net - transport_collected),
+                                        due_date=due_date, status=transport_status, generated_by='MANUAL', created_by=user,
                                     )
-                                    PaymentAllocation.objects.create(
-                                        payment=payment,
+                                else:
+                                    transport_invoice.gross_amount = transport_fee
+                                    transport_invoice.concession_amount = transport_concession
+                                    transport_invoice.net_amount = transport_net
+                                    transport_invoice.paid_amount = transport_collected
+                                    transport_invoice.outstanding_amount = max(Decimal('0'), transport_net - transport_collected)
+                                    transport_invoice.due_date = due_date
+                                    transport_invoice.status = transport_status
+                                    transport_invoice.save()
+                                
+                                # Create or Update FeeInvoiceItem
+                                item = FeeInvoiceItem.objects.filter(invoice=transport_invoice, category=transport_cat).first()
+                                if item:
+                                    item.original_amount = transport_fee
+                                    item.concession = transport_concession
+                                    item.final_amount = accepted_transport
+                                    item.save()
+                                else:
+                                    FeeInvoiceItem.objects.create(
                                         invoice=transport_invoice,
-                                        allocated_amount=transport_collected,
-                                        allocation_type='CURRENT_YEAR',
+                                        category=transport_cat,
+                                        original_amount=transport_fee,
+                                        concession=transport_concession,
+                                        final_amount=accepted_transport,
+                                        description='Annual transport fee',
                                     )
+                                
+                                # Create or Update StudentFeeItem
+                                sf_item = StudentFeeItem.objects.filter(student=student, academic_year=ay, category=transport_cat).first()
+                                if sf_item:
+                                    sf_item.amount = accepted_transport
+                                    sf_item.save()
+                                else:
+                                    StudentFeeItem.objects.create(
+                                        student=student,
+                                        academic_year=ay,
+                                        category=transport_cat,
+                                        amount=accepted_transport,
+                                        is_locked=True
+                                    )
+                                
+                                # Create or Update Payment if transport_collected > 0
+                                if transport_collected > 0:
+                                    payment = Payment.objects.filter(tenant=tenant, invoice=transport_invoice).first()
+                                    if payment:
+                                        payment.amount = transport_collected
+                                        payment.payment_date = date.today()
+                                        payment.save()
+                                        allocation = PaymentAllocation.objects.filter(payment=payment, invoice=transport_invoice).first()
+                                        if allocation:
+                                            allocation.allocated_amount = transport_collected
+                                            allocation.save()
+                                    else:
+                                        receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
+                                        payment = Payment.objects.create(
+                                            tenant=tenant, branch=branch, invoice=transport_invoice, student=student,
+                                            amount=transport_collected, payment_mode='CASH', payment_date=date.today(),
+                                            status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                        )
+                                        PaymentAllocation.objects.create(
+                                            payment=payment,
+                                            invoice=transport_invoice,
+                                            allocated_amount=transport_collected,
+                                            allocation_type='CURRENT_YEAR',
+                                        )
 
                         if past_due > 0:
                             legacy_ay_name = past_due_year_raw or "Legacy-Dues"
@@ -648,7 +805,7 @@ def process_rows(job, rows):
                                 student=student, source_academic_year=legacy_ay, target_academic_year=ay
                             ).first()
 
-                            if not cf:
+                            if not cf or job.update_fee_details:
                                 remaining_cf = past_due - past_due_collected - past_due_concession
                                 if remaining_cf <= 0:
                                     cf_status = 'PAID' if past_due_collected > 0 else ('WRITTEN_OFF' if past_due_concession > 0 else 'PAID')
@@ -657,28 +814,46 @@ def process_rows(job, rows):
                                 else:
                                     cf_status = 'PENDING'
 
-                                cf = FeeCarryForward.objects.create(
-                                    tenant=tenant, branch=branch, student=student, source_academic_year=legacy_ay, target_academic_year=ay,
-                                    total_fee_amount=past_due, total_paid_amount=Decimal('0.00'), carry_forward_amount=past_due,
-                                    paid_amount=past_due_collected, written_off_amount=past_due_concession, status=cf_status, created_by=user,
-                                )
+                                if not cf:
+                                    cf = FeeCarryForward.objects.create(
+                                        tenant=tenant, branch=branch, student=student, source_academic_year=legacy_ay, target_academic_year=ay,
+                                        total_fee_amount=past_due, total_paid_amount=Decimal('0.00'), carry_forward_amount=past_due,
+                                        paid_amount=past_due_collected, written_off_amount=past_due_concession, status=cf_status, created_by=user,
+                                    )
+                                else:
+                                    cf.total_fee_amount = past_due
+                                    cf.carry_forward_amount = past_due
+                                    cf.paid_amount = past_due_collected
+                                    cf.written_off_amount = past_due_concession
+                                    cf.status = cf_status
+                                    cf.save()
 
                                 if past_due_collected > 0:
                                     # Anchor payment to Tuition Invoice or Transport Invoice
                                     anchor_invoice = tuition_invoice or transport_invoice
                                     if anchor_invoice:
-                                        receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
-                                        payment_cf = Payment.objects.create(
-                                            tenant=tenant, branch=branch, invoice=anchor_invoice, student=student,
-                                            amount=past_due_collected, payment_mode='CASH', payment_date=date.today(),
-                                            status='COMPLETED', collected_by=user, receipt_number=receipt_number,
-                                        )
-                                        PaymentAllocation.objects.create(
-                                            payment=payment_cf,
-                                            carry_forward=cf,
-                                            allocated_amount=past_due_collected,
-                                            allocation_type='PREVIOUS_YEAR_DUES',
-                                        )
+                                        payment_cf = Payment.objects.filter(tenant=tenant, student=student, allocations__carry_forward=cf).first()
+                                        if payment_cf:
+                                            payment_cf.amount = past_due_collected
+                                            payment_cf.payment_date = date.today()
+                                            payment_cf.save()
+                                            allocation = PaymentAllocation.objects.filter(payment=payment_cf, carry_forward=cf).first()
+                                            if allocation:
+                                                allocation.allocated_amount = past_due_collected
+                                                allocation.save()
+                                        else:
+                                            receipt_number = DocumentSequence.get_next_sequence(branch, 'RECEIPT', f"RCP-{branch.branch_code.upper().replace(' ', '')}-{ay.start_date.year:04d}")
+                                            payment_cf = Payment.objects.create(
+                                                tenant=tenant, branch=branch, invoice=anchor_invoice, student=student,
+                                                amount=past_due_collected, payment_mode='CASH', payment_date=date.today(),
+                                                status='COMPLETED', collected_by=user, receipt_number=receipt_number,
+                                            )
+                                            PaymentAllocation.objects.create(
+                                                payment=payment_cf,
+                                                carry_forward=cf,
+                                                allocated_amount=past_due_collected,
+                                                allocation_type='PREVIOUS_YEAR_DUES',
+                                            )
                     else:
                         if is_new_student:
                             create_student_fees(student, None, None, 'Auto-generated on CSV Import', user)
@@ -696,8 +871,9 @@ def process_rows(job, rows):
         job.processed_rows = processed_rows
         job.success_count = success_count
         job.skipped_duplicates = skipped_duplicates
+        job.updated_count = updated_count
         job.error_log = errors
-        job.save(update_fields=['processed_rows', 'success_count', 'skipped_duplicates', 'error_log'])
+        job.save(update_fields=['processed_rows', 'success_count', 'skipped_duplicates', 'updated_count', 'error_log'])
 
     # Finalize job
     job.status = 'COMPLETED'
