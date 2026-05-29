@@ -81,9 +81,18 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="fixed inset-0 z-40 md:hidden">
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
             <aside className="fixed inset-y-0 left-0 w-72 bg-slate-900 text-white flex flex-col z-50 shadow-2xl animate-in slide-in-from-left duration-300">
-              <div className="h-16 flex items-center justify-between px-6 border-b border-white/10 flex-shrink-0">
-                <h1 className="text-xl font-bold font-sans tracking-tight truncate">{user?.tenant_name || 'ScoolERP'}</h1>
-                <button onClick={() => setSidebarOpen(false)} className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors">
+              {/* Mobile sidebar logo area */}
+              <div className="h-16 flex items-center justify-between px-4 border-b border-white/10 flex-shrink-0">
+                {user?.tenant_logo ? (
+                  <img
+                    src={user.tenant_logo}
+                    alt={user.tenant_name || 'Logo'}
+                    className="max-h-10 flex-1 min-w-0 object-contain object-left"
+                  />
+                ) : (
+                  <h1 className="text-xl font-bold font-sans tracking-tight truncate flex-1 min-w-0">{user?.tenant_name || 'ScoolERP'}</h1>
+                )}
+                <button onClick={() => setSidebarOpen(false)} className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors ml-2 flex-shrink-0">
                   <X size={20} />
                 </button>
               </div>
@@ -125,13 +134,17 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 
         {/* Desktop Sidebar */}
         <aside className="w-64 bg-slate-900 text-white flex-col hidden md:flex overflow-hidden">
-          <div className="h-16 flex items-center px-6 border-b border-white/10 flex-shrink-0">
+          {/* Desktop sidebar logo area */}
+          <div className="h-16 flex items-center justify-center px-3 border-b border-white/10 flex-shrink-0 overflow-hidden">
             {user?.tenant_logo ? (
-              <div className="flex items-center justify-center w-full">
-                <img src={user.tenant_logo} alt="Logo" className="h-10 w-auto object-contain" />
-              </div>
+              <img
+                src={user.tenant_logo}
+                alt={user.tenant_name || 'Logo'}
+                className="max-h-10 w-full object-contain"
+                style={{ maxWidth: '100%' }}
+              />
             ) : (
-              <h1 className="text-xl font-bold font-sans tracking-tight truncate">{user?.tenant_name || 'ScoolERP'}</h1>
+              <h1 className="text-xl font-bold font-sans tracking-tight truncate px-3">{user?.tenant_name || 'ScoolERP'}</h1>
             )}
           </div>
           
