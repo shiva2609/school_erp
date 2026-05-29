@@ -408,7 +408,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                     if Expense.objects.filter(branch=branch, voucher_number=voucher_number).exists():
                         raise ValidationError({"items": f"Row {idx}: voucher_number already exists."})
 
-                status_value = 'APPROVED' if amount_val <= 3000 else 'SUBMITTED'
+                status_value = 'APPROVED' if amount_val <= EXPENSE_AUTO_APPROVE_MAX else 'SUBMITTED'
                 expense = Expense.objects.create(
                     tenant=user.tenant,
                     branch=branch,

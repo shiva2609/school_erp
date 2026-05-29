@@ -53,17 +53,24 @@ const ZONAL_MAX = 5000;
 function canUserApproveExpense(role: string | undefined, amount: number): boolean {
   if (!role) return false;
   const amt = Number(amount) || 0;
-  if (amt <= AUTO_APPROVE_MAX) return false;
-  if (role === "SUPER_ADMIN") return true;
-  if (amt > ZONAL_MAX) return false;
-  return role === "ZONAL_ADMIN" || role === "CHIEF_ACCOUNTANT";
+  if (amt <= AUTO_APPROVE_MAX) return false; // auto-approved, shouldn't appear in queue
+  if (role === "OWNER" || role === "SUPER_ADMIN") return true; // can approve any amount
+  if (amt > ZONAL_MAX) return false; // above ₹5,000 — only super admin/owner
+  return role === "ZONAL_ADMIN" || role === "CHIEF_ACCOUNTANT"; // ₹3,001–₹5,000 tier
+}
+
+function getApprovalTierLabel(amount: number): { label: string; badge: string; who: string } {
+  const amt = Number(amount) || 0;
+  if (amt > ZONAL_MAX)
+    return { label: "Super Admin Only", badge: "bg-violet-100 text-violet-800", who: "Only school super admin can approve above ₹5,000" };
+  if (amt > AUTO_APPROVE_MAX)
+    return { label: "Zonal / Chief Acct.", badge: "bg-amber-100 text-amber-900", who: "Zonal admin or chief accountant can approve ₹3,001–₹5,000" };
+  return { label: "Auto-Approved", badge: "bg-slate-100 text-slate-600", who: "Under ₹3,000 — auto-posted" };
 }
 
 function routingBadge(routing: PendingExpense["approval_routing"], amount: number) {
-  const amt = Number(amount) || 0;
-  if (amt > ZONAL_MAX) return { label: "Super admin", className: "bg-violet-100 text-violet-800" };
-  if (amt > AUTO_APPROVE_MAX) return { label: "Zonal / Chief", className: "bg-amber-100 text-amber-900" };
-  return { label: routing === "AUTO" ? "Auto" : "—", className: "bg-slate-100 text-slate-600" };
+  const tier = getApprovalTierLabel(amount);
+  return { label: tier.label, className: tier.badge };
 }
 
 export default function AdminApprovalsQueue() {
@@ -165,11 +172,7 @@ export default function AdminApprovalsQueue() {
 
   const handleExpenseApprove = async (e: PendingExpense) => {
     if (!canUserApproveExpense(user?.role, Number(e.amount))) {
-      toast.error(
-        Number(e.amount) > ZONAL_MAX
-          ? "Only school super admin can approve expenses above ₹5,000."
-          : "You are not allowed to approve this expense tier.",
-      );
+      toast.error(getApprovalTierLabel(Number(e.amount)).who);
       return;
     }
     const ok = await confirm({
@@ -261,8 +264,21 @@ export default function AdminApprovalsQueue() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Approvals</h1>
           <p className="text-gray-500 text-sm">
-            Fee concessions and submitted operational expenses. Expenses above ₹3,000 up to ₹5,000: zonal admin or chief
-            accountant; above ₹5,000: school super admin only.
+            Fee concessions &amp; submitted expenses. Routing tiers:
+            <span className="ml-1 inline-flex items-center gap-1">
+              <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">≤ ₹3,000</span>
+              <span className="text-xs text-gray-500">Auto-posted</span>
+            </span>
+            <span className="mx-1 text-gray-300">·</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">₹3,001–₹5,000</span>
+              <span className="text-xs text-gray-500">Zonal / Chief Accountant</span>
+            </span>
+            <span className="mx-1 text-gray-300">·</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">&gt; ₹5,000</span>
+              <span className="text-xs text-gray-500">Super Admin only</span>
+            </span>
           </p>
         </div>
       </div>
@@ -355,23 +371,32 @@ export default function AdminApprovalsQueue() {
                               </p>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleExpenseReject(ex)}
-                              disabled={!canAct || processingExpense === ex.id}
-                              className="text-red-600 border border-red-200 px-3 py-2 rounded-lg bg-white hover:bg-red-50 text-sm font-medium disabled:opacity-40"
-                            >
-                              Reject
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleExpenseApprove(ex)}
-                              disabled={!canAct || processingExpense === ex.id}
-                              className="text-white bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm disabled:opacity-40"
-                            >
-                              {processingExpense === ex.id ? "…" : "Approve"}
-                            </button>
+                          <div className="flex flex-col items-end gap-2">
+                            {!canAct && (
+                              <p className="text-xs text-gray-400 italic text-right">
+                                {getApprovalTierLabel(Number(ex.amount)).who}
+                              </p>
+                            )}
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleExpenseReject(ex)}
+                                disabled={!canAct || processingExpense === ex.id}
+                                title={!canAct ? getApprovalTierLabel(Number(ex.amount)).who : "Reject expense"}
+                                className="text-red-600 border border-red-200 px-3 py-2 rounded-lg bg-white hover:bg-red-50 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                Reject
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleExpenseApprove(ex)}
+                                disabled={!canAct || processingExpense === ex.id}
+                                title={!canAct ? getApprovalTierLabel(Number(ex.amount)).who : "Approve expense"}
+                                className="text-white bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {processingExpense === ex.id ? "…" : "Approve"}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
