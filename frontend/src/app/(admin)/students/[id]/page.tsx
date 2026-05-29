@@ -783,11 +783,11 @@ export default function StudentProfilePage() {
                     <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={22} />
                     <div>
                       <h4 className="text-sm font-black text-amber-900 uppercase tracking-wider">
-                        Set fee for promoted class
+                        Set fee for class
                       </h4>
                       <p className="text-sm text-amber-800/90 mt-1">
-                        This student moved up to <strong>{student.class_section_display || 'their new class'}</strong> for{' '}
-                        <strong>{student.academic_year_name}</strong>. Confirm the annual academic fee the same way as a new admission
+                        This student is enrolled in <strong>{student.class_section_display || 'their new class'}</strong> for{' '}
+                        <strong>{student.academic_year_name}</strong> (either via promotion or import). Confirm the annual academic fee the same way as a new admission
                         (no admission fee). Outstanding carry-forwards and old dues are unchanged.
                       </p>
                       <p className="text-xs text-amber-700/80 mt-2">

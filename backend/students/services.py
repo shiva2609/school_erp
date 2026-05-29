@@ -11,20 +11,33 @@ logger = logging.getLogger(__name__)
 def student_needs_promoted_year_fee_setup(student) -> bool:
     """
     True when the student has an academic record for the current year that came from
-    promotion/detention (promoted_from set) but no annual academic fee invoice/items yet.
+    promotion/detention (promoted_from set) OR they were imported via CSV directly into the active year,
+    but no annual academic fee invoice/items yet.
     """
     from students.models import StudentAcademicRecord
     from fees.models import FeeInvoice
+    from tenants.models import AcademicYear
 
     if not student.academic_year_id or not student.class_section_id:
         return False
+        
     promoted = StudentAcademicRecord.objects.filter(
         student=student,
         academic_year_id=student.academic_year_id,
         promoted_from__isnull=False,
     ).exists()
-    if not promoted:
+    
+    is_csv_eligible = False
+    if not promoted and bool((student.legacy_admission_number or '').strip()):
+        # Try to use already loaded relation to avoid extra query
+        if getattr(student, 'academic_year', None) and getattr(student.academic_year, 'is_active', False):
+            is_csv_eligible = True
+        else:
+            is_csv_eligible = AcademicYear.objects.filter(id=student.academic_year_id, is_active=True).exists()
+
+    if not (promoted or is_csv_eligible):
         return False
+
     has_annual = FeeInvoice.objects.filter(
         student=student,
         academic_year_id=student.academic_year_id,
@@ -32,11 +45,13 @@ def student_needs_promoted_year_fee_setup(student) -> bool:
     ).exclude(invoice_number__startswith='ADM-').exclude(invoice_number__startswith='TRN-').exists()
     if has_annual:
         return False
+        
     items_total = student.fee_items.filter(academic_year_id=student.academic_year_id).aggregate(
         total=Sum('amount')
     )['total'] or Decimal('0')
     if items_total > 0:
         return False
+        
     return True
 
 
