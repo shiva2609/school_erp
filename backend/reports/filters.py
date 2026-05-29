@@ -26,6 +26,11 @@ class BaseReportFilter:
         self.user = user
         self.branch_id = self._get_branch_id()
         self.academic_year_id = _optional_uuid_param(request.query_params.get('academic_year_id'))
+        if not self.academic_year_id:
+            from accounts.utils import get_active_academic_year
+            active_ay = get_active_academic_year(user.tenant)
+            if active_ay:
+                self.academic_year_id = str(active_ay.id)
         
         # Parse Dates
         start_date_str = request.query_params.get('startDate')
