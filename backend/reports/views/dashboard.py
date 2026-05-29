@@ -11,7 +11,7 @@ from django.db import models
 from django.utils import timezone
 from datetime import timedelta
 from expenses.models import TransactionLog
-from fees.models import FeeInvoice, FeeApprovalRequest, Payment
+from fees.models import FeeInvoice, FeeApprovalRequest, Payment, FeeCarryForward, PaymentAllocation
 from fees.approval_routing import fee_approval_queryset_for_user
 from attendance.models import AttendanceRecord
 from students.models import Student, AdmissionInquiry, AdmissionApplication
@@ -131,6 +131,42 @@ class ReportingViewSet(viewsets.ViewSet):
             count=Count('id')
         )
 
+        # Query carry forward aggregates
+        cf_qs = FeeCarryForward.objects.filter(tenant=request.user.tenant)
+        if branch_id:
+            cf_qs = cf_qs.filter(branch_id=branch_id)
+        elif zone_ids is not None:
+            cf_qs = cf_qs.filter(branch__zone_id__in=zone_ids)
+        if ay_id:
+            cf_qs = cf_qs.filter(target_academic_year_id=ay_id)
+            
+        cf_stats = cf_qs.aggregate(
+            cf_due=Sum('carry_forward_amount'),
+            cf_paid=Sum('paid_amount'),
+            cf_written_off=Sum('written_off_amount'),
+        )
+        cf_due = cf_stats['cf_due'] or Decimal('0.00')
+        cf_paid = cf_stats['cf_paid'] or Decimal('0.00')
+        cf_written_off = cf_stats['cf_written_off'] or Decimal('0.00')
+        cf_outstanding = cf_due - cf_paid - cf_written_off
+
+        # Query carry forward payments
+        cf_payments_qs = PaymentAllocation.objects.filter(
+            allocation_type='PREVIOUS_YEAR_DUES',
+            payment__status='COMPLETED',
+        )
+        if branch_id:
+            cf_payments_qs = cf_payments_qs.filter(carry_forward__branch_id=branch_id)
+        elif zone_ids is not None:
+            cf_payments_qs = cf_payments_qs.filter(carry_forward__branch__zone_id__in=zone_ids)
+        if ay_id:
+            cf_payments_qs = cf_payments_qs.filter(carry_forward__target_academic_year_id=ay_id)
+
+        cf_collected_today = cf_payments_qs.filter(
+            payment__payment_date=timezone.now().date()
+        ).aggregate(total=Sum('allocated_amount'))['total'] or Decimal('0.00')
+        cf_collected_total = cf_payments_qs.aggregate(total=Sum('allocated_amount'))['total'] or Decimal('0.00')
+
         # Student count (active only, filtered by branch and AY)
         student_qs = Student.objects.filter(tenant=request.user.tenant, status='ACTIVE')
         if branch_id:
@@ -179,6 +215,11 @@ class ReportingViewSet(viewsets.ViewSet):
             revenue_qs = revenue_qs.filter(invoice__academic_year_id=ay_id)
         revenue_qs = self._billable_payments(revenue_qs)
         revenue_collected = revenue_qs.aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Add carry forward amounts to collection metrics
+        today_collection_total = Decimal(str(today_collection)) + cf_collected_today
+        revenue_collected_total = Decimal(str(revenue_collected)) + cf_collected_total
+
         # Card "Academic revenue received": admission + special fee + academic tuition + transport (when collected).
         # Excludes caution deposit (FDP-) only. When branch_id is omitted,
         # SUPER_ADMIN / CHIEF_ACCOUNTANT scope is entire tenant (all branches).
@@ -200,22 +241,24 @@ class ReportingViewSet(viewsets.ViewSet):
         ).exclude(
             invoice__invoice_number__startswith='SPF-'
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-        academic_revenue_collected = admission_rev + special_rev + academic_core_rev + transport_rev
+        
+        academic_core_rev_total = academic_core_rev + cf_collected_total
+        academic_revenue_collected = admission_rev + special_rev + academic_core_rev_total + transport_rev
         transport_revenue_collected = transport_rev
 
         return Response({
             'success': True,
             'data': {
-                'total_gross': float(stats['total_gross'] or 0),
-                'total_paid': float(stats['total_paid'] or 0),
-                'revenue_collected': float(revenue_collected),
+                'total_gross': float((stats['total_gross'] or Decimal('0.00')) + cf_due),
+                'total_paid': float((stats['total_paid'] or Decimal('0.00')) + cf_paid),
+                'revenue_collected': float(revenue_collected_total),
                 'academic_revenue_collected': float(academic_revenue_collected),
                 'admission_revenue_collected': float(admission_rev),
                 'special_fee_revenue_collected': float(special_rev),
-                'academic_tuition_revenue_collected': float(academic_core_rev),
+                'academic_tuition_revenue_collected': float(academic_core_rev_total),
                 'transport_revenue_collected': float(transport_revenue_collected),
-                'today_collection': float(today_collection),
-                'total_outstanding': float(stats['total_outstanding'] or 0),
+                'today_collection': float(today_collection_total),
+                'total_outstanding': float((stats['total_outstanding'] or Decimal('0.00')) + cf_outstanding),
                 'invoice_count': stats['count'],
                 'total_students': total_students,
                 'active_branches': active_branches,

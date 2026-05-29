@@ -209,14 +209,59 @@ class PaymentsService:
     @staticmethod
     def get_student_balance_summary(filters):
         qs = PaymentsService.get_student_balance_base_invoices(filters)
-        return qs.values(
-            'student__admission_number', 'student__first_name', 'student__last_name',
+        data = list(qs.values(
+            'student__id', 'student__admission_number', 'student__first_name', 'student__last_name',
             'student__class_section__grade', 'student__class_section__section',
         ).annotate(
             total_net=Sum('net_amount'),
             total_paid=Sum('paid_amount'),
             total_outstanding=Sum('outstanding_amount'),
-        ).order_by('student__admission_number')
+        ).order_by('student__admission_number'))
+
+        # Query carry forwards
+        from fees.models import FeeCarryForward
+        cf_qs = FeeCarryForward.objects.filter(
+            target_academic_year_id=filters.academic_year_id
+        )
+        if filters.branch_id:
+            cf_qs = cf_qs.filter(branch_id=filters.branch_id)
+        if filters.class_id:
+            cf_qs = cf_qs.filter(student__class_section__grade=filters.class_id)
+        if filters.section_id:
+            cf_qs = cf_qs.filter(student__class_section_id=filters.section_id)
+
+        cf_map = {
+            str(cf.student_id): {
+                'old_due': cf.carry_forward_amount,
+                'old_collected': cf.paid_amount,
+                'old_written_off': cf.written_off_amount,
+                'old_outstanding': cf.remaining_amount,
+            }
+            for cf in cf_qs
+        }
+
+        for row in data:
+            student_id = str(row['student__id'])
+            cf_info = cf_map.get(student_id, {
+                'old_due': Decimal('0.00'),
+                'old_collected': Decimal('0.00'),
+                'old_written_off': Decimal('0.00'),
+                'old_outstanding': Decimal('0.00'),
+            })
+            
+            old_due = cf_info['old_due']
+            old_collected = cf_info['old_collected']
+            old_outstanding = cf_info['old_outstanding']
+            
+            row['old_due'] = float(old_due)
+            row['old_collected'] = float(old_collected)
+            row['old_outstanding'] = float(old_outstanding)
+            
+            row['grand_total_net'] = float(row['total_net']) + float(old_due)
+            row['grand_total_paid'] = float(row['total_paid']) + float(old_collected)
+            row['grand_total_outstanding'] = float(row['total_outstanding']) + float(old_outstanding)
+            
+        return data
 
     @staticmethod
     def get_bus_expenses(filters):

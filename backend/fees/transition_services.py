@@ -704,12 +704,13 @@ def allocate_payment(user, student, total_amount, payment_mode, payment_date,
         prefix=f"RCP-{student.branch.branch_code}-{payment_date.strftime('%Y%m')}"
     )
 
-    # Create the payment record (not yet linked to a specific invoice)
-    # We link to the first invoice for backward compat
     first_invoice = FeeInvoice.objects.filter(
         student=student, outstanding_amount__gt=0,
         status__in=['SENT', 'PARTIALLY_PAID', 'OVERDUE']
     ).order_by('due_date').first()
+
+    if not first_invoice:
+        first_invoice = FeeInvoice.objects.filter(student=student).first()
 
     payment = Payment.objects.create(
         tenant=student.tenant,

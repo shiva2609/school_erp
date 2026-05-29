@@ -137,11 +137,11 @@ class CsvImportFeesTests(TransactionTestCase):
         self.assertEqual(prev_year_allocs.first().allocated_amount, Decimal('4000.00'))
         self.assertEqual(prev_year_allocs.first().carry_forward, cf)
 
-        # 6. Existing Serializer Dash Compatibility check
+        # 6. Existing Serializer Dash Compatibility check (now correctly integrates carry forward dues)
         serializer = StudentSerializer(student)
         fee_stats = serializer.data['fee_stats']
-        self.assertEqual(fee_stats['total_fee'], 35000.0) # Matches INV- net_amount as per existing serializer filtering
-        self.assertEqual(fee_stats['total_paid'], 31000.0)
+        self.assertEqual(fee_stats['total_fee'], 39000.0) # Correctly includes current year net (35k) + carry forward (4k)
+        self.assertEqual(fee_stats['total_paid'], 35000.0) # Correctly includes current year paid (31k) + carry forward paid (4k)
 
     def test_flat_fee_import_precision(self):
         """Verify importing flat columns creates correct academic invoice, payments and past dues (with flat resolution support)."""

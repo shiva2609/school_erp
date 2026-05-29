@@ -311,6 +311,41 @@ class PaymentsReportViewSet(viewsets.ViewSet):
         filters = BaseReportFilter(request, request.user)
         base = PaymentsService.get_student_balance_base_invoices(filters)
         summary = fee_invoice_totals(base)
+
+        # Query carry forward aggregates
+        from fees.models import FeeCarryForward
+        from django.db.models import Sum
+        from decimal import Decimal
+        
+        cf_qs = FeeCarryForward.objects.filter(
+            tenant=request.user.tenant,
+            target_academic_year_id=filters.academic_year_id
+        )
+        if filters.branch_id:
+            cf_qs = cf_qs.filter(branch_id=filters.branch_id)
+        if filters.class_id:
+            cf_qs = cf_qs.filter(student__class_section__grade=filters.class_id)
+        if filters.section_id:
+            cf_qs = cf_qs.filter(student__class_section_id=filters.section_id)
+            
+        cf_totals = cf_qs.aggregate(
+            total_due=Sum('carry_forward_amount'),
+            total_paid=Sum('paid_amount'),
+            total_written_off=Sum('written_off_amount'),
+        )
+        cf_due = cf_totals['total_due'] or Decimal('0.00')
+        cf_paid = cf_totals['total_paid'] or Decimal('0.00')
+        cf_written_off = cf_totals['total_written_off'] or Decimal('0.00')
+        cf_outstanding = cf_due - cf_paid - cf_written_off
+        
+        # Merge carry forward totals into summary cards
+        summary['old_due'] = str(cf_due)
+        summary['old_collected'] = str(cf_paid)
+        summary['old_outstanding'] = str(cf_outstanding)
+        summary['grand_total_net'] = str(Decimal(summary.get('total_net', '0')) + cf_due)
+        summary['grand_total_paid'] = str(Decimal(summary.get('total_paid', '0')) + cf_paid)
+        summary['grand_total_outstanding'] = str(Decimal(summary.get('total_outstanding', '0')) + cf_outstanding)
+
         data = PaymentsService.get_student_balance_summary(filters)
         footer_totals = footer_student_detailed_balance_columns(data)
         paginator = ReportPagination()

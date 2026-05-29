@@ -171,6 +171,28 @@ def footer_concession_columns(qs):
 
 
 def footer_student_detailed_balance_columns(student_summary_qs):
+    if isinstance(student_summary_qs, list):
+        net = sum(Decimal(str(r.get('total_net') or 0)) for r in student_summary_qs)
+        paid = sum(Decimal(str(r.get('total_paid') or 0)) for r in student_summary_qs)
+        outstanding = sum(Decimal(str(r.get('total_outstanding') or 0)) for r in student_summary_qs)
+        old_due = sum(Decimal(str(r.get('old_due') or 0)) for r in student_summary_qs)
+        old_collected = sum(Decimal(str(r.get('old_collected') or 0)) for r in student_summary_qs)
+        old_outstanding = sum(Decimal(str(r.get('old_outstanding') or 0)) for r in student_summary_qs)
+        grand_total_net = sum(Decimal(str(r.get('grand_total_net') or 0)) for r in student_summary_qs)
+        grand_total_paid = sum(Decimal(str(r.get('grand_total_paid') or 0)) for r in student_summary_qs)
+        grand_total_outstanding = sum(Decimal(str(r.get('grand_total_outstanding') or 0)) for r in student_summary_qs)
+        return {
+            'total_net': _s(net),
+            'total_paid': _s(paid),
+            'total_outstanding': _s(outstanding),
+            'old_due': _s(old_due),
+            'old_collected': _s(old_collected),
+            'old_outstanding': _s(old_outstanding),
+            'grand_total_net': _s(grand_total_net),
+            'grand_total_paid': _s(grand_total_paid),
+            'grand_total_outstanding': _s(grand_total_outstanding),
+        }
+
     # Use aggregate aliases distinct from annotation names — Django otherwise emits wrong SQL
     # (e.g. total_net=Sum('total_net') on a queryset already annotated total_net sums to 0 / can error).
     a = student_summary_qs.aggregate(

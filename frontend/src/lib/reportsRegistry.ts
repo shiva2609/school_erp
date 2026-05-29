@@ -787,9 +787,15 @@ export const reportsRegistry: ReportCategory[] = [
           { key: 'student__admission_number', label: 'Adm. No.' },
           { key: 'student_name', label: 'Student', render: (_v: any, row: any) => `${row.student__first_name || ''} ${row.student__last_name || ''}`.trim() || '-' },
           { key: 'class', label: 'Class', render: (_v: any, row: any) => `${row.student__class_section__grade || ''}-${row.student__class_section__section || ''}`.replace(/-$/, '') },
-          { key: 'total_net', label: 'Net', render: (_v: any, row: any) => `₹${Number(row.total_net || 0).toLocaleString('en-IN')}` },
-          { key: 'total_paid', label: 'Paid', render: (_v: any, row: any) => `₹${Number(row.total_paid || 0).toLocaleString('en-IN')}` },
-          { key: 'total_outstanding', label: 'Outstanding', render: (_v: any, row: any) => `₹${Number(row.total_outstanding || 0).toLocaleString('en-IN')}` },
+          { key: 'total_net', label: 'Current Net', render: (_v: any, row: any) => `₹${Number(row.total_net || 0).toLocaleString('en-IN')}` },
+          { key: 'total_paid', label: 'Current Paid', render: (_v: any, row: any) => `₹${Number(row.total_paid || 0).toLocaleString('en-IN')}` },
+          { key: 'total_outstanding', label: 'Current Bal.', render: (_v: any, row: any) => `₹${Number(row.total_outstanding || 0).toLocaleString('en-IN')}` },
+          { key: 'old_due', label: 'Old Due', render: (_v: any, row: any) => `₹${Number(row.old_due || 0).toLocaleString('en-IN')}` },
+          { key: 'old_collected', label: 'Old Collected', render: (_v: any, row: any) => `₹${Number(row.old_collected || 0).toLocaleString('en-IN')}` },
+          { key: 'old_outstanding', label: 'Old Bal.', render: (_v: any, row: any) => `₹${Number(row.old_outstanding || 0).toLocaleString('en-IN')}` },
+          { key: 'grand_total_net', label: 'Total Net', render: (_v: any, row: any) => `₹${Number(row.grand_total_net || 0).toLocaleString('en-IN')}` },
+          { key: 'grand_total_paid', label: 'Total Collections', render: (_v: any, row: any) => `₹${Number(row.grand_total_paid || 0).toLocaleString('en-IN')}` },
+          { key: 'grand_total_outstanding', label: 'Total Bal.', render: (_v: any, row: any) => `₹${Number(row.grand_total_outstanding || 0).toLocaleString('en-IN')}` },
         ]
       }
     ]

@@ -287,6 +287,18 @@ export default function StudentProfilePage() {
     setShowPaymentModal(true);
   };
 
+  const handleOpenCarryForwardPayment = (cf: any) => {
+    setSelectedInvoice({
+      id: cf.id,
+      invoice_number: `CF-${cf.source_year_name}`,
+      outstanding_amount: Number(cf.remaining_amount),
+      student_name: `${student.first_name} ${student.last_name}`,
+      is_carry_forward: true,
+      student_id: student.id,
+    });
+    setShowPaymentModal(true);
+  };
+
   const handleReinstate = async () => {
     const reason = prompt('Reason for reinstating this student:');
     if (!reason) return;
@@ -1097,6 +1109,13 @@ export default function StudentProfilePage() {
                           status: pay.status,
                           paymentId: pay.id,
                           receiptNumber: pay.receipt_number,
+                        })),
+                        ...(student.carry_forwards || []).map((cf: any) => ({
+                          date: cf.created_at,
+                          desc: `Carry Forward: Dues from ${cf.source_year_name}`,
+                          debit: Number(cf.carry_forward_amount),
+                          type: 'CARRY_FORWARD',
+                          status: cf.status,
                         }))
                       ].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item, i) => (
                         <tr key={i} className="group hover:bg-slate-50/50 transition-colors">
@@ -1138,7 +1157,7 @@ export default function StudentProfilePage() {
                   </table>
                 </div>
               </div>
-
+ 
               {/* Outstanding Invoices Section */}
               <div className="space-y-6 pt-4">
                 <SectionHeader title="Outstanding Dues" icon={Plus} />
@@ -1164,6 +1183,34 @@ export default function StudentProfilePage() {
                         </div>
                         <button 
                           onClick={() => handleOpenInvoicePayment(inv)}
+                          className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 hover:shadow-blue-200 transition-all flex items-center gap-2 group-hover:-translate-y-1"
+                        >
+                          <CreditCard size={14} /> Record Payment
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {student.carry_forwards?.filter((cf: any) => cf.status !== 'PAID' && cf.status !== 'WRITTEN_OFF').map((cf: any) => (
+                    <div key={cf.id} className="bg-white p-6 rounded-3xl border-2 border-slate-50 shadow-sm hover:border-blue-100 transition-all group overflow-hidden relative">
+                      <div className="flex justify-between items-start mb-6">
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CARRY FORWARD ({cf.source_year_name})</p>
+                          <h4 className="text-lg font-black text-slate-900 line-clamp-1">Previous Year Dues / Arrears</h4>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                          cf.status === 'PARTIALLY_PAID' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-700'
+                        }`}>
+                          {cf.status.replace('_', ' ')}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Due Amount</p>
+                          <p className="text-2xl font-black text-slate-900 italic tracking-tighter">₹{Number(cf.remaining_amount).toLocaleString('en-IN')}</p>
+                        </div>
+                        <button 
+                          onClick={() => handleOpenCarryForwardPayment(cf)}
                           className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 hover:shadow-blue-200 transition-all flex items-center gap-2 group-hover:-translate-y-1"
                         >
                           <CreditCard size={14} /> Record Payment
@@ -1197,7 +1244,7 @@ export default function StudentProfilePage() {
                       </div>
                     </div>
                   )}
-                  {student.invoices?.filter((i: any) => i.status !== 'PAID').length === 0 && (!student.transport_info?.opted || student.invoices?.some((i: any) => i.status !== 'PAID' && i.invoice_number?.startsWith('TRN-'))) && (
+                  {student.invoices?.filter((i: any) => i.status !== 'PAID').length === 0 && student.carry_forwards?.filter((cf: any) => cf.status !== 'PAID' && cf.status !== 'WRITTEN_OFF').length === 0 && (!student.transport_info?.opted || student.invoices?.some((i: any) => i.status !== 'PAID' && i.invoice_number?.startsWith('TRN-'))) && (
                     <div className="md:col-span-2 p-12 bg-emerald-50/50 rounded-[2.5rem] border border-dashed border-emerald-200 text-center space-y-4">
                       <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto text-emerald-500 shadow-sm border border-emerald-100">
                         <CheckCircle2 size={32} />

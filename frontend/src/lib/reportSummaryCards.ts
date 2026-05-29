@@ -50,9 +50,15 @@ export const reportSummaryCardsByExportKey: Record<string, SummaryCardConfig[]> 
     { key: 'net_cashflow', label: 'Net (income − expense)', format: 'inr' },
   ],
   PAYMENTS_STUDENT_DETAILED_BALANCES: [
-    { key: 'total_outstanding', label: 'Total outstanding', format: 'inr' },
-    { key: 'total_paid', label: 'Total paid', format: 'inr' },
-    { key: 'total_net', label: 'Total net', format: 'inr' },
+    { key: 'grand_total_outstanding', label: 'Total Balance', format: 'inr' },
+    { key: 'grand_total_paid', label: 'Total Collections', format: 'inr' },
+    { key: 'grand_total_net', label: 'Total Net', format: 'inr' },
+    { key: 'old_outstanding', label: 'Old Balance', format: 'inr' },
+    { key: 'old_collected', label: 'Old Paid', format: 'inr' },
+    { key: 'old_due', label: 'Old Due', format: 'inr' },
+    { key: 'total_outstanding', label: 'Current Bal.', format: 'inr' },
+    { key: 'total_paid', label: 'Current Paid', format: 'inr' },
+    { key: 'total_net', label: 'Current Net', format: 'inr' },
   ],
   PAYMENTS_INCOME_STATEMENT: [{ key: 'total_amount', label: 'Total income', format: 'inr' }],
   BUS_FEE_BALANCES: [

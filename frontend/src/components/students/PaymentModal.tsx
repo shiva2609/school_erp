@@ -11,6 +11,8 @@ interface PaymentModalProps {
     invoice_number: string;
     outstanding_amount: number;
     student_name: string;
+    is_carry_forward?: boolean;
+    student_id?: string;
   };
   onClose: () => void;
   onSuccess: () => void;
@@ -34,25 +36,37 @@ export default function PaymentModal({ invoice, onClose, onSuccess }: PaymentMod
     setError(null);
 
     try {
-      const res = await api.post('/fees/payments/offline/', {
-        invoice_id: invoice.id,
-        amount: parseFloat(formData.amount.toString()),
-        payment_mode: formData.payment_mode,
-        payment_date: formData.payment_date,
-        reference_number: formData.reference_number || null,
-        bank_name: formData.bank_name || null
-      });
+      let res;
+      if (invoice.is_carry_forward) {
+        res = await api.post('/allocated-payments/allocate/', {
+          student_id: invoice.student_id,
+          total_amount: parseFloat(formData.amount.toString()),
+          payment_mode: formData.payment_mode,
+          payment_date: formData.payment_date,
+          reference_number: formData.reference_number || null,
+          auto_allocate: true
+        });
+      } else {
+        res = await api.post('/fees/payments/offline/', {
+          invoice_id: invoice.id,
+          amount: parseFloat(formData.amount.toString()),
+          payment_mode: formData.payment_mode,
+          payment_date: formData.payment_date,
+          reference_number: formData.reference_number || null,
+          bank_name: formData.bank_name || null
+        });
+      }
       setPaymentResult(res.data);
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to record payment');
+      setError(err.response?.data?.detail || err.response?.data?.error || 'Failed to record payment');
     } finally {
       setLoading(false);
     }
   };
 
   const downloadReceipt = async () => {
-    const paymentId = paymentResult?.data?.id;
+    const paymentId = paymentResult?.data?.id || paymentResult?.data?.payment_id;
     const receiptNumber = paymentResult?.data?.receipt_number || 'receipt';
     if (!paymentId) return;
     try {
@@ -72,7 +86,7 @@ export default function PaymentModal({ invoice, onClose, onSuccess }: PaymentMod
   };
 
   const printReceipt = async () => {
-    const paymentId = paymentResult?.data?.id;
+    const paymentId = paymentResult?.data?.id || paymentResult?.data?.payment_id;
     if (!paymentId) return;
     try {
       const response = await api.get(`/templates/generate/receipt/${paymentId}/`, {
@@ -100,7 +114,7 @@ export default function PaymentModal({ invoice, onClose, onSuccess }: PaymentMod
             </div>
             <h3 className="text-2xl font-black text-slate-900 mb-2">Payment Recorded!</h3>
             <p className="text-slate-500 text-sm mb-6">
-              ₹{Number(data.amount).toLocaleString('en-IN')} paid for {invoice.invoice_number}
+              ₹{Number(data.amount || data.total_amount).toLocaleString('en-IN')} paid for {invoice.invoice_number}
             </p>
 
             <div className="bg-slate-50 rounded-2xl p-4 mb-6 text-left space-y-2">
@@ -110,11 +124,11 @@ export default function PaymentModal({ invoice, onClose, onSuccess }: PaymentMod
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400 font-bold">Mode</span>
-                <span className="font-black text-slate-700">{data.payment_mode}</span>
+                <span className="font-black text-slate-700">{data.payment_mode || formData.payment_mode}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400 font-bold">Date</span>
-                <span className="font-black text-slate-700">{data.payment_date}</span>
+                <span className="font-black text-slate-700">{data.payment_date || formData.payment_date}</span>
               </div>
             </div>
 

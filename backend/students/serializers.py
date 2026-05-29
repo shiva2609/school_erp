@@ -105,6 +105,7 @@ class StudentSerializer(serializers.ModelSerializer):
     is_csv_imported = serializers.SerializerMethodField()
     requires_initial_payment = serializers.SerializerMethodField()
     needs_promoted_class_fee_setup = serializers.SerializerMethodField()
+    carry_forwards = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
@@ -112,7 +113,7 @@ class StudentSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'enrollment_date', 'tenant', 'proposed_fee',
             'fee_stats', 'invoices', 'payments', 'transport_info', 'is_csv_imported',
-            'requires_initial_payment', 'needs_promoted_class_fee_setup',
+            'requires_initial_payment', 'needs_promoted_class_fee_setup', 'carry_forwards',
         ]
         extra_kwargs = {
             'admission_number': {'required': False, 'allow_blank': True}
@@ -123,7 +124,7 @@ class StudentSerializer(serializers.ModelSerializer):
         return obj.fee_items.aggregate(total=Sum('amount'))['total'] or 0
 
     def get_fee_stats(self, obj):
-        from fees.models import FeeInvoice, StudentFeeItem
+        from fees.models import FeeInvoice, StudentFeeItem, FeeCarryForward
         from decimal import Decimal
         from django.db.models import Sum
         
@@ -145,11 +146,27 @@ class StudentSerializer(serializers.ModelSerializer):
         else:
             total_fee = total_fee_invoiced
             
+        # Incorporate Fee Carry Forwards (previous year dues)
+        cf_qs = FeeCarryForward.objects.filter(student=obj)
+        cf_total = cf_qs.aggregate(Sum('carry_forward_amount'))['carry_forward_amount__sum'] or Decimal('0.00')
+        cf_paid = cf_qs.aggregate(Sum('paid_amount'))['paid_amount__sum'] or Decimal('0.00')
+        cf_written_off = cf_qs.aggregate(Sum('written_off_amount'))['written_off_amount__sum'] or Decimal('0.00')
+
+        total_fee += cf_total
+        total_paid += cf_paid
+        balance = total_fee - total_paid - cf_written_off
+
         return {
             'total_fee': float(total_fee),
             'total_paid': float(total_paid),
-            'balance': float(total_fee - total_paid)
+            'balance': float(balance)
         }
+
+    def get_carry_forwards(self, obj):
+        from fees.models import FeeCarryForward
+        from fees.transition_serializers import FeeCarryForwardSerializer
+        cf_qs = FeeCarryForward.objects.filter(student=obj)
+        return FeeCarryForwardSerializer(cf_qs, many=True).data
 
     transport_info = serializers.SerializerMethodField()
 

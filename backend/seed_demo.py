@@ -52,7 +52,6 @@ def seed():
     # 5. Create an Academic Year
     AcademicYear.objects.get_or_create(
         tenant=tenant,
-        branch=branch,
         name="2024-2025",
         defaults={
             "start_date": timezone.now().date(),
