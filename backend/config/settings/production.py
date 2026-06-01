@@ -30,7 +30,7 @@ DJANGO_ADMIN_ENABLED = os.environ.get('DJANGO_ADMIN_ENABLED', 'false').lower() i
 )
 
 ALLOWED_HOSTS = os.environ.get(
-    'DJANGO_ALLOWED_HOSTS', '.ondigitalocean.app'
+    'DJANGO_ALLOWED_HOSTS', '*'
 ).split(',')
 
 
