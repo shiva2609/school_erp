@@ -117,3 +117,15 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         receipts = ann.read_receipts.all().select_related('user')
         data = [{'user': r.user.email, 'read_at': r.read_at} for r in receipts]
         return Response({'success': True, 'data': data})
+
+    @action(detail=False, methods=['get'], url_path='teacher')
+    def teacher_notices(self, request):
+        if request.user.role != 'TEACHER':
+            return Response({'detail': 'Only teachers can access this endpoint.'}, status=403)
+        qs = self.get_queryset()
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(qs, many=True)
+        return Response({'success': True, 'data': serializer.data})

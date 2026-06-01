@@ -269,7 +269,12 @@ export default function TeachersPage() {
                   {activeMenu === t.id && (
                     <div className="absolute right-0 top-12 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-10 animate-in fade-in slide-in-from-top-2">
                        <button 
-                         onClick={() => setShowEditModal(t)}
+                         onClick={() => setShowEditModal({
+                           ...t,
+                           first_name: t.user_details?.first_name || '',
+                           last_name: t.user_details?.last_name || '',
+                           email: t.user_details?.email || ''
+                         })}
                          className="w-full px-4 py-2 text-left text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
                        >
                           <UserPlus size={16} className="text-gray-400" />
@@ -461,10 +466,39 @@ export default function TeachersPage() {
                <form onSubmit={handleUpdateStaff} className="p-8 space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                      <div className="space-y-2">
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">First Name</label>
+                       <input 
+                         type="text" 
+                         value={showEditModal.first_name || ''}
+                         onChange={e => setShowEditModal({...showEditModal, first_name: e.target.value})}
+                         className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-sm font-bold text-gray-700 outline-none focus:bg-white focus:border-blue-100 transition-all"
+                       />
+                     </div>
+                     <div className="space-y-2">
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Last Name</label>
+                       <input 
+                         type="text" 
+                         value={showEditModal.last_name || ''}
+                         onChange={e => setShowEditModal({...showEditModal, last_name: e.target.value})}
+                         className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-sm font-bold text-gray-700 outline-none focus:bg-white focus:border-blue-100 transition-all"
+                       />
+                     </div>
+                  </div>
+                  <div className="space-y-2">
+                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Email</label>
+                     <input 
+                       type="email" 
+                       value={showEditModal.email || ''}
+                       onChange={e => setShowEditModal({...showEditModal, email: e.target.value})}
+                       className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-sm font-bold text-gray-700 outline-none focus:bg-white focus:border-blue-100 transition-all"
+                     />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-2">
                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Qualification</label>
                        <input 
                          type="text" 
-                         value={showEditModal.qualification}
+                         value={showEditModal.qualification || ''}
                          onChange={e => setShowEditModal({...showEditModal, qualification: e.target.value})}
                          className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-sm font-bold text-gray-700 outline-none focus:bg-white focus:border-blue-100 transition-all"
                        />
@@ -473,7 +507,7 @@ export default function TeachersPage() {
                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Specialization</label>
                        <input 
                          type="text" 
-                         value={showEditModal.specialization}
+                         value={showEditModal.specialization || ''}
                          onChange={e => setShowEditModal({...showEditModal, specialization: e.target.value})}
                          className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-sm font-bold text-gray-700 outline-none focus:bg-white focus:border-blue-100 transition-all"
                        />
@@ -713,8 +747,8 @@ export default function TeachersPage() {
                                <div className="flex flex-wrap gap-2">
                                  {subjects?.filter((s: any) => {
                                       const assignTeacher = staff?.find((t: any) => t.id === showAssignModal);
-                                      const teacherBranch = assignTeacher?.user_details?.branch || assignTeacher?.branch;
-                                      return !teacherBranch || s.branch === teacherBranch;
+                                      const teacherBranchId = typeof assignTeacher?.branch === 'object' ? assignTeacher.branch?.id : assignTeacher?.branch;
+                                      return !teacherBranchId || s.branch === teacherBranchId;
                                  }).map((s: any) => (
                                    <button
                                      key={s.id}

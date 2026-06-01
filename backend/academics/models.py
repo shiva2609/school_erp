@@ -49,13 +49,16 @@ class ExamResult(models.Model):
     exam_term = models.ForeignKey(ExamTerm, on_delete=models.CASCADE, related_name='results')
     subject = models.ForeignKey('timetable.Subject', on_delete=models.CASCADE, related_name='exam_results')
     
-    marks_obtained = models.DecimalField(max_digits=5, decimal_places=2)
+    marks_obtained = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    is_absent = models.BooleanField(default=False)
     max_marks = models.DecimalField(max_digits=5, decimal_places=2)
     
     # Auto-calculated fields
     percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     grade = models.CharField(max_length=10, blank=True)
     grade_point = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    subject_rank = models.IntegerField(null=True, blank=True)
+    is_published = models.BooleanField(default=False)
     
     evaluator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='evaluated_results')
     evaluated_at = models.DateTimeField(auto_now_add=True)
@@ -67,10 +70,41 @@ class ExamResult(models.Model):
         ordering = ['student', 'subject']
         
     def save(self, *args, **kwargs):
-        if self.max_marks > 0:
+        if self.is_absent:
+            self.marks_obtained = None
+            self.percentage = None
+            self.grade = ''
+            self.grade_point = None
+        elif self.marks_obtained is not None and self.max_marks > 0:
             self.percentage = (self.marks_obtained / self.max_marks) * 100
-        
+            
+            # Auto-calculate grade based on GradeScale
+            scale = GradeScale.objects.filter(
+                branch=self.branch,
+                min_marks_percent__lte=self.percentage,
+                max_marks_percent__gte=self.percentage
+            ).first()
+            if scale:
+                self.grade = scale.grade
+                self.grade_point = scale.grade_point
+                
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.student} - {self.subject} ({self.exam_term.name}): {self.marks_obtained}/{self.max_marks}"
+
+
+class ExamSubjectConfig(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='exam_configs')
+    branch = models.ForeignKey('tenants.Branch', on_delete=models.CASCADE, related_name='exam_configs')
+    exam_term = models.ForeignKey(ExamTerm, on_delete=models.CASCADE, related_name='subject_configs')
+    class_section = models.ForeignKey('students.ClassSection', on_delete=models.CASCADE, related_name='exam_configs')
+    subject = models.ForeignKey('timetable.Subject', on_delete=models.CASCADE, related_name='exam_configs')
+    max_marks = models.DecimalField(max_digits=5, decimal_places=2)
+
+    class Meta:
+        unique_together = ('exam_term', 'class_section', 'subject')
+        
+    def __str__(self):
+        return f"{self.exam_term.name} - {self.class_section} - {self.subject} (Max: {self.max_marks})"

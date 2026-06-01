@@ -32,7 +32,11 @@ type GridStudent = {
   last_name: string;
   roll_number: number | null;
   marks_obtained: string;
+  is_absent: boolean;
   max_marks: string;
+  percentage?: string;
+  grade?: string;
+  subject_rank?: number | null;
   remarks: string;
 };
 
@@ -79,7 +83,7 @@ export default function ExamMarksPage() {
   const [gridLoading, setGridLoading] = useState(false);
   const [grid, setGrid] = useState<GridPayload | null>(null);
   const [draft, setDraft] = useState<
-    Record<string, { marks: string; max: string; remarks: string }>
+    Record<string, { marks: string; is_absent: boolean; remarks: string }>
   >({});
   const [saving, setSaving] = useState(false);
 
@@ -176,11 +180,11 @@ export default function ExamMarksPage() {
         if (cancelled) return;
         const d = res.data?.data as GridPayload;
         setGrid(d);
-        const next: Record<string, { marks: string; max: string; remarks: string }> = {};
+        const next: Record<string, { marks: string; is_absent: boolean; remarks: string }> = {};
         for (const s of d.students) {
           next[s.student_id] = {
             marks: s.marks_obtained || "",
-            max: s.max_marks || d.default_max_marks,
+            is_absent: s.is_absent || false,
             remarks: s.remarks || "",
           };
         }
@@ -218,14 +222,14 @@ export default function ExamMarksPage() {
 
   const updateDraft = (
     studentId: string,
-    field: "marks" | "max" | "remarks",
-    value: string
+    field: "marks" | "remarks" | "is_absent",
+    value: string | boolean
   ) => {
     setDraft((prev) => ({
       ...prev,
       [studentId]: {
         marks: prev[studentId]?.marks ?? "",
-        max: prev[studentId]?.max ?? grid?.default_max_marks ?? "100",
+        is_absent: prev[studentId]?.is_absent ?? false,
         remarks: prev[studentId]?.remarks ?? "",
         [field]: value,
       },
@@ -239,11 +243,11 @@ export default function ExamMarksPage() {
     }
     const defaultMax = grid.default_max_marks;
     const rows = Object.entries(draft)
-      .filter(([, v]) => v.marks.trim() !== "")
+      .filter(([, v]) => v.is_absent || v.marks.trim() !== "")
       .map(([student_id, v]) => ({
         student_id,
-        marks_obtained: v.marks.trim(),
-        max_marks: v.max?.trim() || defaultMax,
+        marks_obtained: v.is_absent ? null : v.marks.trim(),
+        is_absent: v.is_absent,
         remarks: v.remarks?.trim() || "",
       }));
     if (!rows.length) {
@@ -275,11 +279,11 @@ export default function ExamMarksPage() {
       });
       const d = gr.data?.data as GridPayload;
       setGrid(d);
-      const next: Record<string, { marks: string; max: string; remarks: string }> = {};
+      const next: Record<string, { marks: string; is_absent: boolean; remarks: string }> = {};
       for (const s of d.students) {
         next[s.student_id] = {
           marks: s.marks_obtained || "",
-          max: s.max_marks || d.default_max_marks,
+          is_absent: s.is_absent || false,
           remarks: s.remarks || "",
         };
       }
@@ -453,7 +457,10 @@ export default function ExamMarksPage() {
                   <th className="px-4 py-3">Student</th>
                   <th className="px-4 py-3">Adm. no.</th>
                   <th className="px-4 py-3 w-24">Max</th>
+                  <th className="px-4 py-3 w-16 text-center">Absent</th>
                   <th className="px-4 py-3 w-28">Marks</th>
+                  <th className="px-4 py-3 w-24">Grade</th>
+                  <th className="px-4 py-3 w-20">Rank</th>
                   <th className="px-4 py-3 min-w-[140px]">Remarks</th>
                 </tr>
               </thead>
@@ -461,7 +468,6 @@ export default function ExamMarksPage() {
                 {grid.students.map((s) => {
                   const drow = draft[s.student_id] || {
                     marks: "",
-                    max: s.max_marks || grid.default_max_marks,
                     remarks: "",
                   };
                   return (
@@ -472,12 +478,14 @@ export default function ExamMarksPage() {
                       </td>
                       <td className="px-4 py-2 text-slate-600">{s.admission_number || "—"}</td>
                       <td className="px-4 py-2">
+                        <span className="font-semibold text-slate-700">{grid.default_max_marks}</span>
+                      </td>
+                      <td className="px-4 py-2 text-center">
                         <input
-                          type="number"
-                          min={1}
-                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-                          value={drow.max}
-                          onChange={(e) => updateDraft(s.student_id, "max", e.target.value)}
+                          type="checkbox"
+                          checked={drow.is_absent}
+                          onChange={(e) => updateDraft(s.student_id, "is_absent", e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
                         />
                       </td>
                       <td className="px-4 py-2">
@@ -485,11 +493,16 @@ export default function ExamMarksPage() {
                           type="number"
                           step="0.01"
                           min={0}
-                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-                          placeholder="—"
+                          disabled={drow.is_absent}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                          placeholder={drow.is_absent ? "AB" : "—"}
                           value={drow.marks}
                           onChange={(e) => updateDraft(s.student_id, "marks", e.target.value)}
                         />
+                      </td>
+                      <td className="px-4 py-2 font-medium text-slate-800 text-center">{s.grade || "—"}</td>
+                      <td className="px-4 py-2 font-bold text-amber-600 text-center">
+                        {s.subject_rank ? `#${s.subject_rank}` : "—"}
                       </td>
                       <td className="px-4 py-2">
                         <input

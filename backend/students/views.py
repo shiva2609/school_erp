@@ -69,7 +69,14 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
             
         # Branch Isolation
         if role not in ['OWNER', 'SUPER_ADMIN'] and user.branch:
-            qs = qs.filter(branch=user.branch)
+            if role == 'TEACHER':
+                # Teachers can see classes in their branch OR classes they are assigned to teach
+                qs = qs.filter(
+                    Q(branch=user.branch) | 
+                    Q(teacher_assignments__teacher__user=user)
+                ).distinct()
+            else:
+                qs = qs.filter(branch=user.branch)
             
         branch = self.request.query_params.get('branch_id')
         ay = self.request.query_params.get('academic_year_id')

@@ -1,6 +1,18 @@
 from decimal import Decimal
-
 from rest_framework import serializers
+
+from academics.models import ExamTerm, ExamSubjectConfig
+
+class ExamTermSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExamTerm
+        fields = ['id', 'name', 'start_date', 'end_date', 'weightage_percentage', 'is_active', 'branch', 'academic_year']
+        read_only_fields = ['branch', 'academic_year']
+
+class ExamSubjectConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExamSubjectConfig
+        fields = ['id', 'exam_term', 'class_section', 'subject', 'max_marks']
 
 
 class MarkRowSerializer(serializers.Serializer):

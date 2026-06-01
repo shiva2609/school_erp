@@ -5,7 +5,7 @@ import api from '@/lib/axios';
 import { 
   Users, Calendar, Receipt, BookOpen, Clock, CheckCircle2, AlertCircle, 
   User, ChevronDown, FileText, PenTool, Bus, IndianRupee,
-  CreditCard, Banknote, ChevronRight, Check, X, Download
+  CreditCard, Banknote, ChevronRight, Check, X, Download, Award
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -96,6 +96,23 @@ interface HomeworkItem {
   acknowledged: boolean;
 }
 
+interface ExamResultItem {
+  subject: string;
+  marks_obtained: number | null;
+  is_absent: boolean;
+  max_marks: number;
+  percentage: number | null;
+  grade: string | null;
+  subject_rank: number | null;
+  remarks: string | null;
+}
+
+interface ExamTermGroup {
+  term_id: string;
+  term_name: string;
+  results: ExamResultItem[];
+}
+
 export default function ParentDashboard({ user }: { user: any }) {
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState<string>('');
@@ -103,6 +120,7 @@ export default function ParentDashboard({ user }: { user: any }) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [homework, setHomework] = useState<HomeworkItem[]>([]);
+  const [exams, setExams] = useState<ExamTermGroup[]>([]);
   const [transportInfo, setTransportInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [childDropdownOpen, setChildDropdownOpen] = useState(false);
@@ -151,6 +169,14 @@ export default function ParentDashboard({ user }: { user: any }) {
           setHomework(Array.isArray(data) ? data : []);
         })
         .catch(() => setHomework([]));
+    }
+    if (activeTab === 'overview' || activeTab === 'exams') {
+      api.get(`parent/children/${selectedChild}/marks/`)
+        .then(res => {
+          const data = res.data?.data || res.data;
+          setExams(Array.isArray(data) ? data : []);
+        })
+        .catch(() => setExams([]));
     }
     if (activeTab === 'transport' || activeTab === 'overview') {
       api.get(`parent/children/${selectedChild}/transport/`)
@@ -203,6 +229,7 @@ export default function ParentDashboard({ user }: { user: any }) {
     { id: 'fees', label: 'Fees', icon: Receipt },
     { id: 'attendance', label: 'Attendance', icon: Calendar },
     { id: 'homework', label: 'Homework', icon: PenTool },
+    { id: 'exams', label: 'Exams', icon: Award },
   ];
 
   const tabs = currentChild?.transport_opted 
@@ -455,6 +482,18 @@ export default function ParentDashboard({ user }: { user: any }) {
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending HW</span>
               </div>
               <p className="text-2xl font-black text-slate-900">{pendingHw}</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-9 h-9 bg-purple-50 rounded-xl flex items-center justify-center">
+                  <Award size={16} className="text-purple-600" />
+                </div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Exams</span>
+              </div>
+              <p className="text-2xl font-black text-slate-900">{exams.length}</p>
             </div>
           </div>
 
@@ -967,6 +1006,65 @@ export default function ParentDashboard({ user }: { user: any }) {
               })()}
             </div>
           </div>
+        </div>
+      )}
+      {/* ─── EXAMS TAB ─── */}
+      {activeTab === 'exams' && (
+        <div className="space-y-6">
+          {exams.length > 0 ? (
+            exams.map(group => (
+              <div key={group.term_id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
+                  <Award size={16} className="text-purple-500" />
+                  <h3 className="font-bold text-gray-900">{group.term_name} Results</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-xs uppercase text-slate-500 font-semibold">
+                      <tr>
+                        <th className="px-6 py-3">Subject</th>
+                        <th className="px-6 py-3">Marks</th>
+                        <th className="px-6 py-3">Grade</th>
+                        <th className="px-6 py-3">Rank</th>
+                        <th className="px-6 py-3">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {group.results.map((r, i) => (
+                        <tr key={i} className="hover:bg-slate-50/50">
+                          <td className="px-6 py-4 font-medium text-slate-900">{r.subject}</td>
+                          <td className="px-6 py-4">
+                            {r.is_absent ? (
+                              <span className="text-rose-500 font-bold">AB</span>
+                            ) : (
+                              <span className="font-bold text-slate-900">{r.marks_obtained} <span className="text-slate-400 font-normal">/ {r.max_marks}</span></span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="font-bold text-slate-900">{r.grade || '—'}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            {r.subject_rank ? (
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-50 text-amber-600 font-bold text-xs">
+                                {r.subject_rank}
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td className="px-6 py-4 text-slate-500">{r.remarks || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+              <Award className="mx-auto text-slate-200 mb-3" size={32} />
+              <p className="text-slate-400 font-bold text-sm">No exam results published yet</p>
+              <p className="text-slate-300 text-xs mt-1">Once teachers publish the marks, they will appear here</p>
+            </div>
+          )}
         </div>
       )}
 

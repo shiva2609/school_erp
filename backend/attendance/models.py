@@ -23,6 +23,9 @@ class AttendanceRecord(models.Model):
     class Meta:
         unique_together = ['student', 'date']
         ordering = ['-date', 'student__first_name']
+        indexes = [
+            models.Index(fields=['student', 'date']),
+        ]
 
     def __str__(self):
         return f"{self.student} - {self.date} - {self.status}"

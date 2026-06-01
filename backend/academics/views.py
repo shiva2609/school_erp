@@ -2,16 +2,16 @@ import logging
 from decimal import Decimal
 
 from django.db import transaction
-from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework import status, viewsets
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.permissions import normalize_role
-from academics.models import ExamResult, ExamTerm
+from accounts.permissions import normalize_role, IsAccountantOrAbove
+from academics.models import ExamResult, ExamTerm, ExamSubjectConfig
 from academics.marks_access import can_enter_exam_marks
 from academics.permissions import AcademicDomainPermission
-from academics.serializers import BulkExamMarksSerializer
+from academics.serializers import BulkExamMarksSerializer, ExamTermSerializer, ExamSubjectConfigSerializer
 from students.models import ClassSection, Student
 from staff.models import TeacherProfile, TeacherAssignment
 from timetable.models import Subject, TimetableSlot
@@ -70,6 +70,64 @@ def _exam_terms_for_branches(tenant, branch_ids):
     return list(
         qs.order_by('start_date').values('id', 'name', 'start_date', 'end_date', 'branch_id', 'academic_year_id')
     )
+
+
+class ExamTermViewSet(viewsets.ModelViewSet):
+    serializer_class = ExamTermSerializer
+    permission_classes = [IsAuthenticated, AcademicDomainPermission, IsAccountantOrAbove]
+    
+    def get_queryset(self):
+        user = self.request.user
+        qs = ExamTerm.objects.filter(tenant=user.tenant)
+        if hasattr(user, 'branch_id') and user.branch_id:
+            qs = qs.filter(branch_id=user.branch_id)
+        return qs.order_by('-start_date')
+        
+    def perform_create(self, serializer):
+        user = self.request.user
+        # The frontend might send academic_year_id or it comes from request.headers via middleware
+        academic_year_id = self.request.data.get('academic_year_id')
+        if not academic_year_id:
+            from tenants.models import AcademicYear
+            ay = AcademicYear.objects.filter(branch_id=user.branch_id, is_active=True).first()
+            if ay:
+                academic_year_id = ay.id
+        
+        serializer.save(
+            tenant=user.tenant,
+            branch_id=user.branch_id,
+            academic_year_id=academic_year_id
+        )
+
+    @action(detail=True, methods=['get', 'post'])
+    def configs(self, request, pk=None):
+        exam_term = self.get_object()
+        if request.method == 'GET':
+            configs = ExamSubjectConfig.objects.filter(exam_term=exam_term)
+            serializer = ExamSubjectConfigSerializer(configs, many=True)
+            return Response({'success': True, 'data': serializer.data})
+        
+        elif request.method == 'POST':
+            configs_data = request.data.get('configs', [])
+            saved = 0
+            with transaction.atomic():
+                for c in configs_data:
+                    cs_id = c.get('class_section')
+                    sub_id = c.get('subject')
+                    max_marks = c.get('max_marks')
+                    if cs_id and sub_id and max_marks is not None:
+                        ExamSubjectConfig.objects.update_or_create(
+                            exam_term=exam_term,
+                            class_section_id=cs_id,
+                            subject_id=sub_id,
+                            defaults={
+                                'tenant': exam_term.tenant,
+                                'branch': exam_term.branch,
+                                'max_marks': max_marks
+                            }
+                        )
+                        saved += 1
+            return Response({'success': True, 'message': f'Saved {saved} configurations.'})
 
 
 @api_view(['GET'])
@@ -162,13 +220,17 @@ def teacher_marks_grid(request):
             'student'
         )
     }
-    latest = (
-        ExamResult.objects.filter(exam_term=exam, subject=sub, student__class_section=cs)
-        .order_by('-updated_at')
-        .values_list('max_marks', flat=True)
-        .first()
-    )
-    default_max = latest if latest is not None else Decimal('100')
+    config = ExamSubjectConfig.objects.filter(
+        exam_term=exam, class_section=cs, subject=sub
+    ).first()
+    
+    if not config:
+        return Response(
+            {'success': False, 'error': 'Accountant has not configured max marks for this subject yet.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+        
+    default_max = config.max_marks
 
     rows = []
     for st in students:
@@ -180,7 +242,8 @@ def teacher_marks_grid(request):
             'last_name': st.last_name or '',
             'roll_number': st.roll_number,
             'result_id': str(r.id) if r else None,
-            'marks_obtained': str(r.marks_obtained) if r else '',
+            'marks_obtained': str(r.marks_obtained) if r and r.marks_obtained is not None else '',
+            'is_absent': r.is_absent if r else False,
             'max_marks': str(r.max_marks) if r else str(default_max),
             'percentage': str(r.percentage) if r and r.percentage is not None else '',
             'grade': r.grade if r else '',
@@ -212,13 +275,24 @@ def teacher_marks_bulk_save(request):
     exam_term_id = str(ser.validated_data['exam_term_id'])
     class_section_id = str(ser.validated_data['class_section_id'])
     subject_id = str(ser.validated_data['subject_id'])
-    default_max = ser.validated_data.get('default_max_marks') or Decimal('100')
     rows_in = ser.validated_data['rows']
 
     resolved, err = _resolve_exam_class_subject(request.user, exam_term_id, class_section_id, subject_id)
     if err:
         return err
     exam, cs, sub = resolved
+
+    config = ExamSubjectConfig.objects.filter(
+        exam_term=exam, class_section=cs, subject=sub
+    ).first()
+    
+    if not config:
+        return Response(
+            {'success': False, 'error': 'Accountant has not configured max marks for this subject yet.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    
+    default_max = config.max_marks
 
     student_ids = {str(s.id) for s in Student.objects.filter(class_section=cs, status='ACTIVE')}
     errors = []
@@ -230,12 +304,16 @@ def teacher_marks_bulk_save(request):
             if sid not in student_ids:
                 errors.append({'index': i, 'student_id': sid, 'error': 'Student not in this class or not active.'})
                 continue
-            marks = row['marks_obtained']
-            max_m = row.get('max_marks') or default_max
+            marks = row.get('marks_obtained')
+            is_absent = row.get('is_absent', False)
+            max_m = default_max
             if max_m <= 0:
                 errors.append({'index': i, 'student_id': sid, 'error': 'max_marks must be greater than zero.'})
                 continue
-            if marks < 0 or marks > max_m:
+            if not is_absent and marks is None:
+                errors.append({'index': i, 'student_id': sid, 'error': 'Marks must be provided unless student is absent.'})
+                continue
+            if not is_absent and (marks < 0 or marks > max_m):
                 errors.append({
                     'index': i,
                     'student_id': sid,
@@ -250,7 +328,8 @@ def teacher_marks_bulk_save(request):
                 defaults={
                     'tenant_id': cs.tenant_id,
                     'branch_id': cs.branch_id,
-                    'marks_obtained': marks,
+                    'marks_obtained': None if is_absent else marks,
+                    'is_absent': is_absent,
                     'max_marks': max_m,
                     'remarks': remarks[:200],
                     'evaluator': request.user,
@@ -262,3 +341,172 @@ def teacher_marks_bulk_save(request):
         'success': True,
         'data': {'saved': saved, 'errors': errors},
     })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, AcademicDomainPermission])
+def teacher_marks_publish(request):
+    exam_term_id = request.data.get('exam_term_id')
+    class_section_id = request.data.get('class_section_id')
+    subject_id = request.data.get('subject_id')
+    
+    if not exam_term_id or not class_section_id:
+        return Response({'success': False, 'error': 'exam_term_id and class_section_id are required.'}, status=400)
+        
+    if subject_id:
+        resolved, err = _resolve_exam_class_subject(request.user, exam_term_id, class_section_id, subject_id)
+        if err: return err
+        exam, cs, subjects = resolved[0], resolved[1], [resolved[2]]
+    else:
+        # Publish all subjects for class
+        exam = ExamTerm.objects.filter(pk=exam_term_id, tenant=request.user.tenant).first()
+        cs = ClassSection.objects.filter(pk=class_section_id, tenant=request.user.tenant).first()
+        if not exam or not cs:
+            return Response({'success': False, 'error': 'Exam term or class section not found.'}, status=404)
+        subjects = Subject.objects.filter(exam_results__exam_term=exam, exam_results__student__class_section=cs).distinct()
+
+    published_count = 0
+    from students.models import ParentStudentRelation
+    from notifications.dispatcher import dispatch_notification
+    from accounts.models import User
+    
+    for sub in subjects:
+        # Calculate ranks for this subject
+        results = list(ExamResult.objects.filter(
+            exam_term=exam, 
+            student__class_section=cs, 
+            subject=sub,
+        ).exclude(
+            marks_obtained__isnull=True, 
+            is_absent=False
+        ).order_by('-percentage'))
+        
+        current_rank = 1
+        for i, r in enumerate(results):
+            if i > 0 and r.percentage == results[i-1].percentage:
+                r.subject_rank = results[i-1].subject_rank
+            else:
+                r.subject_rank = current_rank
+            current_rank += 1
+            
+            r.is_published = True
+            r.save(update_fields=['subject_rank', 'is_published'])
+            published_count += 1
+            
+        # Send notifications
+        student_ids = [r.student_id for r in results]
+        parent_ids = ParentStudentRelation.objects.filter(student_id__in=student_ids).values_list('parent_id', flat=True).distinct()
+        parents = User.objects.filter(id__in=parent_ids, is_active=True)
+        for parent in parents:
+            dispatch_notification(
+                tenant=request.user.tenant,
+                branch=cs.branch,
+                event_type='EXAM_RESULTS_PUBLISHED',
+                recipient_user=parent,
+                payload={
+                    'exam_name': exam.name,
+                    'subject': sub.name,
+                },
+                send_push=True,
+                send_sms=False,
+                send_email=False
+            )
+
+    return Response({
+        'success': True,
+        'message': f'Published {published_count} results and notified parents.',
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, AcademicDomainPermission])
+def report_card(request):
+    student_id = request.query_params.get('student_id')
+    exam_term_id = request.query_params.get('exam_term_id')
+    
+    if not student_id or not exam_term_id:
+        return Response({'success': False, 'error': 'student_id and exam_term_id are required.'}, status=400)
+        
+    student = Student.objects.filter(id=student_id, tenant=request.user.tenant).first()
+    exam_term = ExamTerm.objects.filter(id=exam_term_id, tenant=request.user.tenant).first()
+    
+    if not student or not exam_term:
+        return Response({'success': False, 'error': 'Student or Exam Term not found.'}, status=404)
+        
+    results = ExamResult.objects.filter(
+        student=student, 
+        exam_term=exam_term, 
+        is_published=True
+    ).select_related('subject')
+    
+    subject_results = []
+    total_obtained = 0
+    total_max = 0
+    
+    for r in results:
+        subject_results.append({
+            'subject_name': r.subject.name,
+            'marks_obtained': float(r.marks_obtained) if r.marks_obtained is not None else None,
+            'is_absent': r.is_absent,
+            'max_marks': float(r.max_marks),
+            'percentage': float(r.percentage) if r.percentage else None,
+            'grade': r.grade,
+            'subject_rank': r.subject_rank,
+            'remarks': r.remarks
+        })
+        if not r.is_absent and r.marks_obtained is not None:
+            total_obtained += r.marks_obtained
+        total_max += r.max_marks
+        
+    overall_percentage = (total_obtained / total_max * 100) if total_max > 0 else 0
+    
+    # Get attendance during exam term
+    from attendance.models import AttendanceRecord
+    total_days = AttendanceRecord.objects.filter(
+        student=student, 
+        date__gte=exam_term.start_date, 
+        date__lte=exam_term.end_date
+    ).count()
+    
+    present_days = AttendanceRecord.objects.filter(
+        student=student, 
+        date__gte=exam_term.start_date, 
+        date__lte=exam_term.end_date,
+        status='PRESENT'
+    ).count()
+
+    from academics.models import GradeScale
+    overall_grade = ''
+    if total_max > 0:
+        scale = GradeScale.objects.filter(
+            branch=student.branch,
+            min_marks_percent__lte=overall_percentage,
+            max_marks_percent__gte=overall_percentage
+        ).first()
+        if scale:
+            overall_grade = scale.grade
+    
+    data = {
+        'student': {
+            'id': str(student.id),
+            'name': f"{student.first_name} {student.last_name}",
+            'admission_number': student.admission_number,
+            'class_section': student.class_section.display_name if student.class_section else ''
+        },
+        'exam_term': {
+            'id': str(exam_term.id),
+            'name': exam_term.name,
+        },
+        'results': subject_results,
+        'aggregate': {
+            'total_obtained': float(total_obtained),
+            'total_max': float(total_max),
+            'overall_percentage': float(overall_percentage),
+            'overall_grade': overall_grade,
+            'attendance': {
+                'total_days': total_days,
+                'present_days': present_days
+            }
+        }
+    }
+    
+    return Response({'success': True, 'data': data})

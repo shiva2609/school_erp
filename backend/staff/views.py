@@ -129,12 +129,36 @@ class StaffViewSet(viewsets.ModelViewSet):
                      ext.delete()
 
             # 3. Create or update requested assignments
+            from students.models import ClassSection
+            from staff.models import TeacherProfile
+            teacher_profile = TeacherProfile.objects.get(id=teacher_id)
+            teacher_user = teacher_profile.user
+
             for cs_id, sub_ids in class_assignments.items():
                 is_ct = False
                 if is_class_teacher_requested and primary_class_id and str(cs_id) == str(primary_class_id):
                     is_ct = True
                 elif is_class_teacher_requested and not primary_class_id and len(class_assignments) == 1:
                     is_ct = True
+
+                if is_ct:
+                    # Enforce 1-to-1: This teacher cannot be primary teacher of any other class
+                    TeacherAssignment.objects.filter(
+                        teacher_id=teacher_id, academic_year_id=academic_year_id
+                    ).exclude(class_section_id=cs_id).update(is_class_teacher=False)
+                    
+                    # This class cannot have any other primary teacher
+                    TeacherAssignment.objects.filter(
+                        class_section_id=cs_id, academic_year_id=academic_year_id
+                    ).exclude(teacher_id=teacher_id).update(is_class_teacher=False)
+                    
+                    if teacher_user:
+                        ClassSection.objects.filter(class_teacher=teacher_user).exclude(id=cs_id).update(class_teacher=None)
+                        ClassSection.objects.filter(id=cs_id).update(class_teacher=teacher_user)
+                else:
+                    # If this teacher is no longer the class teacher for this class section, unset it
+                    if teacher_user:
+                        ClassSection.objects.filter(id=cs_id, class_teacher=teacher_user).update(class_teacher=None)
 
                 for sub_id in sub_ids:
                     assignment, created = TeacherAssignment.objects.update_or_create(

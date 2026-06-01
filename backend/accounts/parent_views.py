@@ -26,7 +26,7 @@ from homework.serializers import HomeworkSerializer
 from announcements.models import Announcement
 from announcements.serializers import AnnouncementSerializer
 from transport.models import StudentTransport
-
+from academics.models import ExamResult
 
 def get_parent_student(user, student_id):
     """Validates parent-student relationship. Returns student or raises 403."""
@@ -282,3 +282,37 @@ def parent_child_transport(request, student_id):
         'annual_fee': float(transport.monthly_fee * 12),
         'opted_at': transport.opted_at.isoformat() if transport.opted_at else None,
     }})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsParent])
+def parent_child_marks(request, student_id):
+    """GET /api/parent/children/<id>/marks/ — marks details for a child."""
+    student = get_parent_student(request.user, student_id)
+    if not student:
+        return Response({'detail': 'Permission denied'}, status=403)
+        
+    results = ExamResult.objects.filter(student=student, is_published=True).select_related('exam_term', 'subject')
+    
+    # Group by exam_term
+    grouped_data = {}
+    for r in results:
+        term_id = str(r.exam_term.id)
+        if term_id not in grouped_data:
+            grouped_data[term_id] = {
+                'term_id': term_id,
+                'term_name': r.exam_term.name,
+                'results': []
+            }
+        grouped_data[term_id]['results'].append({
+            'subject': r.subject.name,
+            'marks_obtained': float(r.marks_obtained) if r.marks_obtained is not None else None,
+            'is_absent': r.is_absent,
+            'max_marks': float(r.max_marks),
+            'percentage': float(r.percentage) if r.percentage else None,
+            'grade': r.grade,
+            'subject_rank': r.subject_rank,
+            'remarks': r.remarks
+        })
+        
+    return Response({'success': True, 'data': list(grouped_data.values())})

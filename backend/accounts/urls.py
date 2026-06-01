@@ -33,6 +33,7 @@ urlpatterns = [
     path('parent/children/<uuid:student_id>/homework/<uuid:homework_id>/acknowledge/', parent_views.parent_acknowledge_homework, name='parent_acknowledge_homework'),
     path('parent/children/<uuid:student_id>/timetable/', parent_views.parent_child_timetable, name='parent_child_timetable'),
     path('parent/children/<uuid:student_id>/transport/', parent_views.parent_child_transport, name='parent_child_transport'),
+    path('parent/children/<uuid:student_id>/marks/', parent_views.parent_child_marks, name='parent_child_marks'),
     path('parent/announcements/', parent_views.parent_announcements, name='parent_announcements'),
     # Teacher Portal
     path('teacher/dashboard/', teacher_views.teacher_dashboard, name='teacher_dashboard'),

@@ -281,8 +281,15 @@ class TimetableSlotViewSet(viewsets.ModelViewSet):
         if not teacher_id:
             return Response({'detail': 'teacher_id is required.'}, status=400)
 
+        user = request.user
+        role = normalize_role(user.role)
+        if role == 'TEACHER' and str(user.id) != str(teacher_id):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You can only view your own timetable.')
+
         slots = TimetableSlot.objects.filter(
-            teacher_id=teacher_id
+            teacher_id=teacher_id,
+            class_section__branch__tenant=user.tenant
         ).select_related('period', 'subject', 'class_section').order_by('period__order')
 
         timetable = defaultdict(list)

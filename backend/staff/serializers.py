@@ -25,10 +25,10 @@ class TeacherProfileSerializer(serializers.ModelSerializer):
     user_details = UserSerializer(source='user', read_only=True)
     assignments = TeacherAssignmentSerializer(many=True, read_only=True)
     
-    # For creation (flattened user fields)
-    email = serializers.EmailField(write_only=True, required=True)
-    first_name = serializers.CharField(write_only=True, required=True)
-    last_name = serializers.CharField(write_only=True, required=True)
+    # For creation/update (flattened user fields)
+    email = serializers.EmailField(write_only=True, required=False)
+    first_name = serializers.CharField(write_only=True, required=False)
+    last_name = serializers.CharField(write_only=True, required=False)
     phone = serializers.CharField(write_only=True, required=False, allow_blank=True)
     password = serializers.CharField(write_only=True, required=False)
     branch = serializers.PrimaryKeyRelatedField(
@@ -85,9 +85,49 @@ class TeacherProfileSerializer(serializers.ModelSerializer):
                     role='TEACHER',
                     tenant=tenant,
                     branch=branch,
-                    password=password
+                    password=password,
+                    must_change_password=True
                 )
                 validated_data['user'] = user
                 validated_data['branch'] = branch
             
             return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        email = validated_data.pop('email', None)
+        first_name = validated_data.pop('first_name', None)
+        last_name = validated_data.pop('last_name', None)
+        phone = validated_data.pop('phone', None)
+        password = validated_data.pop('password', None)
+        branch = validated_data.pop('branch', None)
+
+        with transaction.atomic():
+            user = instance.user
+            user_updated = False
+            
+            if email is not None:
+                user.email = email
+                user_updated = True
+            if first_name is not None:
+                user.first_name = first_name
+                user_updated = True
+            if last_name is not None:
+                user.last_name = last_name
+                user_updated = True
+            if phone is not None:
+                user.phone = phone
+                user_updated = True
+            if password:
+                user.set_password(password)
+                user_updated = True
+            if branch is not None:
+                user.branch = branch
+                user_updated = True
+                
+            if user_updated:
+                user.save()
+                
+            if branch is not None:
+                validated_data['branch'] = branch
+                
+            return super().update(instance, validated_data)

@@ -12,6 +12,10 @@ class HomeworkViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Homework.objects.filter(class_section__branch__tenant=self.request.user.tenant).select_related('class_section', 'subject')
+        user = self.request.user
+        if normalize_role(user.role) == 'TEACHER':
+            qs = qs.filter(class_section__branch=user.branch)
+        
         cs = self.request.query_params.get('class_section_id')
         if cs:
             qs = qs.filter(class_section_id=cs)
@@ -86,6 +90,14 @@ class HomeworkViewSet(viewsets.ModelViewSet):
                     from rest_framework.exceptions import PermissionDenied
                     raise PermissionDenied('You are not assigned to teach this subject in this class.')
         serializer.save()
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        role = normalize_role(user.role)
+        if role == 'TEACHER' and instance.posted_by != user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You can only delete your own homework.')
+        instance.delete()
 
     @action(detail=True, methods=['get', 'post'], url_path='attachments')
     def attachments(self, request, pk=None):

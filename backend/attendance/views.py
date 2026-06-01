@@ -34,8 +34,11 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             
         # Teacher visibility restriction
         if role == 'TEACHER':
-            qs = qs.filter(class_section__teacher_assignments__teacher__user=self.request.user, 
-                           class_section__teacher_assignments__is_class_teacher=True)
+            qs = qs.filter(
+                class_section__branch=self.request.user.branch,
+                class_section__teacher_assignments__teacher__user=self.request.user, 
+                class_section__teacher_assignments__is_class_teacher=True
+            ).distinct()
             
         return qs
 
@@ -94,6 +97,29 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                     }
                 )
                 saved += 1
+
+                if record['status'] == 'ABSENT':
+                    from notifications.dispatcher import dispatch_notification
+                    from students.models import Student
+                    try:
+                        student = Student.objects.get(id=record['student_id'])
+                        parent = student.primary_parent
+                        if parent:
+                            dispatch_notification(
+                                tenant=request.user.tenant,
+                                branch=class_section.branch,
+                                event_type='ABSENCE_ALERT',
+                                recipient_user=parent,
+                                payload={
+                                    'student_name': f"{student.first_name} {student.last_name}".strip(),
+                                    'date': str(date)
+                                },
+                                send_sms=False,
+                                send_email=False,
+                                send_push=True,
+                            )
+                    except Exception:
+                        pass
             except Exception as e:
                 errors.append({'student_id': str(record['student_id']), 'error': str(e)})
 
