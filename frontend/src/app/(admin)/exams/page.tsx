@@ -6,7 +6,7 @@ import api from '@/lib/axios';
 import { Plus, Award, Settings } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAuth } from '@/components/common/AuthProvider';
 
 interface ExamTerm {
   id: string;
