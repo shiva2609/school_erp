@@ -3,7 +3,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from accounts.permissions import IsBranchAdminOrAbove, IsTeacherOrAbove, normalize_role
+from accounts.permissions import IsAccountantOrAbove, IsTeacherOrAbove, normalize_role
 from .models import TeacherProfile, TeacherAssignment
 from .serializers import TeacherProfileSerializer, TeacherAssignmentSerializer
 
@@ -15,7 +15,7 @@ class StaffViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('list', 'retrieve', 'assignments'):
             return [IsAuthenticated(), IsTeacherOrAbove()]
-        return [IsAuthenticated(), IsBranchAdminOrAbove()]
+        return [IsAuthenticated(), IsAccountantOrAbove()]
 
     def get_queryset(self):
         user = self.request.user
@@ -60,7 +60,7 @@ class StaffViewSet(viewsets.ModelViewSet):
         else:
             tenant = user.tenant
             
-        if role in ('PRINCIPAL', 'BRANCH_ADMIN') and user.branch:
+        if role in ('PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT') and user.branch:
             branch = user.branch
 
         serializer.save(tenant=tenant, branch=branch)
