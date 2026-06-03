@@ -105,10 +105,51 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def students(self, request, pk=None):
-        section = self.get_object()
-        students = Student.objects.filter(class_section=section, status='ACTIVE')
-        serializer = StudentListSerializer(students, many=True)
-        return Response({'success': True, 'data': serializer.data})
+        try:
+            try:
+                section = self.get_object()
+            except Exception as e:
+                from students.models import ClassSection
+                from staff.models import TeacherAssignment
+                cs_all = ClassSection.objects.filter(id=pk)
+                cs_exists = cs_all.exists()
+                details = {
+                    "error_msg": str(e),
+                    "class_section_exists": cs_exists,
+                }
+                if cs_exists:
+                    cs = cs_all.first()
+                    details.update({
+                        "display_name": cs.display_name,
+                        "branch_id": str(cs.branch_id),
+                        "academic_year_id": str(cs.academic_year_id),
+                        "academic_year_active": cs.academic_year.is_active if cs.academic_year else None,
+                        "tenant_id": str(cs.tenant_id),
+                        "user_tenant_id": str(request.user.tenant_id),
+                        "user_branch_id": str(request.user.branch_id) if request.user.branch_id else None,
+                        "user_role": request.user.role,
+                    })
+                    assignments = TeacherAssignment.objects.filter(class_section=cs, teacher__user=request.user)
+                    details["assignments_count"] = assignments.count()
+                    if assignments.exists():
+                        details["assignments"] = [
+                            {
+                                "is_class_teacher": a.is_class_teacher,
+                                "academic_year_id": str(a.academic_year_id),
+                                "academic_year_active": a.academic_year.is_active,
+                            } for a in assignments
+                        ]
+                return Response({
+                    "success": False,
+                    "error": "Failed to get class section object",
+                    "details": details
+                }, status=400)
+
+            students = Student.objects.filter(class_section=section, status='ACTIVE')
+            serializer = StudentListSerializer(students, many=True)
+            return Response({'success': True, 'data': serializer.data})
+        except Exception as outer_e:
+            return Response({"success": False, "error": str(outer_e)}, status=500)
 
     @action(detail=True, methods=['post'], url_path='assign-students')
     def assign_students(self, request, pk=None):
