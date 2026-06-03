@@ -69,14 +69,7 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
             
         # Branch Isolation
         if role not in ['OWNER', 'SUPER_ADMIN'] and user.branch:
-            if role == 'TEACHER':
-                # Teachers can see classes in their branch OR classes they are assigned to teach
-                qs = qs.filter(
-                    Q(branch=user.branch) | 
-                    Q(teacher_assignments__teacher__user=user)
-                ).distinct()
-            else:
-                qs = qs.filter(branch=user.branch)
+            qs = qs.filter(branch=user.branch)
             
         branch = self.request.query_params.get('branch_id')
         ay = self.request.query_params.get('academic_year_id')
@@ -91,7 +84,10 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
         # Filter for primary teacher only (used by Attendance)
         teacher_only = self.request.query_params.get('teacher_only')
         if teacher_only == 'true' and role == 'TEACHER':
-            qs = qs.filter(teacher_assignments__teacher__user=user, teacher_assignments__is_class_teacher=True).distinct()
+            qs = qs.filter(
+                models.Q(class_teacher=user) |
+                models.Q(teacher_assignments__teacher__user=user, teacher_assignments__is_class_teacher=True)
+            ).distinct()
             
         # Filter for any assigned teacher (used by Homework)
         assigned_only = self.request.query_params.get('assigned_only')
@@ -450,11 +446,11 @@ class StudentViewSet(viewsets.ModelViewSet):
                 'academic_records',
             )
         
-        # Teachers strictly see only students in their classes unless assigned otherwise
+        # Teachers strictly see only students in their classes/sections
         if role == 'TEACHER':
             qs = qs.filter(
-                class_section__teacher_assignments__teacher__user=user,
-                class_section__teacher_assignments__academic_year__is_active=True
+                models.Q(class_section__teacher_assignments__teacher__user=user, class_section__teacher_assignments__academic_year__is_active=True) |
+                models.Q(class_section__class_teacher=user)
             ).distinct()
             
         # Branch Isolation

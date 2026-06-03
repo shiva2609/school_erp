@@ -35,9 +35,10 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         # Teacher visibility restriction
         if role == 'TEACHER':
             qs = qs.filter(
-                class_section__branch=self.request.user.branch,
-                class_section__teacher_assignments__teacher__user=self.request.user, 
-                class_section__teacher_assignments__is_class_teacher=True
+                class_section__branch=self.request.user.branch
+            ).filter(
+                Q(class_section__class_teacher=self.request.user) |
+                Q(class_section__teacher_assignments__teacher__user=self.request.user, class_section__teacher_assignments__is_class_teacher=True)
             ).distinct()
             
         return qs
@@ -65,15 +66,18 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 "error": "Class section not found.",
             }, status=status.HTTP_404_NOT_FOUND)
 
-        # Primary Teacher Restriction
+        # Primary Teacher Restriction & Branch Isolation
         if role == 'TEACHER':
-            from staff.models import TeacherAssignment
-            is_primary = TeacherAssignment.objects.filter(
-                teacher__user=request.user,
-                class_section=class_section,
-                is_class_teacher=True
-            ).exists()
-            if not is_primary:
+            if request.user.branch and class_section.branch != request.user.branch:
+                return Response({
+                    "success": False,
+                    "error": "You cannot mark attendance for another branch."
+                }, status=status.HTTP_403_FORBIDDEN)
+            is_class_teacher = (
+                class_section.class_teacher == request.user or
+                class_section.teacher_assignments.filter(teacher__user=request.user, is_class_teacher=True).exists()
+            )
+            if not is_class_teacher:
                 return Response({
                     "success": False, 
                     "error": "Only the Primary Class Teacher can mark attendance for this class."

@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.db import models
 from accounts.permissions import IsTeacherOrAbove, normalize_role
 from .models import Homework, HomeworkAttachment
 from .serializers import HomeworkSerializer, HomeworkAttachmentSerializer
@@ -13,8 +14,13 @@ class HomeworkViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Homework.objects.filter(class_section__branch__tenant=self.request.user.tenant).select_related('class_section', 'subject')
         user = self.request.user
-        if normalize_role(user.role) == 'TEACHER':
-            qs = qs.filter(class_section__branch=user.branch)
+        role = normalize_role(user.role)
+        if role == 'TEACHER':
+            qs = qs.filter(class_section__branch=user.branch).filter(
+                models.Q(posted_by=user) |
+                models.Q(class_section__class_teacher=user) |
+                models.Q(class_section__teacher_assignments__teacher__user=user)
+            ).distinct()
         
         cs = self.request.query_params.get('class_section_id')
         if cs:
@@ -25,16 +31,18 @@ class HomeworkViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if normalize_role(user.role) == 'TEACHER':
             from staff.models import TeacherAssignment
+            from rest_framework.exceptions import PermissionDenied
             cls_sec = serializer.validated_data.get('class_section')
             subj = serializer.validated_data.get('subject')
             if cls_sec and subj:
+                if user.branch and cls_sec.branch != user.branch:
+                    raise PermissionDenied('You cannot create homework for another branch.')
                 exists = TeacherAssignment.objects.filter(
                     teacher__user=user, 
                     class_section=cls_sec, 
                     subject=subj
                 ).exists()
                 if not exists:
-                    from rest_framework.exceptions import PermissionDenied
                     raise PermissionDenied('You are not assigned to teach this subject in this class.')
                     
         instance = serializer.save(tenant=self.request.user.tenant, posted_by=self.request.user)
@@ -77,17 +85,19 @@ class HomeworkViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if normalize_role(user.role) == 'TEACHER':
             from staff.models import TeacherAssignment
+            from rest_framework.exceptions import PermissionDenied
             # For update, fallback to existing instance values if not provided in request
             cls_sec = serializer.validated_data.get('class_section', getattr(serializer.instance, 'class_section', None))
             subj = serializer.validated_data.get('subject', getattr(serializer.instance, 'subject', None))
             if cls_sec and subj:
+                if user.branch and cls_sec.branch != user.branch:
+                    raise PermissionDenied('You cannot modify homework for another branch.')
                 exists = TeacherAssignment.objects.filter(
                     teacher__user=user, 
                     class_section=cls_sec, 
                     subject=subj
                 ).exists()
                 if not exists:
-                    from rest_framework.exceptions import PermissionDenied
                     raise PermissionDenied('You are not assigned to teach this subject in this class.')
         serializer.save()
 

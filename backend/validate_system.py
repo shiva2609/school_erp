@@ -21,7 +21,7 @@ from tenants.models import Tenant, Branch, AcademicYear
 from students.models import Student, ClassSection, ParentStudentRelation
 from staff.models import TeacherProfile, TeacherAssignment
 from fees.models import FeeStructure, FeeCategory, StudentFeeItem
-from transport.models import TransportRoute, TransportRateSlab, StudentTransport
+from transport.models import TransportRateSlab, StudentTransport
 
 BASE_URL = 'http://localhost:8000/api'
 RESULTS = []
@@ -117,8 +117,6 @@ if tenant:
     check("Student fee items created", student_fee_items.count() > 0, f"Found {student_fee_items.count()}")
 
     # Transport
-    routes = TransportRoute.objects.filter(tenant=tenant)
-    check("Transport routes created", routes.count() >= 4, f"Found {routes.count()}")
 
     slabs = TransportRateSlab.objects.filter(tenant=tenant)
     check("Transport rate slabs created", slabs.count() >= 4, f"Found {slabs.count()}")

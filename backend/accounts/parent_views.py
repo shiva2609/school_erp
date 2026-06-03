@@ -33,6 +33,9 @@ def get_parent_student(user, student_id):
     relation = ParentStudentRelation.objects.filter(parent=user, student_id=student_id).first()
     if not relation:
         return None
+    # Security check: Ensure student belongs to parent's tenant
+    if user.tenant and relation.student.tenant != user.tenant:
+        return None
     return relation.student
 
 
@@ -46,6 +49,8 @@ def parent_children(request):
     data = []
     for r in relations:
         s = r.student
+        if request.user.tenant and s.tenant != request.user.tenant:
+            continue
         
         # Calculate Committed Fee (Proposed/Locked)
         total = StudentFeeItem.objects.filter(student=s, academic_year=s.academic_year).aggregate(total=Sum('amount'))['total']
@@ -259,6 +264,8 @@ def parent_announcements(request):
     class_ids = set()
     parent_branch_ids = set()
     for r in relations:
+        if request.user.tenant and r.student.tenant != request.user.tenant:
+            continue
         if r.student.class_section:
             class_ids.add(r.student.class_section_id)
         if r.student.branch_id:

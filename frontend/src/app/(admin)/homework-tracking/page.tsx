@@ -65,7 +65,7 @@ export default function HomeworkTrackingPage() {
 
   // Load classes
   useEffect(() => {
-    api.get('/classes/').then(res => {
+    api.get('/classes/?assigned_only=true').then(res => {
       const arr = res.data?.data ?? res.data?.results ?? res.data;
       setClasses(Array.isArray(arr) ? arr : []);
     }).catch(() => setClasses([]))

@@ -51,20 +51,35 @@ export default function HomeworkPage() {
   const [classes, setClasses] = useState<ClassSection[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
-  // Load classes and subjects when form opens
+  // Load classes when form opens
   useEffect(() => {
     if (showForm) {
       api.get('/classes/?assigned_only=true').then(res => {
         const arr = res.data?.data ?? res.data?.results ?? res.data;
         setClasses(Array.isArray(arr) ? arr : []);
       }).catch(() => setClasses([]));
-      
-      api.get('/subjects/?assigned_only=true').then(res => {
+    }
+  }, [showForm]);
+
+  // Load subjects dynamically when class changes
+  useEffect(() => {
+    if (showForm && formData.class_section) {
+      api.get(`/subjects/?assigned_only=true&class_section_id=${formData.class_section}`).then(res => {
         const arr = res.data?.data ?? res.data?.results ?? res.data;
         setSubjects(Array.isArray(arr) ? arr : []);
       }).catch(() => setSubjects([]));
+    } else {
+      setSubjects([]);
     }
-  }, [showForm]);
+  }, [showForm, formData.class_section]);
+
+  const handleClassSectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFormData({
+      ...formData,
+      class_section: e.target.value,
+      subject: ''
+    });
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +115,7 @@ export default function HomeworkPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Class / Section <span className="text-red-500">*</span></label>
-              <select required value={formData.class_section} onChange={e => setFormData({...formData, class_section: e.target.value})}
+              <select required value={formData.class_section} onChange={handleClassSectionChange}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm">
                 <option value="">Select Class</option>
                 {classes.map(c => <option key={c.id} value={c.id}>{c.display_name}</option>)}
