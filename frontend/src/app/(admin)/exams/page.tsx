@@ -6,7 +6,6 @@ import api from '@/lib/axios';
 import { Plus, Award, Settings } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
-import { useAuth } from '@/components/common/AuthProvider';
 
 interface ExamTerm {
   id: string;
@@ -18,7 +17,6 @@ interface ExamTerm {
 }
 
 export default function ExamsPage() {
-  const { user } = useAuth();
   const { data, loading, error, refetch } = useApi<ExamTerm[]>('/academics/exams/');
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ 
@@ -35,7 +33,6 @@ export default function ExamsPage() {
     try {
       await api.post('/academics/exams/', {
         ...formData,
-        academic_year_id: user?.academic_year_id
       });
       setShowForm(false);
       refetch();
