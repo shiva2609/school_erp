@@ -22,9 +22,14 @@ class HomeworkViewSet(viewsets.ModelViewSet):
                 models.Q(class_section__teacher_assignments__teacher__user=user)
             ).distinct()
         
+        import uuid
         cs = self.request.query_params.get('class_section_id')
-        if cs:
-            qs = qs.filter(class_section_id=cs)
+        if cs and cs not in ('undefined', 'null', ''):
+            try:
+                uuid.UUID(str(cs))
+                qs = qs.filter(class_section_id=cs)
+            except ValueError:
+                pass
         return qs
 
     def perform_create(self, serializer):

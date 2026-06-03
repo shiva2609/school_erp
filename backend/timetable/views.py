@@ -37,22 +37,31 @@ class SubjectViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         # Filter by tenant directly for better performance and reliability
         qs = Subject.objects.filter(tenant=self.request.user.tenant)
+        import uuid
         branch = self.request.query_params.get('branch_id')
         user = self.request.user
         role = normalize_role(user.role)
         
         if role in ('PRINCIPAL', 'BRANCH_ADMIN') and user.branch:
             qs = qs.filter(branch=user.branch)
-        elif branch:
-            qs = qs.filter(branch_id=branch)
+        elif branch and branch not in ('undefined', 'null', ''):
+            try:
+                uuid.UUID(str(branch))
+                qs = qs.filter(branch_id=branch)
+            except ValueError:
+                pass
             
         # Teachers should only see their assigned subjects if requested
         assigned_only = self.request.query_params.get('assigned_only')
         if assigned_only == 'true' and role == 'TEACHER':
             qs = qs.filter(teacher_assignments__teacher__user=user)
             cs = self.request.query_params.get('class_section_id')
-            if cs:
-                qs = qs.filter(teacher_assignments__class_section_id=cs)
+            if cs and cs not in ('undefined', 'null', ''):
+                try:
+                    uuid.UUID(str(cs))
+                    qs = qs.filter(teacher_assignments__class_section_id=cs)
+                except ValueError:
+                    pass
             qs = qs.distinct()
             
         return qs

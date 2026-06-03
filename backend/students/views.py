@@ -71,12 +71,21 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
         if role not in ['OWNER', 'SUPER_ADMIN'] and user.branch:
             qs = qs.filter(branch=user.branch)
             
+        import uuid
         branch = self.request.query_params.get('branch_id')
         ay = self.request.query_params.get('academic_year_id')
-        if branch:
-            qs = qs.filter(branch_id=branch)
-        if ay:
-            qs = qs.filter(academic_year_id=ay)
+        if branch and branch not in ('undefined', 'null', ''):
+            try:
+                uuid.UUID(str(branch))
+                qs = qs.filter(branch_id=branch)
+            except ValueError:
+                pass
+        if ay and ay not in ('undefined', 'null', ''):
+            try:
+                uuid.UUID(str(ay))
+                qs = qs.filter(academic_year_id=ay)
+            except ValueError:
+                pass
         else:
             if role == 'TEACHER':
                 qs = qs.filter(academic_year__is_active=True)
