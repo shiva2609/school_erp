@@ -60,6 +60,7 @@ const tenantSuperAdminNavGroups: NavGroup[] = [
     group: 'Configuration',
     items: [
       { href: '/setup', label: 'School Settings', icon: Settings },
+      { href: '/exams', label: 'Exams Setup', icon: Award },
       { href: '/system-settings/templates', label: 'Document Templates', icon: PenTool },
       { href: '/academic-transition', label: 'Year Transition', icon: ArrowUpRight },
     ],
@@ -156,6 +157,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
           items: [
             { href: '/attendance', label: 'Attendance Overview', icon: ClipboardCheck },
             { href: '/timetable', label: 'Timetable', icon: Calendar },
+            { href: '/exams', label: 'Exams Setup', icon: Award },
             { href: '/exam-marks', label: 'Exam marks', icon: Award },
             { href: '/homework', label: 'Homework', icon: PenTool },
             { href: '/homework-tracking', label: 'Homework Tracking', icon: Eye },
@@ -197,6 +199,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
           group: 'Academics',
           items: [
             { href: '/classes', label: 'Classes', icon: BookOpen },
+            { href: '/exams', label: 'Exams Setup', icon: Award },
             { href: '/attendance', label: 'Attendance Overview', icon: ClipboardCheck },
             { href: '/timetable', label: 'Timetable', icon: Calendar },
           ],
