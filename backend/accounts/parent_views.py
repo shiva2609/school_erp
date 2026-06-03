@@ -158,19 +158,32 @@ def parent_child_homework(request, student_id):
         return Response({'detail': 'Permission denied'}, status=403)
     if not student.class_section:
         return Response({'success': True, 'data': []})
-    
+
     from homework.models import HomeworkAcknowledgment
-    
-    hw_list = Homework.objects.filter(
-        class_section=student.class_section, is_published=True
-    ).select_related('subject', 'posted_by').order_by('-due_date')[:50]
-    
-    # Get all acknowledgments by this parent for these homeworks
-    acked_ids = set(
-        HomeworkAcknowledgment.objects.filter(
-            parent=request.user, homework__in=hw_list
-        ).values_list('homework_id', flat=True)
-    )
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Tenant-scoped homework for this student's class section.
+    # Prefer the parent user's own tenant; fall back to the class section's branch tenant
+    # in case the parent record is missing the tenant FK (edge case in older imports).
+    tenant = request.user.tenant or getattr(getattr(student.class_section, 'branch', None), 'tenant', None)
+    hw_filter = dict(class_section=student.class_section, is_published=True)
+    if tenant:
+        hw_filter['tenant'] = tenant
+
+    hw_list = Homework.objects.filter(**hw_filter).select_related('subject', 'posted_by').order_by('-due_date')[:50]
+    logger.debug('parent_child_homework: student=%s class_section=%s tenant=%s hw_count=%d',
+                 student_id, student.class_section_id, tenant, len(hw_list))
+
+    # Safely fetch acknowledgments — guard against missing table on older deployments
+    try:
+        acked_ids = set(
+            HomeworkAcknowledgment.objects.filter(
+                parent=request.user, homework__in=hw_list
+            ).values_list('homework_id', flat=True)
+        )
+    except Exception:
+        acked_ids = set()
     
     data = []
     for hw in hw_list:
