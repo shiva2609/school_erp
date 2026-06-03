@@ -88,7 +88,10 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
                 pass
         else:
             if role == 'TEACHER':
-                qs = qs.filter(academic_year__is_active=True)
+                qs = qs.filter(
+                    models.Q(academic_year__is_active=True) |
+                    models.Q(teacher_assignments__teacher__user=user, teacher_assignments__academic_year__is_active=True)
+                ).distinct()
             
         # Filter for primary teacher only (used by Attendance)
         teacher_only = self.request.query_params.get('teacher_only')
