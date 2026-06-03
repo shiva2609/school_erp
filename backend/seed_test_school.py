@@ -149,7 +149,6 @@ def clean_existing(tenant):
     FeeStructureItem.objects.filter(structure__tenant=tenant).delete()
     FeeStructure.objects.filter(tenant=tenant).delete()
     FeeCategory.objects.filter(tenant=tenant).delete()
-    TransportRoute.objects.filter(tenant=tenant).delete()
     print("  ✓ Cleaned.")
 
 
@@ -312,17 +311,7 @@ def _link_parent(tenant, student, name, phone, relation_type):
 
 
 def create_transport(tenant, branch):
-    """Create transport routes and rate slabs."""
-    routes = []
-    for name, start, end, dist in TRANSPORT_ROUTES:
-        route, _ = TransportRoute.objects.get_or_create(
-            branch=branch, name=name,
-            defaults={
-                'tenant': tenant, 'start_point': start,
-                'end_point': end, 'distance_km': Decimal(str(dist)),
-            }
-        )
-        routes.append(route)
+    """Create transport rate slabs."""
 
     for min_km, max_km, rate in TRANSPORT_SLABS:
         TransportRateSlab.objects.get_or_create(
@@ -331,14 +320,13 @@ def create_transport(tenant, branch):
                 'tenant': tenant, 'monthly_rate': Decimal(str(rate)), 'is_active': True,
             }
         )
-    return routes
+    return
 
 
-def opt_student_transport(student, routes, branch, cats):
+def opt_student_transport(student, branch, cats):
     """Opt ~20% of students into transport."""
     if random.random() > 0.20:
         return
-    route = random.choice(routes)
     dist = Decimal(str(random.randint(2, 20)))
     monthly = TransportRateSlab.get_rate_for_distance(branch, dist)
     if not monthly:
@@ -346,8 +334,8 @@ def opt_student_transport(student, routes, branch, cats):
     st, created = StudentTransport.objects.get_or_create(
         student=student,
         defaults={
-            'route': route, 'distance_km': dist,
-            'pickup_point': random.choice(route.stops) if route.stops else '',
+            'distance_km': dist,
+            'pickup_point': '',
             'monthly_fee': monthly, 'is_active': True,
         }
     )
@@ -394,7 +382,7 @@ def seed_branch(tenant, branch, ay):
 
     # 3. Transport
     print("  Creating transport routes & slabs...")
-    routes = create_transport(tenant, branch)
+    create_transport(tenant, branch)
 
     # 4. Classes, teachers, students
     for grade in GRADES:
@@ -423,7 +411,7 @@ def seed_branch(tenant, branch, ay):
             for roll in range(1, num_students + 1):
                 student = create_student(tenant, branch, ay, cs, grade, roll)
                 lock_student_fees(student, grade, cats)
-                opt_student_transport(student, routes, branch, cats)
+                opt_student_transport(student, branch, cats)
 
         grade_display = dict(GRADE_CHOICES).get(grade, grade)
         print(f"    ✓ {grade_display}: {len(SECTIONS)} sections done")
