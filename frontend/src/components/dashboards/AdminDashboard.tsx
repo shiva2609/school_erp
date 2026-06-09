@@ -5,11 +5,13 @@ import api from '@/lib/axios';
 import { Building2, Users, TrendingUp, IndianRupee } from 'lucide-react';
 import StatCard from '@/components/dashboard/StatCard';
 import FinanceChart from '@/components/dashboard/FinanceChart';
+import AcademicYearFilter from '@/components/dashboard/AcademicYearFilter';
 import { useBranch } from '@/components/common/BranchContext';
 import { DashboardPieChart, DashboardBarChart, DashboardFunnelChart } from '@/components/dashboard/DashboardCharts';
 
 export default function AdminDashboard({ user }: { user: any }) {
   const { selectedBranch } = useBranch();
+  const [selectedAY, setSelectedAY] = useState<string>('');
   const [data, setData] = useState<any>({ 
     finance: [], 
     stats: {}, 
@@ -23,20 +25,26 @@ export default function AdminDashboard({ user }: { user: any }) {
   const hasTransportRevenue = Number(data.stats?.transport_revenue_collected || 0) > 0;
 
   useEffect(() => {
+    // Don't fetch until AY is resolved
+    if (!selectedAY) return;
+
     let isMounted = true;
 
     const fetchData = (isInitial = false) => {
       if (isInitial) setLoading(true);
-      const params = `branch_id=${selectedBranch || ''}`;
+      const params = new URLSearchParams();
+      if (selectedBranch) params.set('branch_id', selectedBranch);
+      if (selectedAY) params.set('academic_year_id', selectedAY);
+      const qs = params.toString();
       
       Promise.all([
-        api.get(`reports/finance/summary/?days=30&${params}`).catch(() => ({ data: { data: [] } })),
-        api.get(`reports/fees/stats/?${params}`).catch(() => ({ data: { data: {} } })),
-        api.get(`reports/attendance/stats/?${params}`).catch(() => ({ data: { data: [] } })),
-        api.get(`reports/analytics/branch-distribution/?${params}`).catch(() => ({ data: { data: [] } })),
-        api.get(`reports/analytics/fee-collection-by-branch/?${params}`).catch(() => ({ data: { data: [] } })),
-        api.get(`reports/analytics/expense-breakdown/?days=30&${params}`).catch(() => ({ data: { data: [] } })),
-        api.get(`reports/analytics/admission-funnel/?${params}`).catch(() => ({ data: { data: [] } })),
+        api.get(`reports/finance/summary/?days=30${qs ? '&' + qs : ''}`).catch(() => ({ data: { data: [] } })),
+        api.get(`reports/fees/stats/?${qs}`).catch(() => ({ data: { data: {} } })),
+        api.get(`reports/attendance/stats/?${qs}`).catch(() => ({ data: { data: [] } })),
+        api.get(`reports/analytics/branch-distribution/?${qs}`).catch(() => ({ data: { data: [] } })),
+        api.get(`reports/analytics/fee-collection-by-branch/?${qs}`).catch(() => ({ data: { data: [] } })),
+        api.get(`reports/analytics/expense-breakdown/?days=30${qs ? '&' + qs : ''}`).catch(() => ({ data: { data: [] } })),
+        api.get(`reports/analytics/admission-funnel/?${qs}`).catch(() => ({ data: { data: [] } })),
       ]).then(([financeRes, feeRes, attRes, branchRes, feeBranchRes, expRes, funnelRes]) => {
         if (!isMounted) return;
         setData({
@@ -60,15 +68,22 @@ export default function AdminDashboard({ user }: { user: any }) {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [selectedBranch]);
+  }, [selectedBranch, selectedAY]);
 
   if (loading) return <div className="animate-pulse h-96 bg-gray-100 rounded-2xl w-full"></div>;
 
   return (
     <div className="space-y-6 pb-10">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Executive Dashboard</h1>
-        <p className="text-gray-500 mt-1">Global oversight of {user?.tenant_name || 'your institution'}.</p>
+      {/* Header with Academic Year filter */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Executive Dashboard</h1>
+          <p className="text-gray-500 mt-1">Global oversight of {user?.tenant_name || 'your institution'}.</p>
+        </div>
+        <AcademicYearFilter
+          value={selectedAY}
+          onChange={id => { setSelectedAY(id); setLoading(true); }}
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -37,6 +37,13 @@ const AUDIENCE_OPTIONS: { value: string; label: string }[] = [
 export default function AnnouncementsPage() {
   const { selectedBranch } = useBranch();
   const { user } = useAuth();
+
+  // Global roles (OWNER, SUPER_ADMIN, CHIEF_ACCOUNTANT, ZONAL_ADMIN) need the header
+  // branch selector; all others automatically use their profile branch.
+  const GLOBAL_ROLES = ['OWNER', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN'];
+  const isGlobalRole = GLOBAL_ROLES.includes(user?.role || '');
+  const effectiveBranchId = selectedBranch || user?.branch_id || user?.branch || '';
+
   const { data, loading, refetch } = useApi<AnnouncementItem[]>('/announcements/');
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -48,11 +55,21 @@ export default function AnnouncementsPage() {
     send_email: false,
   });
   const [targetClassIds, setTargetClassIds] = useState<string[]>([]);
+  const [activeAyId, setActiveAyId] = useState('');
   const [branchClasses, setBranchClasses] = useState<ClassSectionOption[]>([]);
   const [classesLoading, setClassesLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const effectiveBranchId = selectedBranch || user?.branch_id || user?.branch || '';
+  // Fetch the active academic year once so CLASS selector can filter correctly
+  useEffect(() => {
+    api.get('tenants/academic-years/')
+      .then(res => {
+        const data = res.data?.data ?? res.data?.results ?? res.data ?? [];
+        const active = data.find((y: any) => y.is_active);
+        if (active) setActiveAyId(active.id);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!effectiveBranchId || formData.target_audience !== 'CLASS') {
@@ -61,8 +78,10 @@ export default function AnnouncementsPage() {
     }
     let cancelled = false;
     setClassesLoading(true);
+    const params = new URLSearchParams({ branch_id: effectiveBranchId });
+    if (activeAyId) params.set('academic_year_id', activeAyId);
     api
-      .get(`/classes/?branch_id=${effectiveBranchId}`)
+      .get(`/classes/?${params.toString()}`)
       .then(res => {
         if (cancelled) return;
         const raw = res.data?.data ?? res.data;
@@ -77,7 +96,7 @@ export default function AnnouncementsPage() {
     return () => {
       cancelled = true;
     };
-  }, [effectiveBranchId, formData.target_audience]);
+  }, [effectiveBranchId, formData.target_audience, activeAyId]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,7 +173,8 @@ export default function AnnouncementsPage() {
         </button>
       </div>
 
-      {!effectiveBranchId && (
+      {/* Only show the branch-missing warning to global roles that haven't picked one yet */}
+      {isGlobalRole && !effectiveBranchId && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Choose a <strong>branch</strong> from the global selector to create or scope announcements.
         </div>

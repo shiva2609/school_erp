@@ -465,9 +465,15 @@ class StudentViewSet(viewsets.ModelViewSet):
                 models.Q(class_section__class_teacher=user)
             ).distinct()
             
-        # Branch Isolation
-        if role not in ['OWNER', 'SUPER_ADMIN'] and user.branch:
-            qs = qs.filter(branch=user.branch)
+        # Branch Isolation: all roles except OWNER/SUPER_ADMIN/CHIEF_ACCOUNTANT/ZONAL_ADMIN
+        # are scoped to their assigned branch. If a branch-scoped user has no branch set,
+        # return empty queryset to prevent unintended cross-branch data exposure.
+        GLOBAL_ROLES = ['OWNER', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN']
+        if role not in GLOBAL_ROLES:
+            if user.branch:
+                qs = qs.filter(branch=user.branch)
+            else:
+                qs = qs.none()
             
         status_filter = self.request.query_params.get('status')
         class_section = self.request.query_params.get('class_section_id')

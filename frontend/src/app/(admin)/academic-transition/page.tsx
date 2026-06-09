@@ -186,10 +186,30 @@ const closingLogStatusStyles: Record<string, string> = {
 
 /* ═══════════════ MAIN PAGE ═══════════════ */
 
+/** Roles that see all branches via a global selector in the header. */
+const GLOBAL_ROLES = ['OWNER', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN'];
+
+/**
+ * For branch-scoped roles (ACCOUNTANT, PRINCIPAL, BRANCH_ADMIN, TEACHER)
+ * always use their own branch from the user profile so they never need to
+ * pick a branch manually. Global roles use the header branch selector.
+ */
+function useEffectiveBranch(user: any, selectedBranch: string): string {
+  const role: string = user?.role || '';
+  if (GLOBAL_ROLES.includes(role)) return selectedBranch;
+  // Branch-scoped: prefer branch_id from profile, fallback to branch UUID
+  return (user?.branch_id || user?.branch || selectedBranch || '') as string;
+}
+
 export default function AcademicTransitionPage() {
   const { user } = useAuth();
   const { selectedBranch } = useBranch();
   const [activeTab, setActiveTab] = useState<'overview' | 'promotion' | 'carryforwards' | 'writeoffs'>('overview');
+
+  // Resolve the branch to use across all tabs — branch-scoped accounts
+  // automatically use their own branch without needing to select one.
+  const effectiveBranch = useEffectiveBranch(user, selectedBranch);
+  const isGlobalRole = GLOBAL_ROLES.includes(user?.role || '');
 
   const tabs = [
     { key: 'overview' as const, label: 'Year Overview', icon: Calendar },
@@ -224,11 +244,11 @@ export default function AcademicTransitionPage() {
         ))}
       </div>
 
-      {/* Tab Content */}
-      {activeTab === 'overview' && <YearOverviewTab branch={selectedBranch} user={user} />}
-      {activeTab === 'promotion' && <PromotionTab branch={selectedBranch} user={user} />}
-      {activeTab === 'carryforwards' && <CarryForwardTab branch={selectedBranch} />}
-      {activeTab === 'writeoffs' && <WriteOffTab branch={selectedBranch} user={user} />}
+      {/* Tab Content — pass effectiveBranch so branch-scoped roles never need to select */}
+      {activeTab === 'overview' && <YearOverviewTab branch={effectiveBranch} user={user} />}
+      {activeTab === 'promotion' && <PromotionTab branch={effectiveBranch} user={user} isGlobalRole={isGlobalRole} />}
+      {activeTab === 'carryforwards' && <CarryForwardTab branch={effectiveBranch} isGlobalRole={isGlobalRole} />}
+      {activeTab === 'writeoffs' && <WriteOffTab branch={effectiveBranch} user={user} isGlobalRole={isGlobalRole} />}
     </div>
   );
 }
@@ -475,7 +495,7 @@ function YearOverviewTab({ branch, user }: { branch: string; user: any }) {
 
 /* ═══════════════ TAB 2: PROMOTION ENGINE ═══════════════ */
 
-function PromotionTab({ branch, user }: { branch: string; user: any }) {
+function PromotionTab({ branch, user, isGlobalRole }: { branch: string; user: any; isGlobalRole: boolean }) {
   void user;
   const { data: years, loading: yearsLoading, error: yearsError } = useApi<AcademicYear[]>(
     `tenants/academic-years/?branch_id=${branch}`
@@ -588,7 +608,9 @@ function PromotionTab({ branch, user }: { branch: string; user: any }) {
   if (!branch) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 text-sm">
-        Select a branch in the header to promote students.
+        {isGlobalRole
+          ? 'Select a branch in the header to promote students.'
+          : 'Your account is not assigned to a branch. Contact your administrator.'}
       </div>
     );
   }
@@ -801,7 +823,7 @@ function PromotionTab({ branch, user }: { branch: string; user: any }) {
 }
 /* ═══════════════ TAB 3: CARRY-FORWARDS ═══════════════ */
 
-function CarryForwardTab({ branch }: { branch: string }) {
+function CarryForwardTab({ branch, isGlobalRole }: { branch: string; isGlobalRole: boolean }) {
   const [statusFilter, setStatusFilter] = useState('');
   const { data: carryForwards, loading, refetch } = useApi<CarryForward[]>(
     branch
@@ -860,7 +882,9 @@ function CarryForwardTab({ branch }: { branch: string }) {
   if (!branch) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 text-sm">
-        Select a branch in the header to view carry-forwards.
+        {isGlobalRole
+          ? 'Select a branch in the header to view carry-forwards.'
+          : 'Your account is not assigned to a branch. Contact your administrator.'}
       </div>
     );
   }
@@ -1009,7 +1033,7 @@ function CarryForwardTab({ branch }: { branch: string }) {
 
 /* ═══════════════ TAB 4: WRITE-OFFS ═══════════════ */
 
-function WriteOffTab({ branch, user }: { branch: string; user: any }) {
+function WriteOffTab({ branch, user, isGlobalRole }: { branch: string; user: any; isGlobalRole: boolean }) {
   const [statusFilter, setStatusFilter] = useState('');
   const { data: writeOffs, loading, refetch } = useApi<WriteOff[]>(
     branch
@@ -1229,7 +1253,9 @@ function WriteOffTab({ branch, user }: { branch: string; user: any }) {
   if (!branch) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 text-sm">
-        Select a branch in the header to manage write-offs.
+        {isGlobalRole
+          ? 'Select a branch in the header to manage write-offs.'
+          : 'Your account is not assigned to a branch. Contact your administrator.'}
       </div>
     );
   }

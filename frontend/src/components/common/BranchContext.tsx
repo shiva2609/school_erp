@@ -10,6 +10,18 @@ interface BranchContextType {
 
 const BranchContext = createContext<BranchContextType | undefined>(undefined);
 
+/**
+ * Roles that operate across branches and use the global header branch selector.
+ * Must stay in sync with backend: PLATFORM_OWNER_ROLES + TENANT_FULL_ACCESS_ROLES
+ * + TENANT_FINANCE_ROLES + ZONE_SCOPED_ROLES.
+ */
+const GLOBAL_SELECTOR_ROLES = new Set([
+  'OWNER',
+  'SUPER_ADMIN',
+  'CHIEF_ACCOUNTANT',
+  'ZONAL_ADMIN',
+]);
+
 export function BranchProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [localBranch, setLocalBranch] = useState<string>('');
@@ -25,10 +37,15 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('selectedBranch', id);
   };
 
-  const hasGlobalSelector = ['SUPER_ADMIN'].includes(user?.role || '');
-  const selectedBranch = (!hasGlobalSelector && (user?.branch_id || user?.branch)) 
-    ? (user?.branch_id || user?.branch || '') 
-    : localBranch;
+  // Branch-scoped roles always use their own branch from the user profile.
+  // Global roles use the localStorage-backed header selector.
+  // While user is still loading (null), return '' — pages handle loading states.
+  const isGlobalRole = GLOBAL_SELECTOR_ROLES.has(user?.role || '');
+  const selectedBranch = user === null
+    ? ''
+    : isGlobalRole
+      ? localBranch
+      : (user?.branch_id || user?.branch || localBranch || '');
 
   return (
     <BranchContext.Provider value={{ selectedBranch, setSelectedBranch: handleSetBranch }}>
