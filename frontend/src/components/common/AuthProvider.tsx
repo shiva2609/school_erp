@@ -36,7 +36,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUser = async () => {
     try {
       const res = await api.get('auth/me/');
-      setUser(res.data.data);
+      const userData = res.data.data;
+      if (userData) {
+        if (userData.branch && !userData.branch_id) {
+          userData.branch_id = userData.branch;
+        }
+        if (userData.tenant && !userData.tenant_id) {
+          userData.tenant_id = userData.tenant;
+        }
+      }
+      setUser(userData);
     } catch (err) {
       toast.error("Failed to load user profile");
       setUser(null);

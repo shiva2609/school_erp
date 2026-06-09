@@ -1135,7 +1135,8 @@ function SubjectManager() {
     api.get('auth/me/').then(res => {
       const u = res.data.data;
       setUser(u);
-      if (u.branch_id) setFormData(prev => ({ ...prev, branch: u.branch_id }));
+      const effectiveUserBranch = u.branch_id || u.branch;
+      if (effectiveUserBranch) setFormData(prev => ({ ...prev, branch: effectiveUserBranch }));
     });
   }, []);
 
@@ -1154,7 +1155,7 @@ function SubjectManager() {
       };
       await api.post('subjects/', payload);
       setShowForm(false);
-      setFormData({ name: '', code: '', branch: user?.branch_id || '' });
+      setFormData({ name: '', code: '', branch: user?.branch_id || user?.branch || '' });
       refetch();
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Error creating subject');
@@ -1205,7 +1206,7 @@ function SubjectManager() {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-400 uppercase px-1">Assign to Branch</label>
-              <select required value={formData.branch} disabled={!!user?.branch_id}
+              <select required value={formData.branch} disabled={!!(user?.branch_id || user?.branch)}
                 onChange={e => setFormData({...formData, branch: e.target.value})}
                 className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-blue-100 outline-none disabled:opacity-50">
                 <option value="">Select Branch</option>

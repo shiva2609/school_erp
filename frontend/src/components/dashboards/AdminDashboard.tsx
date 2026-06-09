@@ -70,8 +70,6 @@ export default function AdminDashboard({ user }: { user: any }) {
     };
   }, [selectedBranch, selectedAY]);
 
-  if (loading) return <div className="animate-pulse h-96 bg-gray-100 rounded-2xl w-full"></div>;
-
   return (
     <div className="space-y-6 pb-10">
       {/* Header with Academic Year filter */}
@@ -86,7 +84,13 @@ export default function AdminDashboard({ user }: { user: any }) {
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {loading ? (
+        <div className="animate-pulse h-96 bg-gray-100 rounded-2xl w-full flex items-center justify-center">
+          <p className="text-slate-400 font-medium">Loading metrics...</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Total Enrollment" value={(data.stats?.total_students || 0).toLocaleString('en-IN')} icon={Users} color="blue" />
         <StatCard title="Active Branches" value={(data.stats?.active_branches || 0).toString()} icon={Building2} color="purple" />
         <StatCard
@@ -151,6 +155,8 @@ export default function AdminDashboard({ user }: { user: any }) {
           />
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

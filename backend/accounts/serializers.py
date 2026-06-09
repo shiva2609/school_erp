@@ -45,19 +45,27 @@ class UserSerializer(serializers.ModelSerializer):
     tenant_name = serializers.CharField(source='tenant.name', read_only=True, default=None)
     tenant_logo = serializers.CharField(source='tenant.logo_url', read_only=True, default=None)
     zone_ids = serializers.SerializerMethodField()
+    branch_id = serializers.SerializerMethodField()
+    tenant_id = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'phone', 'role', 'is_active',
-            'password', 'tenant', 'branch', 'branch_name', 'tenant_name', 'tenant_logo',
-            'must_change_password', 'mfa_enabled', 'zone_ids',
+            'password', 'tenant', 'branch', 'branch_id', 'tenant_id', 'branch_name',
+            'tenant_name', 'tenant_logo', 'must_change_password', 'mfa_enabled', 'zone_ids',
         ]
         extra_kwargs = {
             'password': {'write_only': True, 'required': False},
             'tenant': {'read_only': True},
             'mfa_enabled': {'read_only': True},
         }
+
+    def get_branch_id(self, obj):
+        return str(obj.branch_id) if obj.branch_id else None
+
+    def get_tenant_id(self, obj):
+        return str(obj.tenant_id) if obj.tenant_id else None
 
     def validate(self, data):
         tenant = data.get('tenant') or (self.instance.tenant if self.instance else None)
