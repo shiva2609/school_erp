@@ -29,7 +29,7 @@ interface AcademicYear {
 const GLOBAL_ROLES = ['OWNER', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN'];
 
 export default function ClassesPage() {
-  const { user } = useAuth();
+  const { user, loading: userLoading } = useAuth();
   const { selectedBranch } = useBranch();
 
   // Resolve effective branch — branch-scoped roles always use their own branch
@@ -123,6 +123,14 @@ export default function ClassesPage() {
     'NURSERY','LKG','UKG','1','2','3','4','5','6','7','8','9','10',
     '11_SCIENCE','11_COMMERCE','11_ARTS','12_SCIENCE','12_COMMERCE','12_ARTS'
   ];
+
+  if (userLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="animate-spin text-blue-500" size={32} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

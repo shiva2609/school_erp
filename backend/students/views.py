@@ -474,6 +474,15 @@ class StudentViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(branch=user.branch)
             else:
                 qs = qs.none()
+        else:
+            branch_id = self.request.query_params.get('branch_id')
+            if branch_id and branch_id not in ('undefined', 'null', ''):
+                try:
+                    import uuid
+                    uuid.UUID(str(branch_id))
+                    qs = qs.filter(branch_id=branch_id)
+                except ValueError:
+                    pass
             
         status_filter = self.request.query_params.get('status')
         class_section = self.request.query_params.get('class_section_id')

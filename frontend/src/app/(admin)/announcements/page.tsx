@@ -36,13 +36,16 @@ const AUDIENCE_OPTIONS: { value: string; label: string }[] = [
 
 export default function AnnouncementsPage() {
   const { selectedBranch } = useBranch();
-  const { user } = useAuth();
+  const { user, loading: userLoading } = useAuth();
 
   // Global roles (OWNER, SUPER_ADMIN, CHIEF_ACCOUNTANT, ZONAL_ADMIN) need the header
   // branch selector; all others automatically use their profile branch.
   const GLOBAL_ROLES = ['OWNER', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN'];
   const isGlobalRole = GLOBAL_ROLES.includes(user?.role || '');
-  const effectiveBranchId = selectedBranch || user?.branch_id || user?.branch || '';
+  
+  const effectiveBranchId = isGlobalRole
+    ? selectedBranch
+    : (user?.branch_id || user?.branch || selectedBranch || '');
 
   const { data, loading, refetch } = useApi<AnnouncementItem[]>('/announcements/');
   const [showForm, setShowForm] = useState(false);
@@ -155,6 +158,14 @@ export default function AnnouncementsPage() {
       toast.error('Publish failed');
     }
   };
+
+  if (userLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="animate-spin text-blue-500" size={32} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -218,6 +218,14 @@ export default function AcademicTransitionPage() {
     { key: 'writeoffs' as const, label: 'Write-Offs', icon: FileX2 },
   ];
 
+  if (user === null) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="animate-spin text-blue-500" size={32} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}

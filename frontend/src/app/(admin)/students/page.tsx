@@ -72,17 +72,32 @@ export default function StudentsPage() {
     api.get('auth/me/').then(res => setUser(res.data.data));
   }, []);
 
-  // Fetch class sections for filter dropdown (scoped to branch)
+  const [activeAyId, setActiveAyId] = useState('');
+
+  // Fetch active academic year
   useEffect(() => {
+    api.get('tenants/academic-years/')
+      .then(res => {
+        const data = res.data?.data ?? res.data?.results ?? res.data ?? [];
+        const active = data.find((y: any) => y.is_active);
+        if (active) setActiveAyId(active.id);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch class sections for filter dropdown (scoped to branch and active year)
+  useEffect(() => {
+    if (!activeAyId && selectedBranch) return; // wait for active year if branch is selected? Actually wait for both to settle if possible, but let's just pass activeAyId when available.
     const params = new URLSearchParams();
     if (selectedBranch) params.set('branch_id', selectedBranch);
+    if (activeAyId) params.set('academic_year_id', activeAyId);
     api.get(`/class-sections/?${params.toString()}`)
       .then(res => {
         const data = res.data?.data ?? res.data?.results ?? res.data ?? [];
         setClassSections(Array.isArray(data) ? data : []);
       })
       .catch(() => setClassSections([]));
-  }, [selectedBranch]);
+  }, [selectedBranch, activeAyId]);
 
   // Fetch students (paginated)
   const fetchStudents = useCallback(async () => {
