@@ -150,7 +150,20 @@ export default function StudentProfilePage() {
       refetch();
     } catch (err: any) {
       const d = err.response?.data;
-      const msg = typeof d?.detail === 'string' ? d.detail : d?.error || 'Could not save fees.';
+      let msg = 'Could not save fees.';
+      if (typeof d?.detail === 'string') {
+        msg = d.detail;
+      } else if (Array.isArray(d?.detail) && d.detail.length > 0) {
+        msg = String(d.detail[0]);
+      } else if (typeof d?.error === 'string') {
+        msg = d.error;
+      } else if (d && typeof d === 'object') {
+        // Flatten all field-level errors from DRF
+        const parts = Object.entries(d)
+          .map(([, v]) => (Array.isArray(v) ? v.join(', ') : String(v)))
+          .filter(Boolean);
+        if (parts.length > 0) msg = parts.join(' | ');
+      }
       toast.error(msg);
     } finally {
       setPromotedFeeSaving(false);

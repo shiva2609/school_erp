@@ -745,11 +745,9 @@ class StudentViewSet(viewsets.ModelViewSet):
 
         student = self.get_object()
         if not student_needs_promoted_year_fee_setup(student):
-            raise ValidationError({
-                'detail': 'Fees for this year are already set, or promotion fee setup is not required.',
-            })
+            raise ValidationError('Fees for this year are already set, or promotion fee setup is not required.')
         if not student.class_section_id:
-            raise ValidationError({'detail': 'Student must have a class assigned.'})
+            raise ValidationError('Student must have a class assigned.')
         structure = FeeStructure.objects.filter(
             branch_id=student.branch_id,
             academic_year_id=student.academic_year_id,
@@ -757,25 +755,34 @@ class StudentViewSet(viewsets.ModelViewSet):
             is_active=True,
         ).first()
         if not structure:
-            raise ValidationError({
-                'detail': 'No active fee structure for this class and academic year. Configure it under Setup first.',
-            })
+            raise ValidationError('No active fee structure for this class and academic year. Configure it under Setup first.')
         offered_raw = request.data.get('offered_total')
         if offered_raw is None or str(offered_raw).strip() == '':
-            raise ValidationError({'detail': 'offered_total is required.'})
+            raise ValidationError('offered_total is required.')
         try:
             offered_total = Decimal(str(offered_raw))
         except (InvalidOperation, TypeError, ValueError):
-            raise ValidationError({'detail': 'Invalid offered_total.'})
+            raise ValidationError('Invalid offered_total value.')
         standard_raw = request.data.get('standard_total')
         standard_total = None
         if standard_raw not in (None, ''):
             try:
                 standard_total = Decimal(str(standard_raw))
             except (InvalidOperation, TypeError, ValueError):
-                raise ValidationError({'detail': 'Invalid standard_total.'})
+                raise ValidationError('Invalid standard_total value.')
         reason = (request.data.get('reason') or '').strip() or 'Promoted class — confirmed academic fee'
-        create_student_fees(student, offered_total, standard_total, reason, request.user)
+        try:
+            create_student_fees(student, offered_total, standard_total, reason, request.user)
+        except ValidationError as exc:
+            # Re-raise with a flattened string detail so frontend always gets {'detail': 'string'}
+            detail = exc.detail
+            if isinstance(detail, dict):
+                msg = ' | '.join(str(v[0] if isinstance(v, list) else v) for v in detail.values())
+            elif isinstance(detail, list):
+                msg = ' | '.join(str(m) for m in detail)
+            else:
+                msg = str(detail)
+            raise ValidationError(msg)
         serializer = self.get_serializer(student)
         return Response({'success': True, 'data': serializer.data})
 
