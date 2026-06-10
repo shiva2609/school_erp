@@ -43,7 +43,8 @@ def student_needs_promoted_year_fee_setup(student) -> bool:
         academic_year_id=student.academic_year_id,
         month='ANNUAL',
         generated_by='AUTO'
-    ).exclude(invoice_number__startswith='ADM-').exclude(invoice_number__startswith='TRN-').exists()
+    ).exclude(status='CANCELLED').exclude(invoice_number__startswith='ADM-').exclude(invoice_number__startswith='TRN-').exists()
+    
     if has_auto_annual:
         return False
         
@@ -112,22 +113,18 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
         status='CANCELLED',
     )
     
+    old_manual_invoice = None
     if existing_invoices.exists():
         old_invoice = existing_invoices.first()
         if old_invoice.generated_by == 'MANUAL':
-            if old_invoice.paid_amount > 0:
-                raise ValidationError("Cannot re-setup fee: existing CSV imported invoice already has payments attached. Use 'Edit Class & Fees' instead.")
+            if old_invoice.paid_amount > 0 and offered_total < old_invoice.paid_amount:
+                raise ValidationError(f"Cannot set fee to ₹{offered_total} because ₹{old_invoice.paid_amount} has already been paid against the existing imported invoice. Please enter a total equal to or higher than the paid amount.")
             
+            old_manual_invoice = old_invoice
             # Remove old StudentFeeItems tied to this invoice's categories
             from fees.models import StudentFeeItem
             old_categories = old_invoice.items.values_list('category', flat=True)
             StudentFeeItem.objects.filter(student=student, academic_year=ay, category__in=old_categories).delete()
-            
-            # Cancel the old invoice
-            old_invoice.status = 'CANCELLED'
-            old_invoice.cancellation_reason = 'Superseded by confirmed fee setup'
-            old_invoice.cancelled_by = requested_by
-            old_invoice.save(update_fields=['status', 'cancellation_reason', 'cancelled_by'])
         else:
             raise ValidationError(
                 'Academic fee for this academic year is already set for this student.'
@@ -157,6 +154,21 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
             generated_by='AUTO',
             created_by=requested_by,
         )
+        
+        if old_manual_invoice:
+            if old_manual_invoice.paid_amount > 0:
+                from fees.models import PaymentAllocation
+                PaymentAllocation.objects.filter(invoice=old_manual_invoice).update(invoice=invoice)
+                invoice.paid_amount = old_manual_invoice.paid_amount
+                invoice.outstanding_amount = invoice.net_amount - invoice.paid_amount
+                invoice.save(update_fields=['paid_amount', 'outstanding_amount'])
+                
+            old_manual_invoice.status = 'CANCELLED'
+            old_manual_invoice.cancellation_reason = 'Superseded by confirmed fee setup'
+            old_manual_invoice.cancelled_by = requested_by
+            old_manual_invoice.paid_amount = Decimal('0.00')
+            old_manual_invoice.outstanding_amount = Decimal('0.00')
+            old_manual_invoice.save(update_fields=['status', 'cancellation_reason', 'cancelled_by', 'paid_amount', 'outstanding_amount'])
         
         invoice_items = []
         for item in structure.items.all():

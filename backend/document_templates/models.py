@@ -5,6 +5,7 @@ from django.conf import settings
 TEMPLATE_TYPES = [
     ('ID_CARD', 'ID Card'),
     ('FEE_RECEIPT', 'Fee Receipt'),
+    ('TRANSPORT_FEE_RECEIPT', 'Transport Fee Receipt'),
     ('TRANSFER_CERTIFICATE', 'Transfer Certificate'),
     ('HALL_TICKET', 'Hall Ticket'),
     ('REPORT_CARD', 'Report Card (per student)'),

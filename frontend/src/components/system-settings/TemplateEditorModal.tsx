@@ -8,6 +8,7 @@ export interface DocumentTemplate {
   type:
     | 'ID_CARD'
     | 'FEE_RECEIPT'
+    | 'TRANSPORT_FEE_RECEIPT'
     | 'TRANSFER_CERTIFICATE'
     | 'HALL_TICKET'
     | 'REPORT_CARD'
@@ -36,6 +37,7 @@ interface TemplateEditorModalProps {
 const TEMPLATE_TYPES = [
   { value: 'ID_CARD', label: 'ID Card' },
   { value: 'FEE_RECEIPT', label: 'Fee Receipt' },
+  { value: 'TRANSPORT_FEE_RECEIPT', label: 'Transport Fee Receipt' },
   { value: 'TRANSFER_CERTIFICATE', label: 'Transfer Certificate' },
   { value: 'HALL_TICKET', label: 'Hall Ticket' },
   { value: 'REPORT_CARD', label: 'Report Card (per student)' },

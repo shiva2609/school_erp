@@ -189,9 +189,18 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
         tenant = payment.tenant
-        template = DocumentTemplate.objects.filter(
-            tenant=tenant, type='FEE_RECEIPT', is_active=True
-        ).order_by('-is_default', '-created_at').first()
+        template = None
+        
+        is_transport_payment = payment.allocations.filter(invoice__invoice_number__startswith='TRN-').exists()
+        if is_transport_payment:
+            template = DocumentTemplate.objects.filter(
+                tenant=tenant, type='TRANSPORT_FEE_RECEIPT', is_active=True
+            ).order_by('-is_default', '-created_at').first()
+            
+        if not template:
+            template = DocumentTemplate.objects.filter(
+                tenant=tenant, type='FEE_RECEIPT', is_active=True
+            ).order_by('-is_default', '-created_at').first()
 
         if not template:
             return Response({'error': 'No active Fee Receipt template found.'}, status=status.HTTP_400_BAD_REQUEST)
