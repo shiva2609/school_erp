@@ -10,7 +10,7 @@ import {
   ChevronLeft, Edit2, LogOut, Shield, GraduationCap,
   Building2, Hash, CreditCard, Activity, FileText,
   AlertCircle, CheckCircle2, Clock, Trash2, Plus, ArrowRightLeft, History,
-  UserMinus, UserPlus, Loader2, Download
+  UserMinus, UserPlus, Loader2, Download, RotateCcw
 } from 'lucide-react';
 import StudentForm from '@/components/students/StudentForm';
 import PaymentModal from '@/components/students/PaymentModal';
@@ -55,6 +55,13 @@ export default function StudentProfilePage() {
   const [promotedFeeStructure, setPromotedFeeStructure] = useState<any>(null);
   const [promotedFeeLoading, setPromotedFeeLoading] = useState(false);
   const [promotedFeeSaving, setPromotedFeeSaving] = useState(false);
+
+  // Reverse payment — Super Admin only
+  const [reversePaymentTarget, setReversePaymentTarget] = useState<{ id: string; receipt: string; amount: number } | null>(null);
+  const [reverseReason, setReverseReason] = useState('');
+  const [reversingPayment, setReversingPayment] = useState(false);
+
+  const isSuperAdmin = !!user && ['OWNER', 'SUPER_ADMIN'].includes(user.role);
 
   const canConfirmPromotedFees = !!user && (
     ['OWNER', 'SUPER_ADMIN', 'ZONAL_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'].includes(user.role)
@@ -1101,7 +1108,10 @@ export default function StudentProfilePage() {
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Credit (₹)</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Debit (₹)</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
-                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Receipt</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Receipt</th>
+                        {isSuperAdmin && (
+                          <th className="px-6 py-4 text-[10px] font-black text-rose-400 uppercase tracking-widest text-center">Admin</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -1122,6 +1132,7 @@ export default function StudentProfilePage() {
                           status: pay.status,
                           paymentId: pay.id,
                           receiptNumber: pay.receipt_number,
+                          paymentAmount: Number(pay.amount),
                         })),
                         ...(student.carry_forwards || []).map((cf: any) => ({
                           date: cf.created_at,
@@ -1164,7 +1175,76 @@ export default function StudentProfilePage() {
                               </button>
                             ) : '—'}
                           </td>
+                          {isSuperAdmin && (
+                            <td className="px-6 py-4 text-center">
+                              {item.type === 'PAYMENT' && item.status === 'COMPLETED' ? (
+                                <button
+                                  onClick={() => {
+                                    setReverseReason('');
+                                    setReversePaymentTarget({ id: item.paymentId, receipt: item.receiptNumber, amount: item.paymentAmount });
+                                  }}
+                                  title="Reverse this payment"
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-black uppercase tracking-widest transition-colors"
+                                >
+                                  <RotateCcw size={11} />
+                                  Reverse
+                                </button>
+                              ) : '—'}
+                            </td>
+                          )}
                         </tr>
+                        {/* Inline reverse confirmation row */}
+                        {isSuperAdmin && item.type === 'PAYMENT' && reversePaymentTarget?.id === item.paymentId && (
+                          <tr className="bg-rose-50/60 border-t border-rose-100">
+                            <td colSpan={isSuperAdmin ? 7 : 6} className="px-6 py-4">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                                <div className="flex items-center gap-2 text-xs font-black text-rose-700">
+                                  <AlertCircle size={14} />
+                                  Reverse ₹{reversePaymentTarget.amount.toLocaleString('en-IN')} — Receipt {reversePaymentTarget.receipt}?
+                                </div>
+                                <input
+                                  type="text"
+                                  placeholder="Reason for reversal (required)"
+                                  value={reverseReason}
+                                  onChange={e => setReverseReason(e.target.value)}
+                                  className="flex-1 min-w-0 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-rose-300 outline-none"
+                                />
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    onClick={() => setReversePaymentTarget(null)}
+                                    className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      if (!reverseReason.trim()) { toast.error('Please provide a reason.'); return; }
+                                      setReversingPayment(true);
+                                      try {
+                                        await api.post(`/fees/payments/${reversePaymentTarget.id}/reverse/`, { reason: reverseReason.trim() });
+                                        toast.success(`Payment ${reversePaymentTarget.receipt} reversed. Invoice outstanding restored.`);
+                                        setReversePaymentTarget(null);
+                                        setReverseReason('');
+                                        refetch();
+                                      } catch (err: any) {
+                                        const d = err.response?.data;
+                                        const msg = typeof d?.detail === 'string' ? d.detail : Array.isArray(d?.detail) ? d.detail[0] : 'Failed to reverse payment.';
+                                        toast.error(msg);
+                                      } finally {
+                                        setReversingPayment(false);
+                                      }
+                                    }}
+                                    disabled={reversingPayment}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-colors"
+                                  >
+                                    {reversingPayment ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
+                                    Confirm Reverse
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                       ))}
                     </tbody>
                   </table>
