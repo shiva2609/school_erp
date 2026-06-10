@@ -61,7 +61,7 @@ export default function StudentProfilePage() {
   const [reverseReason, setReverseReason] = useState('');
   const [reversingPayment, setReversingPayment] = useState(false);
 
-  const isSuperAdmin = !!user && ['OWNER', 'SUPER_ADMIN'].includes(user.role);
+  const isSuperAdmin = !!user && ['OWNER', 'SUPER_ADMIN'].includes((user.role || '').toUpperCase());
 
   const canConfirmPromotedFees = !!user && (
     ['OWNER', 'SUPER_ADMIN', 'ZONAL_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'].includes(user.role)
@@ -1142,7 +1142,8 @@ export default function StudentProfilePage() {
                           status: cf.status,
                         }))
                       ].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item, i) => (
-                        <tr key={i} className="group hover:bg-slate-50/50 transition-colors">
+                        <React.Fragment key={i}>
+                        <tr className="group hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4">
                             <p className="text-xs font-bold text-slate-900">{new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                           </td>
@@ -1177,7 +1178,7 @@ export default function StudentProfilePage() {
                           </td>
                           {isSuperAdmin && (
                             <td className="px-6 py-4 text-center">
-                              {item.type === 'PAYMENT' && item.status === 'COMPLETED' ? (
+                              {item.type === 'PAYMENT' && ['COMPLETED', 'PAID', 'SUCCESS'].includes((item.status || '').toUpperCase()) ? (
                                 <button
                                   onClick={() => {
                                     setReverseReason('');
@@ -1245,6 +1246,7 @@ export default function StudentProfilePage() {
                             </td>
                           </tr>
                         )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>

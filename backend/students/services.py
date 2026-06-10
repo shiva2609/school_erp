@@ -119,7 +119,7 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
                 raise ValidationError("Cannot re-setup fee: existing CSV imported invoice already has payments attached. Use 'Edit Class & Fees' instead.")
             
             # Remove old StudentFeeItems tied to this invoice's categories
-            from students.models import StudentFeeItem
+            from fees.models import StudentFeeItem
             old_categories = old_invoice.items.values_list('category', flat=True)
             StudentFeeItem.objects.filter(student=student, academic_year=ay, category__in=old_categories).delete()
             
