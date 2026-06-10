@@ -859,9 +859,21 @@ class StudentViewSet(viewsets.ModelViewSet):
             status='CANCELLED'
         )
 
+        # Track old payments to transfer them
+        old_payments_total = Decimal('0.00')
+        old_allocations = []
+        from fees.models import PaymentAllocation
+
         for invoice in old_invoices:
+            if invoice.paid_amount > 0:
+                old_payments_total += invoice.paid_amount
+                allocs = list(PaymentAllocation.objects.filter(invoice=invoice))
+                old_allocations.extend(allocs)
+            
             invoice.status = 'CANCELLED'
-            invoice.save(update_fields=['status'])
+            invoice.paid_amount = Decimal('0.00')
+            invoice.outstanding_amount = Decimal('0.00')
+            invoice.save(update_fields=['status', 'paid_amount', 'outstanding_amount'])
 
         # Delete existing StudentFeeItem rows for this student and academic year
         StudentFeeItem.objects.filter(student=student, academic_year=ay).delete()
@@ -873,6 +885,22 @@ class StudentViewSet(viewsets.ModelViewSet):
 
         # Call create_student_fees to recreate fees
         create_student_fees(student, offered_total_val, None, reason, user)
+
+        # Transfer payments to the new invoice
+        if old_allocations:
+            new_invoice = FeeInvoice.objects.filter(
+                student=student, academic_year=ay, month='ANNUAL'
+            ).exclude(status='CANCELLED').first()
+            
+            if new_invoice:
+                for alloc in old_allocations:
+                    alloc.invoice = new_invoice
+                    alloc.save(update_fields=['invoice'])
+                
+                new_invoice.paid_amount = old_payments_total
+                new_invoice.outstanding_amount = max(new_invoice.net_amount - new_invoice.paid_amount, Decimal('0.00'))
+                new_invoice.status = 'PAID' if new_invoice.outstanding_amount <= 0 else 'PARTIALLY_PAID'
+                new_invoice.save(update_fields=['paid_amount', 'outstanding_amount', 'status'])
 
         # Audit log the action
         log_audit_action(
