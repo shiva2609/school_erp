@@ -131,7 +131,7 @@ class StudentSerializer(serializers.ModelSerializer):
         # Academic-year fees only — exclude one-time admission (ADM-), caution (FDP-), special (SPF-), transport (TRN-)
         invoices = FeeInvoice.objects.filter(
             student=obj, academic_year=obj.academic_year
-        ).exclude(invoice_number__startswith='ADM-').exclude(invoice_number__startswith='TRN-').exclude(
+        ).exclude(status='CANCELLED').exclude(invoice_number__startswith='ADM-').exclude(invoice_number__startswith='TRN-').exclude(
             invoice_number__startswith='FDP-'
         ).exclude(invoice_number__startswith='SPF-')
         total_fee_invoiced = invoices.aggregate(Sum('net_amount'))['net_amount__sum'] or Decimal('0.00')
