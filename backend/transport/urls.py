@@ -5,6 +5,7 @@ from . import views
 router = DefaultRouter()
 router.register(r'rate-slabs', views.TransportRateSlabViewSet, basename='transport-rate-slab')
 router.register(r'students', views.StudentTransportViewSet, basename='student-transport')
+router.register(r'enrollments', views.TransportFeeEnrollmentViewSet, basename='transport-fee-enrollment')
 
 urlpatterns = [
     path('transport/', include(router.urls)),
