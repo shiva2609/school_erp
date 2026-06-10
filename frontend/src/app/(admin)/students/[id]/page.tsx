@@ -1201,7 +1201,7 @@ export default function StudentProfilePage() {
                               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                                 <div className="flex items-center gap-2 text-xs font-black text-rose-700">
                                   <AlertCircle size={14} />
-                                  Reverse ₹{reversePaymentTarget.amount.toLocaleString('en-IN')} — Receipt {reversePaymentTarget.receipt}?
+                                  Reverse ₹{reversePaymentTarget?.amount?.toLocaleString('en-IN')} — Receipt {reversePaymentTarget?.receipt}?
                                 </div>
                                 <input
                                   type="text"
@@ -1222,8 +1222,8 @@ export default function StudentProfilePage() {
                                       if (!reverseReason.trim()) { toast.error('Please provide a reason.'); return; }
                                       setReversingPayment(true);
                                       try {
-                                        await api.post(`/fees/payments/${reversePaymentTarget.id}/reverse/`, { reason: reverseReason.trim() });
-                                        toast.success(`Payment ${reversePaymentTarget.receipt} reversed. Invoice outstanding restored.`);
+                                        await api.post(`/fees/payments/${reversePaymentTarget?.id}/reverse/`, { reason: reverseReason.trim() });
+                                        toast.success(`Payment ${reversePaymentTarget?.receipt} reversed. Invoice outstanding restored.`);
                                         setReversePaymentTarget(null);
                                         setReverseReason('');
                                         refetch();
