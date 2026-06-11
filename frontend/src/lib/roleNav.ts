@@ -46,6 +46,7 @@ const tenantSuperAdminNavGroups: NavGroup[] = [
       { href: '/audit-logs', label: 'Activity ledger', icon: ClipboardCheck },
       { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
       { href: '/approvals', label: 'Approvals', icon: ClipboardCheck },
+      { href: '/vendor-bills', label: 'Vendor Bills', icon: Receipt },
     ],
   },
   {
@@ -54,6 +55,7 @@ const tenantSuperAdminNavGroups: NavGroup[] = [
       { href: '/users', label: 'Global Staff', icon: Shield },
       { href: '/teachers', label: 'All Teachers', icon: Users },
       { href: '/students', label: 'All Students', icon: Users },
+      { href: '/vendors', label: 'Vendors', icon: Users },
     ],
   },
   {
@@ -92,6 +94,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
           items: [
             { href: '/users', label: 'Global Staff', icon: Shield },
             { href: '/students', label: 'All Students', icon: Users },
+            { href: '/vendors', label: 'Vendors', icon: Users },
           ],
         },
         {
@@ -100,6 +103,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
             { href: '/fees', label: 'Fee Collection', icon: Receipt },
             { href: '/expenses', label: 'Expenses & Approvals', icon: TrendingDown },
             { href: '/approvals', label: 'Approvals', icon: ClipboardCheck },
+            { href: '/vendor-bills', label: 'Vendor Bills', icon: Receipt },
             { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
             { href: '/academic-transition', label: 'Year Transition', icon: ArrowUpRight },
           ],
@@ -118,6 +122,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
             { href: '/reports', label: 'Reports Center', icon: BarChart3 },
             { href: '/students', label: 'Students', icon: Users },
             { href: '/users', label: 'Staff directory', icon: Shield },
+            { href: '/vendors', label: 'Vendors', icon: Users },
           ],
         },
         {
@@ -126,6 +131,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
             { href: '/fees', label: 'Fee Collection', icon: Receipt },
             { href: '/expenses', label: 'Expenses', icon: TrendingDown },
             { href: '/approvals', label: 'Approvals', icon: ClipboardCheck },
+            { href: '/vendor-bills', label: 'Vendor Bills', icon: Receipt },
             { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
           ],
         },
@@ -184,6 +190,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
             { href: '/students', label: 'Students', icon: Users },
             { href: '/teachers', label: 'Staff Directory', icon: Users },
             { href: '/transport', label: 'Transport', icon: Bus },
+            { href: '/vendors', label: 'Vendors', icon: Users },
           ],
         },
         {
@@ -191,6 +198,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
           items: [
             { href: '/fees', label: 'Fee Collection', icon: Receipt },
             { href: '/expenses', label: 'Expenses & Approvals', icon: TrendingDown },
+            { href: '/vendor-bills', label: 'Vendor Bills', icon: Receipt },
             { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
             { href: '/academic-transition', label: 'Year Transition', icon: ArrowUpRight },
           ],
