@@ -12,7 +12,8 @@ export interface DocumentTemplate {
     | 'TRANSFER_CERTIFICATE'
     | 'HALL_TICKET'
     | 'REPORT_CARD'
-    | 'REPORT_CARD_SUMMARY';
+    | 'REPORT_CARD_SUMMARY'
+    | 'VENDOR_BILL_RECEIPT';
   mode: 'CONFIG' | 'HTML';
   config_data: {
     background_color?: string;
@@ -42,6 +43,7 @@ const TEMPLATE_TYPES = [
   { value: 'HALL_TICKET', label: 'Hall Ticket' },
   { value: 'REPORT_CARD', label: 'Report Card (per student)' },
   { value: 'REPORT_CARD_SUMMARY', label: 'Report Card Summary (section)' },
+  { value: 'VENDOR_BILL_RECEIPT', label: 'Vendor Bill Receipt' },
 ];
 
 export default function TemplateEditorModal({ isOpen, onClose, onSaved, template }: TemplateEditorModalProps) {
@@ -294,7 +296,8 @@ export default function TemplateEditorModal({ isOpen, onClose, onSaved, template
                         <code>subjects</code> and <code>aggregate</code> for report card;
                         <code>students</code> (list of rows with <code>student</code>, <code>aggregate</code>) for report card summary;
                         <code>payment</code> / <code>invoice</code> for fee receipts;
-                        <code>tc</code> (certificate fields) plus <code>student.father_name</code> / <code>mother_name</code> for transfer certificates.
+                        <code>tc</code> (certificate fields) plus <code>student.father_name</code> / <code>mother_name</code> for transfer certificates;
+                        <strong>Vendor Bill:</strong> <code>vendor.name</code>, <code>bill.bill_id</code>, <code>bill.voucher_number</code>, <code>bill.bill_date</code>, <code>bill.payment_mode</code>, <code>bill.status</code>, <code>bill.total_amount</code>, <code>bill.tds_amount</code>, <code>bill.net_amount</code>, <code>bill.description</code>, <code>bill.items</code> (list with <code>expense_type_name</code>, <code>amount</code>), <code>amount_in_words</code>, <code>processed_by</code>.
                       </p>
                     </div>
                   </div>
