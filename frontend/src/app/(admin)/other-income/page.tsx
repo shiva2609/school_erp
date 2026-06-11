@@ -258,14 +258,16 @@ export default function OtherIncomePage() {
                           <span className="font-black text-emerald-600">₹{parseFloat(r.amount).toLocaleString('en-IN')}</span>
                         </td>
                         <td className="p-4 pr-6 text-right">
-                          <button
-                            onClick={() => reverseOtherIncome(r.id)}
-                            className="text-xs font-bold text-rose-500 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ml-auto"
-                            title="Reverse this entry from cashbook"
-                          >
-                            <RotateCcw size={14} />
-                            Reverse
-                          </button>
+                          {['SUPER_ADMIN', 'OWNER'].includes(user?.role || '') && (
+                            <button
+                              onClick={() => reverseOtherIncome(r.id)}
+                              className="text-xs font-bold text-rose-500 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ml-auto"
+                              title="Reverse this entry from cashbook"
+                            >
+                              <RotateCcw size={14} />
+                              Reverse
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

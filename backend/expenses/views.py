@@ -834,6 +834,9 @@ class TransactionLogViewSet(viewsets.ReadOnlyModelViewSet):
         user = request.user
         if not getattr(user, 'tenant', None):
             return Response({'error': 'Organization context required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if normalize_role(user.role) not in ('OWNER', 'SUPER_ADMIN'):
+            return Response({'error': 'Only Super Admins can reverse income.'}, status=status.HTTP_403_FORBIDDEN)
 
         log_id = request.data.get('log_id')
         if not log_id:
