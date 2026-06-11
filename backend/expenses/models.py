@@ -35,10 +35,16 @@ VENDOR_TYPE_CHOICES = [
     ('COMPANY', 'Company')
 ]
 
+VENDOR_CATEGORY_CHOICES = [
+    ('GENERAL', 'General'),
+    ('COMMUTE', 'Commute')
+]
+
 class Vendor(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='vendors')
     branch = models.ForeignKey('tenants.Branch', on_delete=models.CASCADE, related_name='vendors')
+    category = models.CharField(max_length=20, choices=VENDOR_CATEGORY_CHOICES, default='GENERAL')
     vendor_type = models.CharField(max_length=20, choices=VENDOR_TYPE_CHOICES, default='COMPANY')
     first_name = models.CharField(max_length=100, blank=True, null=True)
     last_name = models.CharField(max_length=100, blank=True, null=True)
@@ -98,6 +104,7 @@ class VendorBill(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='vendor_bills')
     branch = models.ForeignKey('tenants.Branch', on_delete=models.CASCADE, related_name='vendor_bills')
+    category = models.CharField(max_length=20, choices=VENDOR_CATEGORY_CHOICES, default='GENERAL')
     bill_id = models.CharField(max_length=50, unique=True)
     voucher_number = models.CharField(max_length=50, unique=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name='bills')

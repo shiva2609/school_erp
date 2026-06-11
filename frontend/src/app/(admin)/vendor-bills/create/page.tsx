@@ -13,7 +13,9 @@ export default function CreateVendorBillPage() {
   const push = useResolvedPush();
   const branchParam = selectedBranch ? `branch_id=${selectedBranch}` : '';
   
-  const { data: vendorsData } = useApi<any[]>(`/vendors/?${branchParam}&is_active=true`);
+  const [billType, setBillType] = useState<'GENERAL' | 'COMMUTE'>('GENERAL');
+  
+  const { data: vendorsData } = useApi<any[]>(`/vendors/?${branchParam}&category=${billType}&is_active=true`);
   const vendors = Array.isArray(vendorsData) ? vendorsData : [];
   
   const { data: categoriesData } = useApi<any[]>(`/expenses/categories/${branchParam ? `?${branchParam}` : ''}`);
@@ -168,11 +170,37 @@ export default function CreateVendorBillPage() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">1. Select Vendor</h3>
             
+            <div className="flex gap-2 mb-4 bg-slate-100 p-1 rounded-xl">
+              <button 
+                onClick={() => { setBillType('GENERAL'); setSelectedVendorId(''); setSelectedItems({}); setApplyTds(false); }}
+                className={`flex-1 py-1.5 text-sm font-bold rounded-lg transition-all ${billType === 'GENERAL' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                General Bill
+              </button>
+              <button 
+                onClick={() => { setBillType('COMMUTE'); setSelectedVendorId(''); setSelectedItems({}); setApplyTds(false); }}
+                className={`flex-1 py-1.5 text-sm font-bold rounded-lg transition-all ${billType === 'COMMUTE' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Commute Bill
+              </button>
+            </div>
+
             <select
               value={selectedVendorId}
               onChange={(e) => {
-                setSelectedVendorId(e.target.value);
-                setSelectedItems({}); // Reset items on vendor change
+                const vid = e.target.value;
+                setSelectedVendorId(vid);
+                const vendor = vendors.find(v => v.id === vid);
+                if (vendor) {
+                  const associatedCats = categories.filter(c => vendor.associated_expense_types?.includes(c.id));
+                  const initItems: Record<string, { selected: boolean, amount: string }> = {};
+                  associatedCats.forEach(c => {
+                    initItems[c.id] = { selected: false, amount: '' };
+                  });
+                  setSelectedItems(initItems);
+                } else {
+                  setSelectedItems({});
+                }
                 setApplyTds(false);
                 setTdsPercentage('');
               }}

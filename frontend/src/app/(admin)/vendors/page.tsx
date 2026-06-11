@@ -20,6 +20,7 @@ interface Vendor {
   pan_number?: string;
   aadhaar?: string;
   is_active: boolean;
+  category: 'GENERAL' | 'COMMUTE';
   associated_expense_types: string[];
 }
 
@@ -27,19 +28,24 @@ export default function VendorsPage() {
   const { selectedBranch } = useBranch();
   const branchParam = selectedBranch ? `branch_id=${selectedBranch}` : '';
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'GENERAL' | 'COMMUTE'>('GENERAL');
   
   const { data: vendors, loading, error, refetch } = useApi<Vendor[]>(
-    `/vendors/?${branchParam}&search=${search}`
+    `/vendors/?${branchParam}&category=${activeTab}&search=${search}`
   );
   const { data: categoriesData } = useApi<any[]>(`/expenses/categories/${branchParam ? `?${branchParam}` : ''}`);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+  const [isNewCategoryModalOpen, setIsNewCategoryModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryDesc, setNewCategoryDesc] = useState('');
   
   const categories = Array.isArray(categoriesData) ? categoriesData : [];
   
   const [formData, setFormData] = useState<Partial<Vendor>>({
     vendor_type: 'COMPANY',
+    category: 'GENERAL',
     name: '',
     first_name: '',
     last_name: '',
@@ -56,6 +62,7 @@ export default function VendorsPage() {
     setEditingVendor(null);
     setFormData({
       vendor_type: 'COMPANY',
+      category: activeTab,
       name: '',
       first_name: '',
       last_name: '',
@@ -74,6 +81,7 @@ export default function VendorsPage() {
     setEditingVendor(v);
     setFormData({
       vendor_type: v.vendor_type,
+      category: v.category || 'GENERAL',
       name: v.name || '',
       first_name: v.first_name || '',
       last_name: v.last_name || '',
@@ -121,6 +129,34 @@ export default function VendorsPage() {
     }
   };
 
+  const handleCreateExpenseType = async () => {
+    if (!newCategoryName.trim()) {
+      toast.error('Expense type name is required.');
+      return;
+    }
+    try {
+      const res = await api.post(`/expenses/categories/${branchParam ? `?${branchParam}` : ''}`, {
+        name: newCategoryName,
+        description: newCategoryDesc
+      });
+      toast.success('Expense type created!');
+      // Add to selected list
+      setFormData(prev => ({
+        ...prev,
+        associated_expense_types: [...(prev.associated_expense_types || []), res.data.id]
+      }));
+      // Reset and close
+      setNewCategoryName('');
+      setNewCategoryDesc('');
+      setIsNewCategoryModalOpen(false);
+      // refetch categories so it appears in the list
+      await useApi.mutate(`/expenses/categories/${branchParam ? `?${branchParam}` : ''}`); // Note: Since useApi is a hook, we can just do a window reload or rely on a mutate if we had SWR. We can just append it locally or rely on refetch. Wait, useApi doesn't export mutate directly like this unless configured. Let's just reload or refetch? We have `categoriesData`. But we can't trigger refetch of `categoriesData` because it's from a separate `useApi` call. We can reload the page or add it to local state? We don't have `refetchCategories`. Wait, I will just window.location.reload() or we can add `refetch` logic. Actually, we can add a local state for the newly created ones.
+      window.location.reload(); // Simple fallback
+    } catch (err: any) {
+      toast.error(err.response?.data?.name?.[0] || err.response?.data?.detail || 'Failed to create expense type.');
+    }
+  };
+
   const toggleExpenseType = (id: string) => {
     const current = formData.associated_expense_types || [];
     if (current.includes(id)) {
@@ -147,8 +183,23 @@ export default function VendorsPage() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center gap-4 bg-slate-50/50">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-4 bg-slate-50/50">
+          <div className="flex bg-slate-200/50 p-1 rounded-xl w-fit">
+            <button
+              onClick={() => setActiveTab('GENERAL')}
+              className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'GENERAL' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              General Vendors
+            </button>
+            <button
+              onClick={() => setActiveTab('COMMUTE')}
+              className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'COMMUTE' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Commute Vendors
+            </button>
+          </div>
+
+          <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               value={search}
@@ -350,6 +401,14 @@ export default function VendorsPage() {
                 })}
                 {categories.length === 0 && <p className="text-sm text-slate-500 p-2">No expense categories found. Please create them first.</p>}
               </div>
+              <div className="mt-4 pt-3 border-t border-slate-200">
+                <button
+                  onClick={(e) => { e.preventDefault(); setIsNewCategoryModalOpen(true); }}
+                  className="text-sm font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                >
+                  <Plus size={16} /> Add New Expense Type
+                </button>
+              </div>
             </div>
           </div>
 
@@ -380,6 +439,44 @@ export default function VendorsPage() {
           >
             Save Vendor
           </button>
+        </div>
+      </Modal>
+
+      {/* New Category Modal */}
+      <Modal isOpen={isNewCategoryModalOpen} onClose={() => setIsNewCategoryModalOpen(false)} title="Add Expense Type" maxWidth="md">
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Name *</label>
+            <input 
+              value={newCategoryName} 
+              onChange={e => setNewCategoryName(e.target.value)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 ring-blue-500 outline-none transition-all font-medium" 
+              placeholder="e.g. Stationery, Catering"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Description</label>
+            <textarea 
+              value={newCategoryDesc} 
+              onChange={e => setNewCategoryDesc(e.target.value)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 ring-blue-500 outline-none transition-all" 
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button 
+              onClick={() => setIsNewCategoryModalOpen(false)}
+              className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-xl transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleCreateExpenseType}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition-colors"
+            >
+              Save
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

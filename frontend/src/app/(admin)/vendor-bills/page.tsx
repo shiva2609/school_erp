@@ -34,12 +34,13 @@ export default function VendorBillsPage() {
   const push = useResolvedPush();
   const branchParam = selectedBranch ? `branch_id=${selectedBranch}` : '';
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'GENERAL' | 'COMMUTE'>('GENERAL');
   
   const [rejectingBill, setRejectingBill] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
   const { data: bills, loading, refetch } = useApi<VendorBill[]>(
-    `/vendor-bills/?${branchParam}&search=${search}`
+    `/vendor-bills/?${branchParam}&category=${activeTab}&search=${search}`
   );
 
   const handleUpdateStatus = async (id: string, status: string, reason: string = '') => {
@@ -86,8 +87,23 @@ export default function VendorBillsPage() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center gap-4 bg-slate-50/50">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-4 bg-slate-50/50">
+          <div className="flex bg-slate-200/50 p-1 rounded-xl w-fit">
+            <button
+              onClick={() => setActiveTab('GENERAL')}
+              className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'GENERAL' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              General Bills
+            </button>
+            <button
+              onClick={() => setActiveTab('COMMUTE')}
+              className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'COMMUTE' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Commute Bills
+            </button>
+          </div>
+
+          <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               value={search}

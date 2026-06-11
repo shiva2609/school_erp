@@ -62,6 +62,10 @@ class VendorViewSet(viewsets.ModelViewSet):
         if status_val:
             qs = qs.filter(status=status_val)
             
+        category_val = self.request.query_params.get('category')
+        if category_val:
+            qs = qs.filter(category=category_val)
+            
         return qs.distinct()
 
     def perform_create(self, serializer):
@@ -101,6 +105,10 @@ class VendorBillViewSet(viewsets.ModelViewSet):
         if vendor_id:
             qs = qs.filter(vendor_id=vendor_id)
             
+        category_val = self.request.query_params.get('category')
+        if category_val:
+            qs = qs.filter(category=category_val)
+            
         return qs
 
     def create(self, request, *args, **kwargs):
@@ -114,27 +122,37 @@ class VendorBillViewSet(viewsets.ModelViewSet):
         if not vendor_id or not items_data:
             return Response({"error": "Vendor and items are required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        try:
+            vendor = Vendor.objects.get(id=vendor_id, tenant=user.tenant, branch=branch)
+        except Vendor.DoesNotExist:
+            return Response({"error": "Vendor not found."}, status=status.HTTP_400_BAD_REQUEST)
+
         with transaction.atomic():
             year = timezone.now().year
-            last_bill = VendorBill.objects.filter(branch=branch, bill_id__startswith=f'BILL-{year}-').order_by('-created_at').first()
+            
+            bill_prefix = 'CBILL' if vendor.category == 'COMMUTE' else 'BILL'
+            vch_prefix = 'CVCH' if vendor.category == 'COMMUTE' else 'VCH'
+            
+            last_bill = VendorBill.objects.filter(branch=branch, bill_id__startswith=f'{bill_prefix}-{year}-').order_by('-created_at').first()
             if last_bill:
                 last_seq = int(last_bill.bill_id.split('-')[-1])
             else:
                 last_seq = 0
-            bill_id = f"BILL-{year}-{last_seq + 1:06d}"
+            bill_id = f"{bill_prefix}-{year}-{last_seq + 1:06d}"
 
-            last_voucher = VendorBill.objects.filter(branch=branch, voucher_number__startswith=f'VCH-{year}-').order_by('-created_at').first()
+            last_voucher = VendorBill.objects.filter(branch=branch, voucher_number__startswith=f'{vch_prefix}-{year}-').order_by('-created_at').first()
             if last_voucher:
                 last_vseq = int(last_voucher.voucher_number.split('-')[-1])
             else:
                 last_vseq = 0
-            voucher_number = f"VCH-{year}-{last_vseq + 1:06d}"
+            voucher_number = f"{vch_prefix}-{year}-{last_vseq + 1:06d}"
 
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             bill = serializer.save(
                 tenant=user.tenant, 
                 branch=branch, 
+                category=vendor.category,
                 bill_id=bill_id, 
                 voucher_number=voucher_number,
                 submitted_by=user,
