@@ -179,10 +179,21 @@ export default function StudentForm({
     if (formData.branch) {
       api.get(`/tenants/academic-years/?branch_id=${formData.branch}`).then(res => {
         const arr = res.data?.data ?? res.data?.results ?? res.data;
-        setAcademicYears(Array.isArray(arr) ? arr : []);
+        const years = Array.isArray(arr) ? arr : [];
+        setAcademicYears(years);
+        
+        // Auto-select active year for new admissions
+        if (!isEdit && !formData.academic_year && years.length > 0) {
+          const activeYear = years.find((y: any) => y.is_active);
+          if (activeYear) {
+            setFormData(prev => ({ ...prev, academic_year: activeYear.id }));
+          } else {
+            setFormData(prev => ({ ...prev, academic_year: years[0].id }));
+          }
+        }
       });
     }
-  }, [formData.branch]);
+  }, [formData.branch, isEdit, formData.academic_year]);
 
   useEffect(() => {
     if (formData.branch && formData.academic_year) {
