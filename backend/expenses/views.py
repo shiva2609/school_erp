@@ -1,10 +1,11 @@
 from datetime import datetime
 import uuid
 
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+# Removed invalid line
 from django.utils import timezone
 from django.db.models import Sum, Max
 from django.db import transaction
@@ -20,12 +21,8 @@ from accounts.utils import (
 )
 from tenants.models import Branch
 from .approval import EXPENSE_AUTO_APPROVE_MAX, user_can_approve_submitted_expense
-from .models import ExpenseCategory, Vendor, Expense, TransactionLog
-from .other_income_presets import (
-    MANUAL_OTHER_INCOME_CATEGORY_PRESETS,
-    RESERVED_MANUAL_OTHER_INCOME_CATEGORIES,
-)
-from .serializers import ExpenseCategorySerializer, VendorSerializer, ExpenseSerializer, TransactionLogSerializer
+from .models import ExpenseCategory, Vendor, Expense, TransactionLog, VendorBill, VendorBillItem
+from .serializers import ExpenseCategorySerializer, VendorSerializer, ExpenseSerializer, TransactionLogSerializer, VendorBillSerializer
 
 
 class ExpenseCategoryViewSet(viewsets.ModelViewSet):
@@ -48,18 +45,188 @@ class ExpenseCategoryViewSet(viewsets.ModelViewSet):
 class VendorViewSet(viewsets.ModelViewSet):
     serializer_class = VendorSerializer
     permission_classes = [IsAuthenticated, IsAccountantOrAbove]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name', 'pan_number', 'aadhaar', 'mobile', 'email']
 
     def get_queryset(self):
-        qs = filter_queryset_for_user_tenant(
-            Vendor.objects.all(), self.request.user, 'branch__tenant'
-        )
+        qs = filter_queryset_for_user_tenant(Vendor.objects.all(), self.request.user)
         branch_id = get_validated_branch_id(self.request.user, self.request.query_params.get('branch_id'))
         if branch_id:
-            qs = qs.filter(branch_id=branch_id)
-        return qs
+            qs = qs.filter(branches__id=branch_id)
+            
+        vtype = self.request.query_params.get('type')
+        if vtype:
+            qs = qs.filter(vendor_type=vtype)
+            
+        status_val = self.request.query_params.get('status')
+        if status_val:
+            qs = qs.filter(status=status_val)
+            
+        return qs.distinct()
 
     def perform_create(self, serializer):
         serializer.save(tenant=self.request.user.tenant)
+
+class VendorBillViewSet(viewsets.ModelViewSet):
+    serializer_class = VendorBillSerializer
+    permission_classes = [IsAuthenticated, IsAccountantOrAbove]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['bill_id', 'voucher_number', 'vendor__name']
+
+    def get_queryset(self):
+        qs = filter_queryset_for_user_tenant(
+            VendorBill.objects.all(), self.request.user, 'branch__tenant'
+        ).select_related('vendor', 'branch', 'submitted_by').prefetch_related('items')
+        
+        branch_id = get_validated_branch_id(self.request.user, self.request.query_params.get('branch_id'))
+        if branch_id:
+            qs = qs.filter(branch_id=branch_id)
+            
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        if start_date:
+            qs = qs.filter(bill_date__gte=start_date)
+        if end_date:
+            qs = qs.filter(bill_date__lte=end_date)
+            
+        status_val = self.request.query_params.get('status')
+        if status_val:
+            qs = qs.filter(status=status_val)
+            
+        payment_mode = self.request.query_params.get('payment_mode')
+        if payment_mode:
+            qs = qs.filter(payment_mode=payment_mode)
+            
+        vendor_id = self.request.query_params.get('vendor')
+        if vendor_id:
+            qs = qs.filter(vendor_id=vendor_id)
+            
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        branch = user.branch
+        if not branch:
+            return Response({"error": "No branch assigned."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_id = request.data.get('vendor')
+        items_data = request.data.get('items', [])
+        if not vendor_id or not items_data:
+            return Response({"error": "Vendor and items are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            year = timezone.now().year
+            last_bill = VendorBill.objects.filter(branch=branch, bill_id__startswith=f'BILL-{year}-').order_by('-created_at').first()
+            if last_bill:
+                last_seq = int(last_bill.bill_id.split('-')[-1])
+            else:
+                last_seq = 0
+            bill_id = f"BILL-{year}-{last_seq + 1:06d}"
+
+            last_voucher = VendorBill.objects.filter(branch=branch, voucher_number__startswith=f'VCH-{year}-').order_by('-created_at').first()
+            if last_voucher:
+                last_vseq = int(last_voucher.voucher_number.split('-')[-1])
+            else:
+                last_vseq = 0
+            voucher_number = f"VCH-{year}-{last_vseq + 1:06d}"
+
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            bill = serializer.save(
+                tenant=user.tenant, 
+                branch=branch, 
+                bill_id=bill_id, 
+                voucher_number=voucher_number,
+                submitted_by=user,
+                status='SUBMITTED'
+            )
+
+            for item in items_data:
+                VendorBillItem.objects.create(
+                    bill=bill,
+                    expense_type_id=item.get('expense_type'),
+                    expense_type_name=item.get('expense_type_name', 'Unknown'),
+                    amount=Decimal(str(item.get('amount', 0)))
+                )
+            
+            bill = self.get_queryset().get(id=bill.id)
+            return Response(self.get_serializer(bill).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['patch'], url_path='status')
+    def update_status(self, request, pk=None):
+        bill = self.get_object()
+        new_status = request.data.get('status')
+        if new_status == 'APPROVED' and bill.status == 'SUBMITTED':
+            if not user_can_approve_submitted_expense(request.user, bill.total_amount):
+                return Response({'detail': 'Not authorized for this amount.'}, status=403)
+            
+            bill.status = 'APPROVED'
+            bill.approved_by = request.user
+            bill.approved_at = timezone.now()
+            bill.save()
+            
+            TransactionLog.objects.create(
+                tenant=bill.tenant, branch=bill.branch,
+                transaction_type='EXPENSE', category='Vendor Bill',
+                reference_model='VendorBill', reference_id=bill.id,
+                amount=bill.net_amount, description=f"Payment for {bill.bill_id}",
+                transaction_date=bill.bill_date,
+            )
+            return Response({'success': True, 'data': self.get_serializer(bill).data})
+
+        if new_status == 'REJECTED' and bill.status == 'SUBMITTED':
+            if not user_can_approve_submitted_expense(request.user, bill.total_amount):
+                return Response({'detail': 'Not authorized.'}, status=403)
+            bill.status = 'REJECTED'
+            bill.rejection_reason = request.data.get('reason', '')
+            bill.save()
+            return Response({'success': True, 'data': self.get_serializer(bill).data})
+
+        return Response({'detail': f'Cannot transition to {new_status}'}, status=400)
+
+    @action(detail=True, methods=['get'], url_path='receipt')
+    def generate_receipt(self, request, pk=None):
+        bill = self.get_object()
+        from document_templates.models import DocumentTemplate
+        from document_templates.services import generate_pdf_from_template, build_vendor_bill_receipt_context
+        from django.http import HttpResponse
+
+        tenant = bill.tenant
+        template = DocumentTemplate.objects.filter(
+            tenant=tenant, type='VENDOR_BILL_RECEIPT', is_active=True
+        ).order_by('-is_default', '-created_at').first()
+
+        if not template:
+            # Create a fallback default configuration if it doesn't exist
+            template, _ = DocumentTemplate.objects.get_or_create(
+                tenant=tenant,
+                type='VENDOR_BILL_RECEIPT',
+                is_default=True,
+                defaults={
+                    'name': 'Default Vendor Bill Receipt',
+                    'mode': 'CONFIG',
+                    'is_active': True,
+                    'config_data': {
+                        'primary_color': '#2563eb',
+                        'background_color': '#ffffff',
+                        'text_color': '#334155'
+                    }
+                }
+            )
+
+        context = build_vendor_bill_receipt_context(bill, request=request)
+        try:
+            pdf_bytes = generate_pdf_from_template(template, context)
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="Receipt_{bill.bill_id}.pdf"'
+            return response
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception('Vendor bill receipt generation failed')
+            return Response(
+                {'error': 'Could not generate PDF. Please try again or contact support.'},
+                status=500
+            )
 
 
 class ExpenseViewSet(viewsets.ModelViewSet):

@@ -2,7 +2,7 @@ from rest_framework import serializers
 from decimal import Decimal
 
 from .approval import EXPENSE_AUTO_APPROVE_MAX, EXPENSE_ZONAL_APPROVE_MAX
-from .models import ExpenseCategory, Vendor, Expense, TransactionLog
+from .models import ExpenseCategory, Vendor, Expense, TransactionLog, VendorBill, VendorBillItem
 from tenants.models import Branch
 
 class ExpenseCategorySerializer(serializers.ModelSerializer):
@@ -16,6 +16,26 @@ class VendorSerializer(serializers.ModelSerializer):
         model = Vendor
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'tenant']
+
+class VendorBillItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VendorBillItem
+        fields = '__all__'
+        read_only_fields = ['id', 'bill']
+
+class VendorBillSerializer(serializers.ModelSerializer):
+    items = VendorBillItemSerializer(many=True, read_only=True)
+    vendor_display = serializers.CharField(source='vendor.name', read_only=True)
+    vendor_type = serializers.CharField(source='vendor.vendor_type', read_only=True)
+
+    class Meta:
+        model = VendorBill
+        fields = '__all__'
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'tenant', 'branch', 
+            'bill_id', 'voucher_number', 'status', 'submitted_by', 
+            'approved_by', 'approved_at', 'rejection_reason'
+        ]
 
 class ExpenseSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -59,4 +79,5 @@ class TransactionLogSerializer(serializers.ModelSerializer):
         model = TransactionLog
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'tenant']
+
 

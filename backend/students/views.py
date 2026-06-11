@@ -418,7 +418,14 @@ class AdmissionApplicationViewSet(viewsets.ModelViewSet):
 
 class StudentViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter]
-    search_fields = ['first_name', 'last_name', 'admission_number']
+    search_fields = [
+        'first_name', 
+        'last_name', 
+        'admission_number',
+        'father_phone',
+        'mother_phone',
+        'guardian_phone'
+    ]
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:

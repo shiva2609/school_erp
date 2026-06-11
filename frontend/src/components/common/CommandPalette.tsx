@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useResolvedPush } from '@/hooks/useResolvedNavigation';
-import { Search, Command, Users, Receipt, Calendar, CreditCard, LayoutDashboard, Building2, ArrowRight, Zap, Megaphone } from 'lucide-react';
+import { Search, Command, Users, Receipt, Calendar, CreditCard, LayoutDashboard, Building2, ArrowRight, Zap, Megaphone, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/lib/axios';
 import { useBranch } from './BranchContext';
@@ -14,6 +14,9 @@ const STAFF_NAV_ITEMS = [
   { id: 'students', label: 'Student Directory', icon: Users, path: '/students', shortcut: 'S' },
   { id: 'fees', label: 'Financial Desk (Fees)', icon: Receipt, path: '/fees', shortcut: 'F' },
   { id: 'expenses', label: 'Expense Ledger', icon: CreditCard, path: '/expenses', shortcut: 'E' },
+  { id: 'vendors', label: 'Vendor Management', icon: Users, path: '/vendors', shortcut: 'V' },
+  { id: 'vendor-bills', label: 'Vendor Bills', icon: Receipt, path: '/vendor-bills', shortcut: 'B' },
+  { id: 'vendor-bills-reports', label: 'Vendor Bill Reports', icon: FileSpreadsheet, path: '/vendor-bills/reports', shortcut: 'R' },
   { id: 'attendance', label: 'Daily Attendance', icon: Calendar, path: '/attendance', shortcut: 'A' },
 ];
 

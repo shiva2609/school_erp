@@ -10,6 +10,7 @@ TEMPLATE_TYPES = [
     ('HALL_TICKET', 'Hall Ticket'),
     ('REPORT_CARD', 'Report Card (per student)'),
     ('REPORT_CARD_SUMMARY', 'Report Card Summary (section)'),
+    ('VENDOR_BILL_RECEIPT', 'Vendor Bill Receipt'),
 ]
 
 TEMPLATE_MODES = [

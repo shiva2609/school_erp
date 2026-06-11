@@ -161,6 +161,51 @@ def build_fee_receipt_context(payment, request=None):
         },
     }
 
+def build_vendor_bill_receipt_context(bill, request=None):
+    tenant = bill.tenant
+    branch = bill.branch
+    logo = absolute_media_url(request, tenant.logo_url or '')
+    printed = timezone.now().date()
+    
+    items = []
+    for item in bill.items.all():
+        items.append({
+            'expense_type_name': item.expense_type_name,
+            'amount': str(item.amount)
+        })
+
+    return {
+        'tenant_name': tenant.name,
+        'tenant_logo': logo,
+        'tenant_address': tenant.address or '',
+        'tenant_city': tenant.city or '',
+        'tenant_state': tenant.state or '',
+        'tenant_pincode': getattr(tenant, 'pincode', '') or '',
+        'tenant_phone': getattr(tenant, 'owner_phone', '') or '',
+        'branch_name': branch.name if branch else '',
+        'branch_code': branch.branch_code if branch else '',
+        'vendor': {
+            'name': bill.vendor.name,
+            'contact_person': bill.vendor.contact_person or '',
+            'mobile': bill.vendor.mobile or '',
+            'email': bill.vendor.email or '',
+            'pan_number': bill.vendor.pan_number or '',
+        },
+        'bill': {
+            'bill_id': bill.bill_id,
+            'voucher_number': bill.voucher_number or '',
+            'bill_date': str(bill.bill_date),
+            'printed_date': str(printed),
+            'total_amount': str(bill.total_amount),
+            'tds_percentage': str(bill.tds_percentage),
+            'tds_amount': str(bill.tds_amount),
+            'net_amount': str(bill.net_amount),
+            'payment_mode': bill.get_payment_mode_display() if hasattr(bill, 'get_payment_mode_display') else bill.payment_mode,
+            'status': bill.get_status_display() if hasattr(bill, 'get_status_display') else bill.status,
+            'items': items,
+        }
+    }
+
 
 def extract_body_html(html_string: str) -> str:
     match = re.search(r'<body[^>]*>(.*?)</body>', html_string, re.DOTALL | re.IGNORECASE)
@@ -207,7 +252,105 @@ def build_document_html(template, context_dict: dict) -> str:
         return _build_transfer_certificate_html(
             context_dict, cfg, school_name, logo_url, primary_color, bg_color, text_color, branch_name,
         )
+    if template.type == 'VENDOR_BILL_RECEIPT':
+        return _build_vendor_bill_receipt_html(
+            context_dict, cfg, school_name, logo_url, primary_color, bg_color, text_color, branch_name,
+        )
     return f"<html><body><h1>Document type {escape(template.type)} not configured fully.</h1></body></html>"
+
+
+def _build_vendor_bill_receipt_html(ctx, cfg, school_name, logo_url, primary, bg, text, branch):
+    bill = ctx.get('bill', {})
+    vendor = ctx.get('vendor', {})
+    logo_html = f'<img src="{logo_url}" style="height:64px;max-width:200px;object-fit:contain;" />' if logo_url else ''
+    
+    rows = []
+    for i, item in enumerate(bill.get('items', []), 1):
+        rows.append(f"<tr><td>{i}</td><td>{escape(str(item.get('expense_type_name','')))}</td><td>₹{escape(str(item.get('amount','0')))}</td></tr>")
+    rows_html = '\n'.join(rows)
+
+    return f"""
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            @page {{ size: A4; margin: 15mm; }}
+            body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: {text}; background: {bg}; padding: 0; font-size: 10pt; }}
+            .header {{ text-align: center; font-size: 18pt; font-weight: bold; margin-bottom: 20px; color: {primary}; }}
+            .section {{ display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 11pt; }}
+            .table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
+            .table th, .table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+            .table th {{ background: {primary}; color: white; }}
+            .summary {{ text-align: right; font-weight: bold; font-size: 12pt; }}
+            .footer {{ text-align: center; font-size: 9pt; color: #666; margin-top: 50px; }}
+            .cut-line {{ border-top: 1px dashed #ccc; margin: 40px 0; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            {logo_html}<br/>
+            {escape(school_name)}<br/>
+            <span style="font-size: 14pt;">Vendor Bill Receipt - School Copy</span>
+        </div>
+        <div class="section">
+            <div>
+                <b>Bill ID:</b> {escape(bill.get('bill_id', ''))}<br/>
+                <b>Voucher Number:</b> {escape(bill.get('voucher_number', ''))}<br/>
+                <b>Payment Mode:</b> {escape(bill.get('payment_mode', ''))}<br/>
+                <b>TDS %:</b> {escape(bill.get('tds_percentage', '0'))}%
+            </div>
+            <div>
+                <b>Vendor:</b> {escape(vendor.get('name', ''))}<br/>
+                <b>Bill Date:</b> {escape(bill.get('bill_date', ''))}<br/>
+                <b>Status:</b> {escape(bill.get('status', ''))}<br/>
+                <b>Printed:</b> {escape(bill.get('printed_date', ''))}
+            </div>
+        </div>
+        <table class="table">
+            <tr><th>Sl No</th><th>Expense Type</th><th>Amount</th></tr>
+            {rows_html}
+        </table>
+        <div class="summary">
+            Total: ₹{escape(bill.get('total_amount', '0'))}<br/>
+            TDS Amount: ₹{escape(bill.get('tds_amount', '0'))}<br/>
+            Net Amount: ₹{escape(bill.get('net_amount', '0'))}<br/>
+        </div>
+        <div class="footer">This is an auto-generated bill receipt.<br/><br/><br/>Accounts Manager Signature</div>
+        
+        <div class="cut-line"></div>
+        
+        <div class="header">
+            {logo_html}<br/>
+            {escape(school_name)}<br/>
+            <span style="font-size: 14pt;">Vendor Bill Receipt - Vendor Copy</span>
+        </div>
+        <div class="section">
+            <div>
+                <b>Bill ID:</b> {escape(bill.get('bill_id', ''))}<br/>
+                <b>Voucher Number:</b> {escape(bill.get('voucher_number', ''))}<br/>
+                <b>Payment Mode:</b> {escape(bill.get('payment_mode', ''))}<br/>
+                <b>TDS %:</b> {escape(bill.get('tds_percentage', '0'))}%
+            </div>
+            <div>
+                <b>Vendor:</b> {escape(vendor.get('name', ''))}<br/>
+                <b>Bill Date:</b> {escape(bill.get('bill_date', ''))}<br/>
+                <b>Status:</b> {escape(bill.get('status', ''))}<br/>
+                <b>Printed:</b> {escape(bill.get('printed_date', ''))}
+            </div>
+        </div>
+        <table class="table">
+            <tr><th>Sl No</th><th>Expense Type</th><th>Amount</th></tr>
+            {rows_html}
+        </table>
+        <div class="summary">
+            Total: ₹{escape(bill.get('total_amount', '0'))}<br/>
+            TDS Amount: ₹{escape(bill.get('tds_amount', '0'))}<br/>
+            Net Amount: ₹{escape(bill.get('net_amount', '0'))}<br/>
+        </div>
+        <div class="footer">This is an auto-generated bill receipt.<br/><br/><br/>Accounts Manager Signature</div>
+    </body>
+    </html>
+    """
 
 
 def generate_pdf_from_template(template, context_dict: dict) -> bytes:
