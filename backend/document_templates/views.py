@@ -347,7 +347,33 @@ class DocumentTemplateViewSet(viewsets.ModelViewSet):
                 'collected_by': 'Office Staff',
                 'amount_in_words': rupee_amount_in_words(demo_payment_amount),
                 'balance': '5000.00',
-            }
+            },
+            'vendor': {
+                'name': 'Demo Vendor Pvt Ltd',
+                'contact_person': 'Jane Doe',
+                'mobile': '9876543210',
+                'email': 'vendor@example.com',
+                'pan_number': 'ABCDE1234F',
+            },
+            'bill': {
+                'bill_id': 'BILL-2026-0001',
+                'voucher_number': 'VCH-2026-0001',
+                'bill_date': '2026-05-10',
+                'printed_date': '12 May 2026 10:30:00 am',
+                'total_amount': '15000.00',
+                'tds_percentage': '2.00',
+                'tds_amount': '300.00',
+                'net_amount': '14700.00',
+                'payment_mode': 'Bank Transfer',
+                'status': 'Paid',
+                'description': 'Office supplies and printing paper',
+                'items': [
+                    {'expense_type_name': 'Stationery', 'amount': '10000.00'},
+                    {'expense_type_name': 'Printing', 'amount': '5000.00'},
+                ],
+            },
+            'amount_in_words': rupee_amount_in_words(Decimal('14700.00')),
+            'processed_by': 'Accountant Name',
         }
 
         try:
