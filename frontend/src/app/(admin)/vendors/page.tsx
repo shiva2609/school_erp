@@ -225,7 +225,7 @@ export default function VendorsPage() {
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingVendor ? "Edit Vendor" : "Add New Vendor"} size="3xl">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingVendor ? "Edit Vendor" : "Add New Vendor"} maxWidth="3xl">
         <div className="p-6 space-y-8">
           
           {/* Vendor Type Selection */}
