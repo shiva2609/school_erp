@@ -35,14 +35,17 @@ export default function VendorsPage() {
     `/vendors/?${branchParam}&category=${activeTab}&search=${search}`
   );
   const { data: categoriesData, refetch: refetchCategories } = useApi<any[]>(`/expenses/categories/${branchParam ? `?${branchParam}` : ''}`);
+  const { data: branchesData } = useApi<any[]>('/tenants/branches/');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [isNewCategoryModalOpen, setIsNewCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryDesc, setNewCategoryDesc] = useState('');
+  const [newCategoryBranch, setNewCategoryBranch] = useState('');
   
   const categories = Array.isArray(categoriesData) ? categoriesData : [];
+  const branches = Array.isArray(branchesData) ? branchesData : [];
   
   const [formData, setFormData] = useState<Partial<Vendor>>({
     vendor_type: 'COMPANY',
@@ -93,7 +96,8 @@ export default function VendorsPage() {
       pan_number: v.pan_number || '',
       aadhaar: v.aadhaar || '',
       is_active: v.is_active,
-      associated_expense_types: v.associated_expense_types || []
+      associated_expense_types: v.associated_expense_types || [],
+      branch: v.branch || undefined
     });
     setIsModalOpen(true);
   };
@@ -117,17 +121,36 @@ export default function VendorsPage() {
         return;
       }
 
+      const payload = { ...formData };
+      if (!payload.branch && !selectedBranch) {
+        toast.error("Please select a branch for this vendor");
+        return;
+      }
+      payload.branch = payload.branch || selectedBranch;
+
       if (editingVendor) {
-        await api.patch(`/vendors/${editingVendor.id}/`, formData);
+        await api.patch(`/vendors/${editingVendor.id}/`, payload);
         toast.success("Vendor updated successfully");
       } else {
-        await api.post(`/vendors/`, formData);
+        await api.post(`/vendors/`, payload);
         toast.success("Vendor created successfully");
       }
       setIsModalOpen(false);
       refetch();
     } catch (err: any) {
-        toast.error(err.response?.data?.detail || "Failed to save vendor");
+      const data = err.response?.data;
+      let msg = 'Failed to save vendor';
+      if (data) {
+        if (typeof data === 'string') msg = data;
+        else if (data.detail) msg = data.detail;
+        else {
+          // DRF field errors: { field: ["error msg"] }
+          const firstField = Object.keys(data)[0];
+          const firstErr = data[firstField];
+          msg = Array.isArray(firstErr) ? `${firstField}: ${firstErr[0]}` : String(firstErr);
+        }
+      }
+      toast.error(msg);
     }
   };
 
@@ -136,11 +159,16 @@ export default function VendorsPage() {
       toast.error('Expense type name is required.');
       return;
     }
+    const branchIdToUse = selectedBranch || newCategoryBranch || formData.branch;
+    if (!branchIdToUse) {
+      toast.error('Please select a branch for this expense type.');
+      return;
+    }
     try {
       const res = await api.post(`/expenses/categories/`, {
         name: newCategoryName,
         description: newCategoryDesc,
-        branch_id: selectedBranch,
+        branch_id: branchIdToUse,
       });
       toast.success('Expense type created!');
       // Add to selected list
@@ -155,7 +183,18 @@ export default function VendorsPage() {
       // refetch categories so it appears in the list
       await refetchCategories();
     } catch (err: any) {
-      toast.error(err.response?.data?.name?.[0] || err.response?.data?.detail || 'Failed to create expense type.');
+      const data = err.response?.data;
+      let msg = 'Failed to create expense type.';
+      if (data) {
+        if (typeof data === 'string') msg = data;
+        else if (data.detail) msg = data.detail;
+        else {
+          const firstField = Object.keys(data)[0];
+          const firstErr = data[firstField];
+          msg = Array.isArray(firstErr) ? `${firstField}: ${firstErr[0]}` : String(firstErr);
+        }
+      }
+      toast.error(msg);
     }
   };
 
@@ -298,6 +337,24 @@ export default function VendorsPage() {
               </button>
             ))}
           </div>
+
+          {/* Branch Selection (Show if 'All Branches' is active globally) */}
+          {!selectedBranch && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Branch *</label>
+              <select
+                value={formData.branch || ''}
+                onChange={e => setFormData({ ...formData, branch: e.target.value })}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 ring-blue-500 outline-none transition-all font-medium"
+                disabled={!!editingVendor}
+              >
+                <option value="">Select a branch</option>
+                {branches.map((b: any) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-6">
             {formData.vendor_type === 'COMPANY' ? (
@@ -447,6 +504,21 @@ export default function VendorsPage() {
       {/* New Category Modal */}
       <Modal isOpen={isNewCategoryModalOpen} onClose={() => setIsNewCategoryModalOpen(false)} title="Add Expense Type" maxWidth="md">
         <div className="p-6 space-y-4">
+          {!selectedBranch && (!formData.branch) && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Branch *</label>
+              <select
+                value={newCategoryBranch}
+                onChange={e => setNewCategoryBranch(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 ring-blue-500 outline-none transition-all"
+              >
+                <option value="">Select a branch</option>
+                {branches.map((b: any) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Name *</label>
             <input 

@@ -48,7 +48,10 @@ class ExpenseCategoryViewSet(viewsets.ModelViewSet):
         if not branch_id:
             raise ValidationError({'branch_id': 'branch_id is required to create an expense category.'})
         try:
-            branch = Branch.objects.get(id=branch_id, tenant=user.tenant)
+            if user.tenant:
+                branch = Branch.objects.get(id=branch_id, tenant=user.tenant)
+            else:
+                branch = Branch.objects.get(id=branch_id)
         except Branch.DoesNotExist:
             raise ValidationError({'branch_id': 'Invalid branch.'})
         name = self.request.data.get('name', '')
@@ -59,7 +62,7 @@ class ExpenseCategoryViewSet(viewsets.ModelViewSet):
         while ExpenseCategory.objects.filter(branch=branch, code=code).exists():
             code = f"{base_code[:17]}_{counter}"
             counter += 1
-        serializer.save(tenant=user.tenant, branch=branch, code=code)
+        serializer.save(tenant=branch.tenant, branch=branch, code=code)
 
 
 class VendorViewSet(viewsets.ModelViewSet):
@@ -100,10 +103,13 @@ class VendorViewSet(viewsets.ModelViewSet):
         if not branch_id:
             raise ValidationError({'branch': 'branch is required.'})
         try:
-            branch = Branch.objects.get(id=branch_id, tenant=user.tenant)
+            if user.tenant:
+                branch = Branch.objects.get(id=branch_id, tenant=user.tenant)
+            else:
+                branch = Branch.objects.get(id=branch_id)
         except Branch.DoesNotExist:
             raise ValidationError({'branch': 'Invalid branch.'})
-        serializer.save(tenant=user.tenant, branch=branch)
+        serializer.save(tenant=branch.tenant, branch=branch)
 
 class VendorBillViewSet(viewsets.ModelViewSet):
     serializer_class = VendorBillSerializer
@@ -157,7 +163,10 @@ class VendorBillViewSet(viewsets.ModelViewSet):
             return Response({"error": "Vendor and items are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            vendor = Vendor.objects.get(id=vendor_id, tenant=user.tenant)
+            if user.tenant:
+                vendor = Vendor.objects.get(id=vendor_id, tenant=user.tenant)
+            else:
+                vendor = Vendor.objects.get(id=vendor_id)
         except Vendor.DoesNotExist:
             return Response({"error": "Vendor not found."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -184,7 +193,7 @@ class VendorBillViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             bill = serializer.save(
-                tenant=user.tenant, 
+                tenant=branch.tenant, 
                 branch=branch, 
                 category=vendor.category,
                 bill_id=bill_id, 
@@ -330,15 +339,18 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         category_name = self.request.data.get('category_name')
         category_id = self.request.data.get('category')
         if category_id:
-            category = ExpenseCategory.objects.get(id=category_id, tenant=user.tenant, branch=branch)
+            if user.tenant:
+                category = ExpenseCategory.objects.get(id=category_id, tenant=user.tenant, branch=branch)
+            else:
+                category = ExpenseCategory.objects.get(id=category_id, branch=branch)
         elif category_name:
             category, _ = ExpenseCategory.objects.get_or_create(
-                tenant=user.tenant, branch=branch, name=category_name,
+                tenant=branch.tenant, branch=branch, name=category_name,
                 defaults={'code': category_name[:10].upper().replace(' ', '_')}
             )
         else:
             category, _ = ExpenseCategory.objects.get_or_create(
-                tenant=user.tenant, branch=branch, name='General',
+                tenant=branch.tenant, branch=branch, name='General',
                 defaults={'code': 'GEN'}
             )
 
@@ -346,10 +358,13 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.data.get('vendor')
         vendor_obj = None
         if vendor_id:
-            vendor_obj = Vendor.objects.get(id=vendor_id, tenant=user.tenant, branch=branch)
+            if user.tenant:
+                vendor_obj = Vendor.objects.get(id=vendor_id, tenant=user.tenant, branch=branch)
+            else:
+                vendor_obj = Vendor.objects.get(id=vendor_id, branch=branch)
         elif vendor_name:
             vendor_obj, _ = Vendor.objects.get_or_create(
-                tenant=user.tenant, branch=branch, name=vendor_name
+                tenant=branch.tenant, branch=branch, name=vendor_name
             )
 
         # Use manually provided voucher number, or auto-generate
@@ -374,7 +389,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         if amount_val <= EXPENSE_AUTO_APPROVE_MAX:
             initial_status = 'APPROVED'
             expense = serializer.save(
-                tenant=user.tenant,
+                tenant=branch.tenant,
                 branch=branch,
                 expense_date=expense_date,
                 category=category,
@@ -386,7 +401,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                 voucher_number=voucher_number
             )
             TransactionLog.objects.create(
-                tenant=user.tenant, branch=branch,
+                tenant=branch.tenant, branch=branch,
                 transaction_type='EXPENSE', category=category.name,
                 reference_model='Expense', reference_id=expense.id,
                 amount=expense.amount, description=expense.title,
@@ -395,7 +410,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         else:
             initial_status = 'SUBMITTED'
             expense = serializer.save(
-                tenant=user.tenant,
+                tenant=branch.tenant,
                 branch=branch,
                 expense_date=expense_date,
                 category=category,

@@ -9,13 +9,27 @@ class ExpenseCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ExpenseCategory
         fields = '__all__'
-        read_only_fields = ['id', 'tenant']
+        read_only_fields = ['id', 'tenant', 'branch', 'code']
 
 class VendorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vendor
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'tenant']
+        read_only_fields = ['id', 'created_at', 'tenant', 'branch']
+        extra_kwargs = {'name': {'required': False, 'allow_blank': True}}
+
+    def validate(self, data):
+        vendor_type = data.get('vendor_type')
+        if vendor_type == 'INDIVIDUAL':
+            first_name = data.get('first_name', '')
+            last_name = data.get('last_name', '')
+            if not first_name:
+                raise serializers.ValidationError({'first_name': 'First name is required for individuals.'})
+            data['name'] = f"{first_name} {last_name}".strip()
+        elif vendor_type == 'COMPANY':
+            if not data.get('name'):
+                raise serializers.ValidationError({'name': 'Company name is required.'})
+        return data
 
 class VendorBillItemSerializer(serializers.ModelSerializer):
     class Meta:
