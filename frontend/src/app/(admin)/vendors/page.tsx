@@ -33,7 +33,7 @@ export default function VendorsPage() {
   const { data: vendors, loading, error, refetch } = useApi<Vendor[]>(
     `/vendors/?${branchParam}&category=${activeTab}&search=${search}`
   );
-  const { data: categoriesData } = useApi<any[]>(`/expenses/categories/${branchParam ? `?${branchParam}` : ''}`);
+  const { data: categoriesData, refetch: refetchCategories } = useApi<any[]>(`/expenses/categories/${branchParam ? `?${branchParam}` : ''}`);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
@@ -150,8 +150,7 @@ export default function VendorsPage() {
       setNewCategoryDesc('');
       setIsNewCategoryModalOpen(false);
       // refetch categories so it appears in the list
-      await useApi.mutate(`/expenses/categories/${branchParam ? `?${branchParam}` : ''}`); // Note: Since useApi is a hook, we can just do a window reload or rely on a mutate if we had SWR. We can just append it locally or rely on refetch. Wait, useApi doesn't export mutate directly like this unless configured. Let's just reload or refetch? We have `categoriesData`. But we can't trigger refetch of `categoriesData` because it's from a separate `useApi` call. We can reload the page or add it to local state? We don't have `refetchCategories`. Wait, I will just window.location.reload() or we can add `refetch` logic. Actually, we can add a local state for the newly created ones.
-      window.location.reload(); // Simple fallback
+      await refetchCategories();
     } catch (err: any) {
       toast.error(err.response?.data?.name?.[0] || err.response?.data?.detail || 'Failed to create expense type.');
     }

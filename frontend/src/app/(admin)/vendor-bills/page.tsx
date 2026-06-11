@@ -20,6 +20,7 @@ interface VendorBill {
   payment_mode: string;
   bill_date: string;
   status: string;
+  items?: { id: string; expense_type_name: string; }[];
 }
 
 const statusStyles: Record<string, any> = {
@@ -118,12 +119,16 @@ export default function VendorBillsPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
-                <th className="p-4 pl-6">Bill / Voucher ID</th>
-                <th className="p-4">Vendor</th>
-                <th className="p-4">Amount Details</th>
-                <th className="p-4">Payment</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 pr-6 text-right">Actions</th>
+                <th className="p-4 pl-6 whitespace-nowrap">Vendor Name</th>
+                <th className="p-4 whitespace-nowrap">Expense Types</th>
+                <th className="p-4 whitespace-nowrap">Voucher Number</th>
+                <th className="p-4 whitespace-nowrap">Payment Mode</th>
+                <th className="p-4 whitespace-nowrap">Total Amount</th>
+                <th className="p-4 whitespace-nowrap">TDS Amount</th>
+                <th className="p-4 whitespace-nowrap">Net Amount</th>
+                <th className="p-4 whitespace-nowrap">Bill Date</th>
+                <th className="p-4 whitespace-nowrap">Status</th>
+                <th className="p-4 pr-6 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -138,26 +143,37 @@ export default function VendorBillsPage() {
                 return (
                   <tr key={bill.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="p-4 pl-6">
-                      <p className="font-bold text-slate-800">{bill.bill_id}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{bill.voucher_number}</p>
-                    </td>
-                    <td className="p-4">
                       <p className="font-bold text-slate-700">{bill.vendor_display}</p>
-                      <p className="text-xs text-slate-500">{bill.bill_date}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{bill.bill_id}</p>
                     </td>
                     <td className="p-4">
-                      <div className="space-y-0.5">
-                        <p className="text-xs text-slate-500">Gross: <span className="font-medium text-slate-700">₹{bill.total_amount}</span></p>
-                        {parseFloat(bill.tds_amount) > 0 && (
-                          <p className="text-xs text-rose-500">- TDS: ₹{bill.tds_amount}</p>
-                        )}
-                        <p className="text-sm font-black text-emerald-600">Net: ₹{bill.net_amount}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {bill.items?.map(item => (
+                          <span key={item.id} className="bg-slate-100 text-slate-600 text-[10px] px-2 py-0.5 rounded-full border border-slate-200">
+                            {item.expense_type_name}
+                          </span>
+                        ))}
                       </div>
+                    </td>
+                    <td className="p-4 text-slate-600 font-medium">
+                      {bill.voucher_number}
                     </td>
                     <td className="p-4">
                       <span className="px-2 py-1 rounded bg-slate-100 text-slate-600 text-[10px] font-bold tracking-wider">
                         {bill.payment_mode}
                       </span>
+                    </td>
+                    <td className="p-4 font-medium text-slate-700">
+                      ₹{bill.total_amount}
+                    </td>
+                    <td className="p-4 text-rose-500 font-medium text-sm">
+                      {parseFloat(bill.tds_amount) > 0 ? `- ₹${bill.tds_amount}` : '-'}
+                    </td>
+                    <td className="p-4 font-black text-emerald-600">
+                      ₹{bill.net_amount}
+                    </td>
+                    <td className="p-4 text-slate-500 text-sm">
+                      {bill.bill_date}
                     </td>
                     <td className="p-4">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusStyle.className}`}>
