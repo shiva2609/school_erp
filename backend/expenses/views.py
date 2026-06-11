@@ -39,20 +39,40 @@ class ExpenseCategoryViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant)
+        from rest_framework.exceptions import ValidationError
+        user = self.request.user
+        branch_id = get_validated_branch_id(user, self.request.query_params.get('branch_id') or self.request.data.get('branch_id'))
+        if not branch_id:
+            # Fall back to user's own branch
+            branch_id = str(user.branch_id) if getattr(user, 'branch_id', None) else None
+        if not branch_id:
+            raise ValidationError({'branch_id': 'branch_id is required to create an expense category.'})
+        try:
+            branch = Branch.objects.get(id=branch_id, tenant=user.tenant)
+        except Branch.DoesNotExist:
+            raise ValidationError({'branch_id': 'Invalid branch.'})
+        name = self.request.data.get('name', '')
+        code = name[:20].upper().replace(' ', '_') if name else 'GEN'
+        # Ensure code uniqueness within branch
+        base_code = code
+        counter = 1
+        while ExpenseCategory.objects.filter(branch=branch, code=code).exists():
+            code = f"{base_code[:17]}_{counter}"
+            counter += 1
+        serializer.save(tenant=user.tenant, branch=branch, code=code)
 
 
 class VendorViewSet(viewsets.ModelViewSet):
     serializer_class = VendorSerializer
     permission_classes = [IsAuthenticated, IsAccountantOrAbove]
     filter_backends = [filters.SearchFilter]
-    search_fields = ['name', 'pan_number', 'aadhaar', 'mobile', 'email']
+    search_fields = ['name', 'pan_number', 'aadhaar', 'phone', 'email']
 
     def get_queryset(self):
-        qs = filter_queryset_for_user_tenant(Vendor.objects.all(), self.request.user)
+        qs = filter_queryset_for_user_tenant(Vendor.objects.all(), self.request.user, 'tenant')
         branch_id = get_validated_branch_id(self.request.user, self.request.query_params.get('branch_id'))
         if branch_id:
-            qs = qs.filter(branches__id=branch_id)
+            qs = qs.filter(branch_id=branch_id)
             
         vtype = self.request.query_params.get('type')
         if vtype:
@@ -69,7 +89,21 @@ class VendorViewSet(viewsets.ModelViewSet):
         return qs.distinct()
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant)
+        from rest_framework.exceptions import ValidationError
+        user = self.request.user
+        # Try branch from request body first, then query params, then user's own branch
+        branch_id = (
+            self.request.data.get('branch') or
+            get_validated_branch_id(user, self.request.query_params.get('branch_id')) or
+            (str(user.branch_id) if getattr(user, 'branch_id', None) else None)
+        )
+        if not branch_id:
+            raise ValidationError({'branch': 'branch is required.'})
+        try:
+            branch = Branch.objects.get(id=branch_id, tenant=user.tenant)
+        except Branch.DoesNotExist:
+            raise ValidationError({'branch': 'Invalid branch.'})
+        serializer.save(tenant=user.tenant, branch=branch)
 
 class VendorBillViewSet(viewsets.ModelViewSet):
     serializer_class = VendorBillSerializer
@@ -123,7 +157,7 @@ class VendorBillViewSet(viewsets.ModelViewSet):
             return Response({"error": "Vendor and items are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            vendor = Vendor.objects.get(id=vendor_id, tenant=user.tenant, branch=branch)
+            vendor = Vendor.objects.get(id=vendor_id, tenant=user.tenant)
         except Vendor.DoesNotExist:
             return Response({"error": "Vendor not found."}, status=status.HTTP_400_BAD_REQUEST)
 

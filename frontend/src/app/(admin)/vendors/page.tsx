@@ -22,6 +22,7 @@ interface Vendor {
   is_active: boolean;
   category: 'GENERAL' | 'COMMUTE';
   associated_expense_types: string[];
+  branch?: string;
 }
 
 export default function VendorsPage() {
@@ -72,7 +73,8 @@ export default function VendorsPage() {
       pan_number: '',
       aadhaar: '',
       is_active: true,
-      associated_expense_types: []
+      associated_expense_types: [],
+      branch: selectedBranch || undefined,
     });
     setIsModalOpen(true);
   };
@@ -135,9 +137,10 @@ export default function VendorsPage() {
       return;
     }
     try {
-      const res = await api.post(`/expenses/categories/${branchParam ? `?${branchParam}` : ''}`, {
+      const res = await api.post(`/expenses/categories/`, {
         name: newCategoryName,
-        description: newCategoryDesc
+        description: newCategoryDesc,
+        branch_id: selectedBranch,
       });
       toast.success('Expense type created!');
       // Add to selected list
