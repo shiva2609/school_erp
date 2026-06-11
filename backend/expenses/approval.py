@@ -22,4 +22,7 @@ def user_can_approve_submitted_expense(user, amount) -> bool:
     if role in ('ZONAL_ADMIN', 'CHIEF_ACCOUNTANT'):
         return amt <= EXPENSE_ZONAL_APPROVE_MAX
         
+    if role in ('ACCOUNTANT', 'BRANCH_ADMIN'):
+        return amt <= EXPENSE_AUTO_APPROVE_MAX
+        
     return False

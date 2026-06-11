@@ -4,10 +4,12 @@ import React, { useState } from 'react';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/axios';
 import { useResolvedPush } from '@/hooks/useResolvedNavigation';
-import { Plus, Search, FileText, Download, CheckCircle, Clock, XCircle, Check, X } from 'lucide-react';
+import { Plus, Search, FileText, Download, CheckCircle, Clock, XCircle, Check, X, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useBranch } from '@/components/common/BranchContext';
 import Modal from '@/components/common/Modal';
+import { useAuth } from '@/components/common/AuthProvider';
+import { useConfirm } from '@/components/common/ConfirmProvider';
 
 interface VendorBill {
   id: string;
@@ -31,6 +33,8 @@ const statusStyles: Record<string, any> = {
 };
 
 export default function VendorBillsPage() {
+  const { user } = useAuth();
+  const { confirm } = useConfirm();
   const { selectedBranch } = useBranch();
   const push = useResolvedPush();
   const branchParam = selectedBranch ? `branch_id=${selectedBranch}` : '';
@@ -44,6 +48,15 @@ export default function VendorBillsPage() {
     `/vendor-bills/?${branchParam}&category=${activeTab}&search=${search}`
   );
 
+  const canUserApprove = (amount: string) => {
+    if (!user?.role) return false;
+    const amt = Number(amount) || 0;
+    if (['OWNER', 'SUPER_ADMIN'].includes(user.role)) return true;
+    if (['ZONAL_ADMIN', 'CHIEF_ACCOUNTANT'].includes(user.role)) return amt <= 5000;
+    if (['ACCOUNTANT', 'BRANCH_ADMIN'].includes(user.role)) return amt <= 3000;
+    return false;
+  };
+
   const handleUpdateStatus = async (id: string, status: string, reason: string = '') => {
     try {
       await api.patch(`/vendor-bills/${id}/status/`, { status, reason });
@@ -53,6 +66,24 @@ export default function VendorBillsPage() {
       refetch();
     } catch (err: any) {
       toast.error(err.response?.data?.detail || `Failed to update bill status`);
+    }
+  };
+
+  const handleDelete = async (id: string, billId: string) => {
+    const ok = await confirm({
+      title: "Delete Vendor Bill",
+      message: `Are you sure you want to delete the bill ${billId}? This cannot be undone.`,
+      confirmText: "Delete",
+      isDestructive: true,
+    });
+    if (!ok) return;
+
+    try {
+      await api.delete(`/vendor-bills/${id}/`);
+      toast.success("Bill deleted successfully");
+      refetch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to delete bill");
     }
   };
 
@@ -184,19 +215,28 @@ export default function VendorBillsPage() {
                     <td className="p-4 pr-6 text-right space-x-2">
                       {bill.status === 'SUBMITTED' && (
                         <>
-                          <button 
-                            onClick={() => handleUpdateStatus(bill.id, 'APPROVED')}
-                            className="p-2 text-emerald-500 hover:text-white hover:bg-emerald-500 rounded-lg transition-colors"
-                            title="Approve Bill"
-                          >
-                            <Check size={16} />
-                          </button>
+                          {canUserApprove(bill.total_amount) && (
+                            <button 
+                              onClick={() => handleUpdateStatus(bill.id, 'APPROVED')}
+                              className="p-2 text-emerald-500 hover:text-white hover:bg-emerald-500 rounded-lg transition-colors"
+                              title="Approve Bill"
+                            >
+                              <Check size={16} />
+                            </button>
+                          )}
                           <button 
                             onClick={() => setRejectingBill(bill.id)}
-                            className="p-2 text-rose-500 hover:text-white hover:bg-rose-500 rounded-lg transition-colors"
+                            className="p-2 text-amber-500 hover:text-white hover:bg-amber-500 rounded-lg transition-colors"
                             title="Reject Bill"
                           >
                             <X size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(bill.id, bill.bill_id)}
+                            className="p-2 text-rose-500 hover:text-white hover:bg-rose-500 rounded-lg transition-colors"
+                            title="Delete Bill"
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </>
                       )}

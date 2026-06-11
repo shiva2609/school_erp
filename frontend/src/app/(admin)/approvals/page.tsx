@@ -29,34 +29,33 @@ interface ApprovalRequest {
   reviewed_at: string | null;
 }
 
-interface PendingExpense {
+interface PendingVendorBill {
   id: string;
-  title: string;
-  description?: string | null;
-  amount: string;
-  expense_date: string;
+  bill_id: string;
+  vendor_display: string;
+  net_amount: string;
+  total_amount: string;
+  bill_date: string;
   payment_mode: string;
   status: string;
-  category_name?: string;
-  vendor_display?: string | null;
+  items?: { id: string; expense_type_name: string; }[];
   branch_name?: string;
   submitted_by_name?: string | null;
-  approval_routing?: "AUTO" | "ZONAL_ADMIN" | "SUPER_ADMIN" | null;
 }
 
 const FEE_APPROVAL_API_ROLES = new Set(["SUPER_ADMIN", "ZONAL_ADMIN"]);
-const EXPENSE_QUEUE_ROLES = new Set(["SUPER_ADMIN", "CHIEF_ACCOUNTANT", "ZONAL_ADMIN"]);
+const VENDOR_BILL_QUEUE_ROLES = new Set(["SUPER_ADMIN", "CHIEF_ACCOUNTANT", "ZONAL_ADMIN", "ACCOUNTANT", "BRANCH_ADMIN"]);
 
 const AUTO_APPROVE_MAX = 3000;
 const ZONAL_MAX = 5000;
 
-function canUserApproveExpense(role: string | undefined, amount: number): boolean {
+function canUserApproveBill(role: string | undefined, amount: number): boolean {
   if (!role) return false;
   const amt = Number(amount) || 0;
-  if (amt <= AUTO_APPROVE_MAX) return false; // auto-approved, shouldn't appear in queue
-  if (role === "OWNER" || role === "SUPER_ADMIN") return true; // can approve any amount
-  if (amt > ZONAL_MAX) return false; // above ₹5,000 — only super admin/owner
-  return role === "ZONAL_ADMIN" || role === "CHIEF_ACCOUNTANT"; // ₹3,001–₹5,000 tier
+  if (["OWNER", "SUPER_ADMIN"].includes(role)) return true;
+  if (["ZONAL_ADMIN", "CHIEF_ACCOUNTANT"].includes(role)) return amt <= ZONAL_MAX;
+  if (["ACCOUNTANT", "BRANCH_ADMIN"].includes(role)) return amt <= AUTO_APPROVE_MAX;
+  return false;
 }
 
 function getApprovalTierLabel(amount: number): { label: string; badge: string; who: string } {
@@ -68,7 +67,7 @@ function getApprovalTierLabel(amount: number): { label: string; badge: string; w
   return { label: "Auto-Approved", badge: "bg-slate-100 text-slate-600", who: "Under ₹3,000 — auto-posted" };
 }
 
-function routingBadge(routing: PendingExpense["approval_routing"], amount: number) {
+function routingBadge(amount: number) {
   const tier = getApprovalTierLabel(amount);
   return { label: tier.label, className: tier.badge };
 }
@@ -79,14 +78,14 @@ export default function AdminApprovalsQueue() {
   const [activeTab, setActiveTab] = useState<ApprovalStatus>("PENDING");
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expenses, setExpenses] = useState<PendingExpense[]>([]);
-  const [expLoading, setExpLoading] = useState(false);
-  const [processingExpense, setProcessingExpense] = useState<string | null>(null);
+  const [vendorBills, setVendorBills] = useState<PendingVendorBill[]>([]);
+  const [billsLoading, setBillsLoading] = useState(false);
+  const [processingBill, setProcessingBill] = useState<string | null>(null);
   const { confirm } = useConfirm();
 
   const canReviewFees = Boolean(user?.tenant && user?.role && FEE_APPROVAL_API_ROLES.has(user.role));
-  const canReviewExpenses = Boolean(user?.tenant && user?.role && EXPENSE_QUEUE_ROLES.has(user.role));
-  const canAccess = canReviewFees || canReviewExpenses;
+  const canReviewBills = Boolean(user?.tenant && user?.role && VENDOR_BILL_QUEUE_ROLES.has(user.role));
+  const canAccess = canReviewFees || canReviewBills;
 
   const branchQuery = useMemo(() => {
     if (!["SUPER_ADMIN", "CHIEF_ACCOUNTANT", "ZONAL_ADMIN"].includes(user?.role || "")) return "";
@@ -110,29 +109,29 @@ export default function AdminApprovalsQueue() {
       .finally(() => setLoading(false));
   }, [activeTab, canReviewFees]);
 
-  const fetchExpenses = useCallback(() => {
-    if (!canReviewExpenses) {
-      setExpenses([]);
+  const fetchVendorBills = useCallback(() => {
+    if (!canReviewBills) {
+      setVendorBills([]);
       return;
     }
-    setExpLoading(true);
+    setBillsLoading(true);
     api
-      .get(`expenses/?status=SUBMITTED&page_size=100${branchQuery}`)
+      .get(`vendor-bills/?status=SUBMITTED&page_size=100${branchQuery}`)
       .then((res) => {
         const raw = res.data?.results ?? res.data?.data?.results ?? res.data?.data ?? res.data;
-        setExpenses(Array.isArray(raw) ? raw : []);
+        setVendorBills(Array.isArray(raw) ? raw : []);
       })
-      .catch(() => toast.error("Failed to load submitted expenses"))
-      .finally(() => setExpLoading(false));
-  }, [branchQuery, canReviewExpenses]);
+      .catch(() => toast.error("Failed to load submitted vendor bills"))
+      .finally(() => setBillsLoading(false));
+  }, [branchQuery, canReviewBills]);
 
   useEffect(() => {
     fetchApprovals();
   }, [fetchApprovals]);
 
   useEffect(() => {
-    fetchExpenses();
-  }, [fetchExpenses]);
+    fetchVendorBills();
+  }, [fetchVendorBills]);
 
   const handleApprove = async (id: string, studentName: string) => {
     const ok = await confirm({
@@ -170,53 +169,53 @@ export default function AdminApprovalsQueue() {
     }
   };
 
-  const handleExpenseApprove = async (e: PendingExpense) => {
-    if (!canUserApproveExpense(user?.role, Number(e.amount))) {
-      toast.error(getApprovalTierLabel(Number(e.amount)).who);
+  const handleBillApprove = async (b: PendingVendorBill) => {
+    if (!canUserApproveBill(user?.role, Number(b.total_amount))) {
+      toast.error(getApprovalTierLabel(Number(b.total_amount)).who);
       return;
     }
     const ok = await confirm({
-      title: "Approve expense",
-      message: `Approve ₹${Number(e.amount).toLocaleString("en-IN")} — ${e.title}? This posts to the cashbook.`,
+      title: "Approve vendor bill",
+      message: `Approve ₹${Number(b.net_amount).toLocaleString("en-IN")} — ${b.vendor_display}? This posts to the cashbook.`,
       confirmText: "Approve",
       isDestructive: false,
     });
     if (!ok) return;
-    setProcessingExpense(e.id);
+    setProcessingBill(b.id);
     try {
-      await api.patch(`expenses/${e.id}/status/`, { status: "APPROVED" });
-      toast.success("Expense approved");
-      fetchExpenses();
+      await api.patch(`vendor-bills/${b.id}/status/`, { status: "APPROVED" });
+      toast.success("Vendor bill approved");
+      fetchVendorBills();
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Approval failed");
     } finally {
-      setProcessingExpense(null);
+      setProcessingBill(null);
     }
   };
 
-  const handleExpenseReject = async (e: PendingExpense) => {
-    if (!canUserApproveExpense(user?.role, Number(e.amount))) {
-      toast.error("You are not allowed to reject this expense for the same routing rules.");
+  const handleBillReject = async (b: PendingVendorBill) => {
+    if (!canUserApproveBill(user?.role, Number(b.total_amount))) {
+      toast.error("You are not allowed to reject this bill due to routing rules.");
       return;
     }
     const ok = await confirm({
-      title: "Reject expense",
-      message: `Reject submitted expense: ${e.title}?`,
+      title: "Reject vendor bill",
+      message: `Reject submitted bill for ${b.vendor_display}?`,
       confirmText: "Reject",
       isDestructive: true,
     });
     if (!ok) return;
     const reason = typeof window !== "undefined" ? window.prompt("Reason (optional):") : "";
     if (reason === null) return;
-    setProcessingExpense(e.id);
+    setProcessingBill(b.id);
     try {
-      await api.patch(`expenses/${e.id}/status/`, { status: "REJECTED", reason: reason || "" });
-      toast.success("Expense rejected");
-      fetchExpenses();
+      await api.patch(`vendor-bills/${b.id}/status/`, { status: "REJECTED", reason: reason || "" });
+      toast.success("Vendor bill rejected");
+      fetchVendorBills();
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Rejection failed");
     } finally {
-      setProcessingExpense(null);
+      setProcessingBill(null);
     }
   };
 
@@ -283,121 +282,113 @@ export default function AdminApprovalsQueue() {
         </div>
       </div>
 
-      {canReviewExpenses && (
+      {canReviewBills && (
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Expense approvals
+            Vendor Bill approvals
           </h2>
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            {expLoading ? (
+            {billsLoading ? (
               <div className="p-10 space-y-4">
                 {[1, 2].map((i) => (
                   <div key={i} className="h-24 bg-gray-50 rounded-xl animate-pulse" />
                 ))}
               </div>
-            ) : expenses.length === 0 ? (
+            ) : vendorBills.length === 0 ? (
               <div className="py-14 flex flex-col items-center text-gray-400">
                 <Inbox size={40} strokeWidth={1.5} />
-                <p className="mt-3 font-semibold text-gray-500">No submitted expenses</p>
+                <p className="mt-3 font-semibold text-gray-500">No submitted vendor bills</p>
                 <p className="text-sm text-center max-w-md">
-                  Accountant-submitted expenses over ₹3,000 appear here. Under ₹3,000 they auto-post on submit.
+                  Accountant-submitted bills over ₹3,000 appear here. Under ₹3,000 they auto-post on submit.
                 </p>
               </div>
             ) : (
               <ul className="divide-y divide-gray-100">
-                {expenses.map((ex) => {
-                  const badge = routingBadge(ex.approval_routing, Number(ex.amount));
-                  const canAct = canUserApproveExpense(user?.role, Number(ex.amount));
+                {vendorBills.map((b) => {
+                  const badge = routingBadge(Number(b.total_amount));
+                  const canAct = canUserApproveBill(user?.role, Number(b.total_amount));
                   return (
-                    <li key={ex.id} className="p-6 hover:bg-gray-50/50 transition-colors">
+                    <li key={b.id} className="p-6 hover:bg-gray-50/50 transition-colors">
                       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                         <div className="flex-1 min-w-0 space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900">
-                              EXPENSE
+                              VENDOR BILL
                             </span>
                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badge.className}`}>
                               {badge.label}
                             </span>
-                            {ex.branch_name ? (
+                            {b.branch_name ? (
                               <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                                 <Building2 size={12} />
-                                {ex.branch_name}
+                                {b.branch_name}
                               </span>
                             ) : null}
                           </div>
-                          <p className="font-semibold text-gray-900">{ex.title}</p>
-                          {ex.description ? <p className="text-sm text-gray-600">{ex.description}</p> : null}
+                          <p className="font-semibold text-gray-900">{b.vendor_display}</p>
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                            {ex.category_name ? (
+                            <span>
+                              <span className="font-bold text-gray-500">Bill ID: </span>
+                              {b.bill_id}
+                            </span>
+                            {b.items && b.items.length > 0 ? (
                               <span>
-                                <span className="font-bold text-gray-500">Type: </span>
-                                {ex.category_name}
-                              </span>
-                            ) : null}
-                            {ex.vendor_display ? (
-                              <span>
-                                <span className="font-bold text-gray-500">Vendor: </span>
-                                {ex.vendor_display}
+                                <span className="font-bold text-gray-500">Types: </span>
+                                {b.items.map(i => i.expense_type_name).join(", ")}
                               </span>
                             ) : null}
                             <span>
                               <span className="font-bold text-gray-500">Date: </span>
-                              {ex.expense_date
-                                ? new Date(ex.expense_date + "T12:00:00").toLocaleDateString("en-IN", {
+                              {b.bill_date
+                                ? new Date(b.bill_date + "T12:00:00").toLocaleDateString("en-IN", {
                                     day: "2-digit",
                                     month: "short",
                                     year: "numeric",
                                   })
-                                : "—"}
+                                : "N/A"}
                             </span>
                             <span>
                               <span className="font-bold text-gray-500">Mode: </span>
-                              {ex.payment_mode || "—"}
+                              {b.payment_mode}
                             </span>
                           </div>
-                          {ex.submitted_by_name ? (
-                            <p className="text-xs text-gray-500">Submitted by {ex.submitted_by_name}</p>
-                          ) : null}
+                          <p className="text-xs text-gray-400 pt-1">
+                            Submitted by {b.submitted_by_name || "Unknown"}
+                          </p>
                         </div>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
-                          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                            <IndianRupee size={18} className="text-slate-500" />
-                            <div>
-                              <p className="text-[10px] font-bold uppercase text-slate-500">Amount</p>
-                              <p className="text-lg font-black text-slate-900 tabular-nums">
-                                {formatRupee(ex.amount)}
-                              </p>
-                            </div>
+                        <div className="flex items-center gap-4 lg:w-64 lg:shrink-0 justify-between lg:justify-end">
+                          <div className="text-right">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5">
+                              Net Amount
+                            </p>
+                            <p className="text-lg font-black text-gray-900 flex items-center justify-end">
+                              <IndianRupee size={16} className="mr-0.5 text-gray-400" />
+                              {formatRupee(b.net_amount).replace("₹", "")}
+                            </p>
                           </div>
-                          <div className="flex flex-col items-end gap-2">
-                            {!canAct && (
-                              <p className="text-xs text-gray-400 italic text-right">
-                                {getApprovalTierLabel(Number(ex.amount)).who}
-                              </p>
-                            )}
-                            <div className="flex gap-2">
+                          {canAct ? (
+                            <div className="flex items-center gap-2">
                               <button
-                                type="button"
-                                onClick={() => handleExpenseReject(ex)}
-                                disabled={!canAct || processingExpense === ex.id}
-                                title={!canAct ? getApprovalTierLabel(Number(ex.amount)).who : "Reject expense"}
-                                className="text-red-600 border border-red-200 px-3 py-2 rounded-lg bg-white hover:bg-red-50 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                                onClick={() => handleBillReject(b)}
+                                disabled={processingBill === b.id}
+                                className="px-4 py-2 text-rose-600 font-bold bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-50"
                               >
                                 Reject
                               </button>
                               <button
-                                type="button"
-                                onClick={() => handleExpenseApprove(ex)}
-                                disabled={!canAct || processingExpense === ex.id}
-                                title={!canAct ? getApprovalTierLabel(Number(ex.amount)).who : "Approve expense"}
-                                className="text-white bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                onClick={() => handleBillApprove(b)}
+                                disabled={processingBill === b.id}
+                                className="px-4 py-2 text-white font-bold bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors disabled:opacity-50"
                               >
-                                {processingExpense === ex.id ? "…" : "Approve"}
+                                {processingBill === b.id ? "..." : "Approve"}
                               </button>
                             </div>
-                          </div>
+                          ) : (
+                            <div className="text-xs text-gray-400 italic text-right max-w-[120px] leading-tight">
+                              {getApprovalTierLabel(Number(b.total_amount)).who}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </li>

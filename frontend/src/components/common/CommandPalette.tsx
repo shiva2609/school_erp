@@ -13,7 +13,7 @@ const STAFF_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', shortcut: 'D' },
   { id: 'students', label: 'Student Directory', icon: Users, path: '/students', shortcut: 'S' },
   { id: 'fees', label: 'Financial Desk (Fees)', icon: Receipt, path: '/fees', shortcut: 'F' },
-  { id: 'expenses', label: 'Expense Ledger', icon: CreditCard, path: '/expenses', shortcut: 'E' },
+  { id: 'other-income', label: 'Other Income', icon: CreditCard, path: '/other-income', shortcut: 'O' },
   { id: 'vendors', label: 'Vendor Management', icon: Users, path: '/vendors', shortcut: 'V' },
   { id: 'vendor-bills', label: 'Vendor Bills', icon: Receipt, path: '/vendor-bills', shortcut: 'B' },
   { id: 'vendor-bills-reports', label: 'Vendor Bill Reports', icon: FileSpreadsheet, path: '/vendor-bills/reports', shortcut: 'R' },

@@ -101,7 +101,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
           group: 'Finance',
           items: [
             { href: '/fees', label: 'Fee Collection', icon: Receipt },
-            { href: '/expenses', label: 'Expenses & Approvals', icon: TrendingDown },
+            { href: '/other-income', label: 'Other Income', icon: TrendingDown },
             { href: '/approvals', label: 'Approvals', icon: ClipboardCheck },
             { href: '/vendor-bills', label: 'Vendor Bills', icon: Receipt },
             { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
@@ -129,7 +129,7 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
           group: 'Finance',
           items: [
             { href: '/fees', label: 'Fee Collection', icon: Receipt },
-            { href: '/expenses', label: 'Expenses', icon: TrendingDown },
+            { href: '/other-income', label: 'Other Income', icon: TrendingDown },
             { href: '/approvals', label: 'Approvals', icon: ClipboardCheck },
             { href: '/vendor-bills', label: 'Vendor Bills', icon: Receipt },
             { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
@@ -197,7 +197,8 @@ export function getNavGroups(user: { role: string; tenant?: string | null }): Na
           group: 'Finance',
           items: [
             { href: '/fees', label: 'Fee Collection', icon: Receipt },
-            { href: '/expenses', label: 'Expenses & Approvals', icon: TrendingDown },
+            { href: '/other-income', label: 'Other Income', icon: TrendingDown },
+            { href: '/approvals', label: 'Approvals', icon: ClipboardCheck },
             { href: '/vendor-bills', label: 'Vendor Bills', icon: Receipt },
             { href: '/reports/financial', label: 'Financial Analytics', icon: TrendingUp },
             { href: '/academic-transition', label: 'Year Transition', icon: ArrowUpRight },

@@ -245,6 +245,13 @@ class VendorBillViewSet(viewsets.ModelViewSet):
 
         return Response({'detail': f'Cannot transition to {new_status}'}, status=400)
 
+    def destroy(self, request, *args, **kwargs):
+        bill = self.get_object()
+        if bill.status != 'SUBMITTED':
+            return Response({'detail': 'Can only delete bills in SUBMITTED state.'}, status=status.HTTP_400_BAD_REQUEST)
+        bill.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=['get'], url_path='receipt')
     def generate_receipt(self, request, pk=None):
         bill = self.get_object()

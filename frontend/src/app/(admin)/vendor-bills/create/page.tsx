@@ -7,10 +7,12 @@ import { useResolvedPush } from '@/hooks/useResolvedNavigation';
 import { ArrowLeft, Save, Building2, User, Info, FileText, CheckCircle2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useBranch } from '@/components/common/BranchContext';
+import { useConfirm } from '@/components/common/ConfirmProvider';
 
 export default function CreateVendorBillPage() {
   const { selectedBranch } = useBranch();
   const push = useResolvedPush();
+  const { confirm } = useConfirm();
   const branchParam = selectedBranch ? `branch_id=${selectedBranch}` : '';
   
   const [billType, setBillType] = useState<'GENERAL' | 'COMMUTE'>('GENERAL');
@@ -129,6 +131,14 @@ export default function CreateVendorBillPage() {
       net_amount: netAmount,
       items: itemsPayload
     };
+
+    const ok = await confirm({
+      title: "Confirm Submit",
+      message: `Are you sure you want to submit this bill for ₹${netAmount}? This action cannot be undone.`,
+      confirmText: "Submit Bill",
+      isDestructive: false,
+    });
+    if (!ok) return;
 
     setSaving(true);
     try {
