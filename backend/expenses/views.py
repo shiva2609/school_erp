@@ -23,7 +23,7 @@ from tenants.models import Branch
 from .approval import EXPENSE_AUTO_APPROVE_MAX, user_can_approve_submitted_expense
 from .models import ExpenseCategory, Vendor, Expense, TransactionLog, VendorBill, VendorBillItem
 from .serializers import ExpenseCategorySerializer, VendorSerializer, ExpenseSerializer, TransactionLogSerializer, VendorBillSerializer
-
+from .other_income_presets import MANUAL_OTHER_INCOME_CATEGORY_PRESETS, RESERVED_MANUAL_OTHER_INCOME_CATEGORIES
 
 class ExpenseCategoryViewSet(viewsets.ModelViewSet):
     serializer_class = ExpenseCategorySerializer

@@ -41,6 +41,13 @@ class VendorBillSerializer(serializers.ModelSerializer):
     items = VendorBillItemSerializer(many=True, read_only=True)
     vendor_display = serializers.CharField(source='vendor.name', read_only=True)
     vendor_type = serializers.CharField(source='vendor.vendor_type', read_only=True)
+    submitted_by_name = serializers.SerializerMethodField()
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+
+    def get_submitted_by_name(self, obj):
+        if obj.submitted_by:
+            return f"{obj.submitted_by.first_name} {obj.submitted_by.last_name}".strip() or obj.submitted_by.username
+        return None
 
     class Meta:
         model = VendorBill
