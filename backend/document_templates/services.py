@@ -161,11 +161,54 @@ def build_fee_receipt_context(payment, request=None):
         },
     }
 
+def _num_to_words(amount_str):
+    """Convert a decimal amount string to Indian rupees in words."""
+    try:
+        from decimal import Decimal
+        n = int(Decimal(str(amount_str)))
+    except Exception:
+        return ''
+    if n == 0:
+        return 'Zero Rupees Only'
+    ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+            'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+            'Seventeen', 'Eighteen', 'Nineteen']
+    tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+
+    def _below_hundred(n):
+        if n < 20:
+            return ones[n]
+        return tens[n // 10] + (' ' + ones[n % 10] if n % 10 else '')
+
+    def _below_thousand(n):
+        if n < 100:
+            return _below_hundred(n)
+        return ones[n // 100] + ' Hundred' + (' ' + _below_hundred(n % 100) if n % 100 else '')
+
+    parts = []
+    crore = n // 10000000
+    n %= 10000000
+    lakh = n // 100000
+    n %= 100000
+    thousand = n // 1000
+    n %= 1000
+    remainder = n
+    if crore:
+        parts.append(_below_thousand(crore) + ' Crore')
+    if lakh:
+        parts.append(_below_thousand(lakh) + ' Lakh')
+    if thousand:
+        parts.append(_below_thousand(thousand) + ' Thousand')
+    if remainder:
+        parts.append(_below_thousand(remainder))
+    return ' '.join(parts) + ' Only'
+
+
 def build_vendor_bill_receipt_context(bill, request=None):
     tenant = bill.tenant
     branch = bill.branch
     logo = absolute_media_url(request, tenant.logo_url or '')
-    printed = timezone.now().date()
+    printed = timezone.now()
     
     items = []
     for item in bill.items.all():
@@ -173,6 +216,16 @@ def build_vendor_bill_receipt_context(bill, request=None):
             'expense_type_name': item.expense_type_name,
             'amount': str(item.amount)
         })
+
+    # processed_by: name of submitted_by user or branch name
+    processed_by = ''
+    if bill.submitted_by:
+        name = f"{bill.submitted_by.first_name} {bill.submitted_by.last_name}".strip()
+        processed_by = name if name else bill.submitted_by.email
+    if not processed_by and branch:
+        processed_by = branch.name
+
+    amount_in_words = _num_to_words(bill.net_amount)
 
     return {
         'tenant_name': tenant.name,
@@ -187,23 +240,26 @@ def build_vendor_bill_receipt_context(bill, request=None):
         'vendor': {
             'name': bill.vendor.name,
             'contact_person': bill.vendor.contact_person or '',
-            'mobile': bill.vendor.mobile or '',
+            'mobile': bill.vendor.phone or '',
             'email': bill.vendor.email or '',
             'pan_number': bill.vendor.pan_number or '',
         },
         'bill': {
             'bill_id': bill.bill_id,
             'voucher_number': bill.voucher_number or '',
-            'bill_date': str(bill.bill_date),
-            'printed_date': str(printed),
+            'bill_date': bill.bill_date.strftime('%d %b %Y') if bill.bill_date else '',
+            'printed_date': printed.strftime('%d %b %Y %I:%M:%S %p').lower(),
             'total_amount': str(bill.total_amount),
             'tds_percentage': str(bill.tds_percentage),
             'tds_amount': str(bill.tds_amount),
             'net_amount': str(bill.net_amount),
             'payment_mode': bill.get_payment_mode_display() if hasattr(bill, 'get_payment_mode_display') else bill.payment_mode,
             'status': bill.get_status_display() if hasattr(bill, 'get_status_display') else bill.status,
+            'description': bill.description or '',
             'items': items,
-        }
+        },
+        'amount_in_words': amount_in_words,
+        'processed_by': processed_by,
     }
 
 
