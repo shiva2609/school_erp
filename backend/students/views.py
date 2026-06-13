@@ -495,7 +495,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         class_section = self.request.query_params.get('class_section_id')
         gender = self.request.query_params.get('gender')
         if status_filter:
-            qs = qs.filter(status=status_filter)
+            qs = qs.filter(status__in=status_filter.split(','))
         if class_section:
             qs = qs.filter(class_section_id=class_section)
         if gender:

@@ -76,7 +76,7 @@ export default function EnrollStudentModal({ isOpen, onClose, onSuccess }: Enrol
   useEffect(() => {
     if (searchQuery.length > 2) {
       const timer = setTimeout(() => {
-        api.get(`/students/?search=${searchQuery}&branch_id=${selectedBranch}&status=ACTIVE`)
+        api.get(`/students/?search=${searchQuery}&branch_id=${selectedBranch}&status=ACTIVE,PENDING_APPROVAL`)
           .then(res => {
             const list: StudentOption[] = res.data?.results || res.data?.data || res.data || [];
             setStudents(list);
