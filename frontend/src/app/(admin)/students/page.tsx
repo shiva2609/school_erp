@@ -25,6 +25,7 @@ interface Student {
   branch: string;
   branch_name: string;
   roll_number: number | null;
+  father_name: string | null;
   proposed_fee?: number;
 }
 
@@ -328,9 +329,14 @@ export default function StudentsPage() {
                        </span>
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-900">
-                      <Link href={`/students/${s.id}`} className="hover:text-blue-600 transition-colors">
+                      <Link href={`/students/${s.id}`} className="hover:text-blue-600 transition-colors block">
                         {s.first_name} {s.last_name}
                       </Link>
+                      {s.father_name && (
+                        <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                          D/S of {s.father_name}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase">

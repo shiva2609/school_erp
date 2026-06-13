@@ -236,7 +236,7 @@ class StudentListSerializer(serializers.ModelSerializer):
             'id', 'admission_number', 'legacy_admission_number', 'first_name', 'last_name', 'gender',
             'date_of_birth', 'class_section', 'class_section_display',
             'branch_name', 'status', 'photo_url', 'roll_number', 'proposed_fee',
-            'academic_year_name',
+            'academic_year_name', 'father_name',
         ]
 
     def get_proposed_fee(self, obj):
