@@ -135,13 +135,15 @@ def build_fee_receipt_context(payment, request=None):
     cf_written_off = cf_qs.aggregate(Sum('written_off_amount'))['written_off_amount__sum'] or 0
     cf_balance = cf_total - cf_paid - cf_written_off
 
-    academic_balance = (academic_invoices.aggregate(Sum('outstanding_amount'))['outstanding_amount__sum'] or 0) + cf_balance
+    academic_balance_raw = academic_invoices.aggregate(Sum('outstanding_amount'))['outstanding_amount__sum'] or 0
+    academic_balance = academic_balance_raw
 
     # Check if student opted for transport
     from transport.models import StudentTransport
     opted_for_transport = StudentTransport.objects.filter(student=student, is_active=True).exists()
     
     transport_balance_str = f"₹{transport_balance}" if opted_for_transport else "N/A"
+    old_dues_balance_str = f"₹{cf_balance}" if cf_balance > 0 else "N/A"
 
     return {
         'tenant_name': tenant.name,
@@ -168,6 +170,7 @@ def build_fee_receipt_context(payment, request=None):
             'guardian_phone': student.guardian_phone or '',
             'academic_balance': str(academic_balance),
             'transport_balance': transport_balance_str,
+            'old_dues_balance': old_dues_balance_str,
         },
         'invoice': {
             'invoice_number': invoice.invoice_number,
