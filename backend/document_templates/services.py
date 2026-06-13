@@ -110,6 +110,39 @@ def build_fee_receipt_context(payment, request=None):
 
     logo = absolute_media_url(request, tenant.logo_url or '')
 
+    # Calculate overall balances
+    from fees.models import FeeInvoice
+    from django.db.models import Sum
+    
+    # Transport balance (sum of outstanding amounts for TRN- invoices)
+    transport_invoices = FeeInvoice.objects.filter(
+        student=student, academic_year=invoice.academic_year if invoice else None, status__in=['UNPAID', 'PARTIAL']
+    ).filter(invoice_number__startswith='TRN-')
+    transport_balance = transport_invoices.aggregate(Sum('outstanding_amount'))['outstanding_amount__sum'] or 0
+
+    # Academic balance (sum of outstanding amounts for normal invoices)
+    academic_invoices = FeeInvoice.objects.filter(
+        student=student, academic_year=invoice.academic_year if invoice else None, status__in=['UNPAID', 'PARTIAL']
+    ).exclude(invoice_number__startswith='TRN-').exclude(invoice_number__startswith='ADM-').exclude(
+        invoice_number__startswith='FDP-'
+    ).exclude(invoice_number__startswith='SPF-')
+    
+    # Also include carry forward in academic balance
+    from fees.models import FeeCarryForward
+    cf_qs = FeeCarryForward.objects.filter(student=student)
+    cf_total = cf_qs.aggregate(Sum('carry_forward_amount'))['carry_forward_amount__sum'] or 0
+    cf_paid = cf_qs.aggregate(Sum('paid_amount'))['paid_amount__sum'] or 0
+    cf_written_off = cf_qs.aggregate(Sum('written_off_amount'))['written_off_amount__sum'] or 0
+    cf_balance = cf_total - cf_paid - cf_written_off
+
+    academic_balance = (academic_invoices.aggregate(Sum('outstanding_amount'))['outstanding_amount__sum'] or 0) + cf_balance
+
+    # Check if student opted for transport
+    from transport.models import StudentTransport
+    opted_for_transport = StudentTransport.objects.filter(student=student, is_active=True).exists()
+    
+    transport_balance_str = f"₹{transport_balance}" if opted_for_transport else "N/A"
+
     return {
         'tenant_name': tenant.name,
         'tenant_logo': logo,
@@ -133,6 +166,8 @@ def build_fee_receipt_context(payment, request=None):
             'mother_phone': student.mother_phone or '',
             'guardian_name': student.guardian_name or '',
             'guardian_phone': student.guardian_phone or '',
+            'academic_balance': str(academic_balance),
+            'transport_balance': transport_balance_str,
         },
         'invoice': {
             'invoice_number': invoice.invoice_number,
