@@ -116,13 +116,13 @@ def build_fee_receipt_context(payment, request=None):
     
     # Transport balance (sum of outstanding amounts for TRN- invoices)
     transport_invoices = FeeInvoice.objects.filter(
-        student=student, academic_year=invoice.academic_year if invoice else None, status__in=['UNPAID', 'PARTIAL']
+        student=student, academic_year=invoice.academic_year if invoice else None, status__in=['SENT', 'PARTIALLY_PAID', 'OVERDUE']
     ).filter(invoice_number__startswith='TRN-')
     transport_balance = transport_invoices.aggregate(Sum('outstanding_amount'))['outstanding_amount__sum'] or 0
 
     # Academic balance (sum of outstanding amounts for normal invoices)
     academic_invoices = FeeInvoice.objects.filter(
-        student=student, academic_year=invoice.academic_year if invoice else None, status__in=['UNPAID', 'PARTIAL']
+        student=student, academic_year=invoice.academic_year if invoice else None, status__in=['SENT', 'PARTIALLY_PAID', 'OVERDUE']
     ).exclude(invoice_number__startswith='TRN-').exclude(invoice_number__startswith='ADM-').exclude(
         invoice_number__startswith='FDP-'
     ).exclude(invoice_number__startswith='SPF-')
@@ -139,8 +139,7 @@ def build_fee_receipt_context(payment, request=None):
     academic_balance = academic_balance_raw
 
     # Check if student opted for transport
-    from transport.models import StudentTransport
-    opted_for_transport = StudentTransport.objects.filter(student=student, is_active=True).exists()
+    opted_for_transport = transport_invoices.exists()
     
     transport_balance_str = f"₹{transport_balance}" if opted_for_transport else "N/A"
     old_dues_balance_str = f"₹{cf_balance}" if cf_balance > 0 else "N/A"
