@@ -312,6 +312,7 @@ export default function StudentsPage() {
                    </th>
                    <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Admission</th>
                    <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Student Name</th>
+                   <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Parent Name</th>
                    <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Context</th>
                    <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Mapping</th>
                    <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Status</th>
@@ -332,11 +333,9 @@ export default function StudentsPage() {
                       <Link href={`/students/${s.id}`} className="hover:text-blue-600 transition-colors block">
                         {s.first_name} {s.last_name}
                       </Link>
-                      {s.father_name && (
-                        <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
-                          D/S of {s.father_name}
-                        </span>
-                      )}
+                    </td>
+                    <td className="px-6 py-4 font-medium text-slate-700 text-xs">
+                      {s.father_name || '-'}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase">
