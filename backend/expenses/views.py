@@ -176,19 +176,28 @@ class VendorBillViewSet(viewsets.ModelViewSet):
             bill_prefix = 'CBILL' if vendor.category == 'COMMUTE' else 'BILL'
             vch_prefix = 'CVCH' if vendor.category == 'COMMUTE' else 'VCH'
             
-            last_bill = VendorBill.objects.filter(branch=branch, bill_id__startswith=f'{bill_prefix}-{year}-').order_by('-created_at').first()
+            # Use a branch short-code to keep bill_id/voucher_number globally unique across tenants
+            branch_code = (branch.name or str(branch.id))[:6].upper().replace(' ', '')
+            
+            last_bill = VendorBill.objects.filter(branch=branch, bill_id__startswith=f'{bill_prefix}-').order_by('-created_at').first()
             if last_bill:
-                last_seq = int(last_bill.bill_id.split('-')[-1])
+                try:
+                    last_seq = int(last_bill.bill_id.split('-')[-1])
+                except (ValueError, IndexError):
+                    last_seq = 0
             else:
                 last_seq = 0
-            bill_id = f"{bill_prefix}-{year}-{last_seq + 1:06d}"
+            bill_id = f"{bill_prefix}-{branch_code}-{year}-{last_seq + 1:06d}"
 
-            last_voucher = VendorBill.objects.filter(branch=branch, voucher_number__startswith=f'{vch_prefix}-{year}-').order_by('-created_at').first()
+            last_voucher = VendorBill.objects.filter(branch=branch, voucher_number__startswith=f'{vch_prefix}-').order_by('-created_at').first()
             if last_voucher:
-                last_vseq = int(last_voucher.voucher_number.split('-')[-1])
+                try:
+                    last_vseq = int(last_voucher.voucher_number.split('-')[-1])
+                except (ValueError, IndexError):
+                    last_vseq = 0
             else:
                 last_vseq = 0
-            voucher_number = f"{vch_prefix}-{year}-{last_vseq + 1:06d}"
+            voucher_number = f"{vch_prefix}-{branch_code}-{year}-{last_vseq + 1:06d}"
 
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)

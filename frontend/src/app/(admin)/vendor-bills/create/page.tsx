@@ -13,7 +13,7 @@ export default function CreateVendorBillPage() {
   const { selectedBranch } = useBranch();
   const push = useResolvedPush();
   const { confirm } = useConfirm();
-  const branchParam = selectedBranch ? `branch_id=${selectedBranch}` : '';
+  const branchParam = selectedBranch && selectedBranch !== 'all' ? `branch_id=${selectedBranch}` : '';
   
   const [billType, setBillType] = useState<'GENERAL' | 'COMMUTE'>('GENERAL');
   
