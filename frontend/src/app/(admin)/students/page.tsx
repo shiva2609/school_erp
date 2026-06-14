@@ -178,7 +178,15 @@ export default function StudentsPage() {
       }
       toast.success('Student enrolled.');
     } catch (err: any) {
-      toast.error("Failed to enroll: " + (err.response?.data?.detail || JSON.stringify(err.response?.data)));
+      console.error("Enrollment error:", err);
+      let errMsg = err.response?.data?.detail;
+      if (!errMsg && err.response?.data) {
+        errMsg = typeof err.response.data === 'string' ? err.response.data : JSON.stringify(err.response.data);
+      }
+      if (!errMsg) {
+        errMsg = err.message || 'Unknown error';
+      }
+      toast.error("Failed to enroll: " + errMsg);
     }
   };
 
