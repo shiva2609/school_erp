@@ -341,20 +341,21 @@ class Student(models.Model):
 
         # GLOBAL SEARCH with row-level lock to prevent duplicate admission numbers
         with transaction.atomic():
-            last_student = Student.objects.select_for_update().filter(
+            students = Student.objects.select_for_update().filter(
                 tenant=tenant,
                 admission_number__startswith=base
-            ).order_by('-admission_number').first()
+            ).values_list('admission_number', flat=True)
             
-            seq = 1
-            if last_student:
-                import re
-                # Extract sequence from the end
-                match = re.search(r'(\d+)$', last_student.admission_number)
+            max_seq = 0
+            import re
+            for adm_num in students:
+                match = re.search(r'(\d+)$', adm_num)
                 if match:
-                    seq = int(match.group(1)) + 1
+                    seq = int(match.group(1))
+                    if seq > max_seq:
+                        max_seq = seq
         
-        return f"{base}{seq:03d}"
+        return f"{base}{max_seq + 1:03d}"
 
     def __str__(self):
         name = f"{self.first_name} {self.last_name}".strip() if self.last_name else self.first_name

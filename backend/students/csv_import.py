@@ -930,7 +930,15 @@ def process_xlsx_file(job, raw_bytes):
         row = {}
         for idx, header in enumerate(headers):
             val = values[idx] if idx < len(values) else None
-            row[header] = '' if val is None else str(val).strip()
+            if val is None:
+                str_val = ''
+            elif hasattr(val, 'strftime'):
+                str_val = val.strftime('%Y-%m-%d')
+            elif isinstance(val, float) and val.is_integer():
+                str_val = str(int(val))
+            else:
+                str_val = str(val).strip()
+            row[header] = str_val
         rows.append(row)
 
     workbook.close()
