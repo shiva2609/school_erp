@@ -339,9 +339,12 @@ class Student(models.Model):
         else:
             base = f"{year_str}-{branch.branch_code}-" # Fallback
 
-        # GLOBAL SEARCH with row-level lock to prevent duplicate admission numbers
+        # GLOBAL SEARCH with row-level lock on the Tenant to prevent duplicate admission numbers
+        # This strictly serializes admission number generation across all concurrent requests for this tenant.
         with transaction.atomic():
-            students = Student.objects.select_for_update().filter(
+            _ = type(tenant).objects.select_for_update().get(id=tenant.id)
+            
+            students = Student.objects.filter(
                 tenant=tenant,
                 admission_number__startswith=base
             ).values_list('admission_number', flat=True)
