@@ -25,7 +25,7 @@ export default function CreateVendorBillPage() {
 
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
   const [billDate, setBillDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [paymentMode, setPaymentMode] = useState<string>('BANK_TRANSFER');
+  const [paymentMode, setPaymentMode] = useState<string>('CASH');
   const [description, setDescription] = useState<string>('');
   
   const [selectedItems, setSelectedItems] = useState<Record<string, { selected: boolean, amount: string }>>({});
