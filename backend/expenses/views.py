@@ -28,6 +28,7 @@ from .other_income_presets import MANUAL_OTHER_INCOME_CATEGORY_PRESETS, RESERVED
 class ExpenseCategoryViewSet(viewsets.ModelViewSet):
     serializer_class = ExpenseCategorySerializer
     permission_classes = [IsAuthenticated, IsAccountantOrAbove]
+    pagination_class = None
 
     def get_queryset(self):
         qs = filter_queryset_for_user_tenant(
