@@ -42,6 +42,7 @@ interface PendingVendorBill {
   items?: { id: string; expense_type_name: string; }[];
   branch_name?: string;
   submitted_by_name?: string | null;
+  description?: string | null;
 }
 
 const FEE_APPROVAL_API_ROLES = new Set(["SUPER_ADMIN", "ZONAL_ADMIN"]);
