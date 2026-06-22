@@ -48,8 +48,7 @@ class PaymentsService:
         # 2. Lacks annual FeeInvoice
         has_annual_invoice = FeeInvoice.objects.filter(
             student=OuterRef('pk'),
-            academic_year_id=OuterRef('academic_year_id'),
-            is_application_fee=False
+            academic_year_id=OuterRef('academic_year_id')
         ).exclude(status='CANCELLED')
 
         qs = qs.annotate(
