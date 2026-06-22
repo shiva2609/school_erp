@@ -55,7 +55,7 @@ class PaymentsService:
             has_invoice=Exists(has_annual_invoice)
         ).filter(has_invoice=False)
         
-        return qs.order_by('class_section__sequence', 'first_name', 'last_name')
+        return qs.order_by('class_section__grade', 'class_section__section', 'first_name', 'last_name')
 
     @staticmethod
     def get_daily_collections(filters):
