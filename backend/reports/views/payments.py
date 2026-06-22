@@ -44,6 +44,25 @@ class PaymentsReportViewSet(viewsets.ViewSet):
             page, summary=summary, footer_totals=footer_fee_balance_amount_columns(qs)
         )
 
+    @action(detail=False, methods=['get'], url_path='uncommitted-fee-students')
+    def uncommitted_fee_students(self, request):
+        filters = BaseReportFilter(request, request.user)
+        qs = PaymentsService.get_uncommitted_fee_students(filters)
+        
+        data = qs.values(
+            'admission_number', 'first_name', 'last_name',
+            'class_section__grade', 'class_section__section',
+            'father_name', 'father_phone', 'status'
+        )
+        paginator = ReportPagination()
+        page = paginator.paginate_queryset(data, request, view=self)
+        
+        summary = {
+            'card1': {'label': 'Total Uncommitted Students', 'value': str(qs.count()), 'type': 'numeric'}
+        }
+        
+        return paginator.get_paginated_response(page, summary=summary)
+
     @action(detail=False, methods=['get'], url_path='daily-collections')
     def daily_collections(self, request):
         filters = BaseReportFilter(request, request.user)

@@ -27,8 +27,8 @@ class ExportViewSet(viewsets.ViewSet):
             file_format=file_format
         )
         
-        # Trigger Celery task
-        generate_export_job.delay(job.id)
+        # Trigger export synchronously (no celery required)
+        generate_export_job(job.id)
         
         return Response(ExportJobSerializer(job).data, status=status.HTTP_202_ACCEPTED)
 

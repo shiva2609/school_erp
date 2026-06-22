@@ -286,6 +286,18 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
     if report_type == 'PAYMENTS_FEE_BALANCES_TEACHERS':
         return build_export_rows('PAYMENTS_FEE_BALANCES', bundle)
 
+    if report_type == 'PAYMENTS_UNCOMMITTED_FEE_STUDENTS':
+        qs = PaymentsService.get_uncommitted_fee_students(bundle).select_related('class_section')
+        headers = ['Admission No.', 'First Name', 'Last Name', 'Class', 'Father Name', 'Father Phone', 'Status']
+        rows = []
+        for s in qs.iterator(chunk_size=500):
+            cls_name = f"{s.class_section.grade}-{s.class_section.section}" if s.class_section else ""
+            rows.append([
+                _cell(s.admission_number), _cell(s.first_name), _cell(s.last_name),
+                cls_name, _cell(s.father_name), _cell(s.father_phone), _cell(s.status)
+            ])
+        return headers, rows
+
     if report_type == 'PAYMENTS_FEE_BALANCES_NO_CONCESSION':
         qs = PaymentsService.get_fee_balances(bundle).filter(concession_amount=0).values(
             'invoice_number', 'student__admission_number', 'student__first_name', 'student__last_name',

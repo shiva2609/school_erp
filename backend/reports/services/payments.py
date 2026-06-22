@@ -1,8 +1,9 @@
 from django.db import models
-from django.db.models import Sum, DecimalField, F, Case, When, Value, ExpressionWrapper
+from django.db.models import Sum, DecimalField, F, Case, When, Value, ExpressionWrapper, Exists, OuterRef, Q
 from django.db.models.functions import Coalesce
 from fees.models import FeeInvoice, Payment
 from expenses.models import Expense, TransactionLog
+from students.models import Student, StudentAcademicRecord
 from reports.services.base import BaseReportService
 from decimal import Decimal
 
@@ -19,6 +20,43 @@ class PaymentsService:
             qs = qs.filter(student__class_section_id=filters.section_id)
             
         return qs.order_by('-due_date')
+
+    @staticmethod
+    def get_uncommitted_fee_students(filters):
+        qs = Student.objects.select_related('class_section').filter(status='ACTIVE')
+        qs = BaseReportService.apply_branch_scope(qs, filters)
+        
+        if filters.academic_year_id:
+            qs = qs.filter(academic_year_id=filters.academic_year_id)
+        if filters.class_id:
+            qs = qs.filter(class_section__grade=filters.class_id)
+        if filters.section_id:
+            qs = qs.filter(class_section_id=filters.section_id)
+
+        # 1. Has promoted academic record OR has legacy_admission_number
+        has_promoted_record = StudentAcademicRecord.objects.filter(
+            student=OuterRef('pk'),
+            academic_year_id=OuterRef('academic_year_id'),
+            promoted_from__isnull=False
+        )
+        qs = qs.annotate(
+            has_promoted=Exists(has_promoted_record)
+        ).filter(
+            Q(has_promoted=True) | (~Q(legacy_admission_number='') & Q(legacy_admission_number__isnull=False))
+        )
+        
+        # 2. Lacks annual FeeInvoice
+        has_annual_invoice = FeeInvoice.objects.filter(
+            student=OuterRef('pk'),
+            academic_year_id=OuterRef('academic_year_id'),
+            is_application_fee=False
+        ).exclude(status='CANCELLED')
+
+        qs = qs.annotate(
+            has_invoice=Exists(has_annual_invoice)
+        ).filter(has_invoice=False)
+        
+        return qs.order_by('class_section__sequence', 'first_name', 'last_name')
 
     @staticmethod
     def get_daily_collections(filters):

@@ -7,6 +7,17 @@ interface ExportButtonProps {
   filters: any;
 }
 
+const triggerDownload = (url: string) => {
+  const fullUrl = `${process.env.NEXT_PUBLIC_BASE_URL || ''}${url}`;
+  const a = document.createElement('a');
+  a.href = fullUrl;
+  a.target = '_blank';
+  a.download = url.split('/').pop() || 'download';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
+
 export default function ExportButton({ reportType, filters }: ExportButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -26,7 +37,7 @@ export default function ExportButton({ reportType, filters }: ExportButtonProps)
           setJobId(null);
           // Trigger download
           if (file_url) {
-            window.open(`${process.env.NEXT_PUBLIC_BASE_URL || ''}${file_url}`, '_blank');
+            triggerDownload(file_url);
           }
         } else if (status === 'FAILED') {
           setLoading(false);
@@ -56,7 +67,15 @@ export default function ExportButton({ reportType, filters }: ExportButtonProps)
         filters,
         format
       });
-      setJobId(res.data.id);
+      
+      // If it completed synchronously
+      if (res.data.status === 'COMPLETED' && res.data.file_url) {
+        setLoading(false);
+        triggerDownload(res.data.file_url);
+      } else {
+        // Fallback to polling if it's still pending
+        setJobId(res.data.id);
+      }
     } catch (e) {
       console.error(e);
       setLoading(false);

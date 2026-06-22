@@ -695,6 +695,7 @@ def _build_fee_receipt_html(ctx, cfg, school_name, logo_url, primary, bg, text, 
                         <div class="meta-label">Payment Mode</div>
                         <div class="meta-value">{payment.get('payment_mode', 'CASH')}</div>
                     </div>
+                    {('<div class="meta-item"><div class="meta-label">Transaction ID</div><div class="meta-value">' + payment.get('reference_number', '') + '</div></div>') if payment.get('reference_number') else ''}
                 </div>
 
                 <div class="amount-box">
@@ -712,8 +713,6 @@ def _build_fee_receipt_html(ctx, cfg, school_name, logo_url, primary, bg, text, 
                         <div class="meta-value">₹{invoice.get('outstanding_amount', '-')}</div>
                     </div>
                 </div>
-
-                {'<div class="meta-item" style="margin-bottom:10px;"><div class="meta-label">Reference / Txn ID</div><div class="meta-value">' + payment.get('reference_number', '') + '</div></div>' if payment.get('reference_number') else ''}
 
                 <div class="sig-area">
                     <div class="sig-block">

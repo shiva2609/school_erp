@@ -12,6 +12,7 @@ type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 interface ApprovalRequest {
   id: string;
+  request_type?: 'ADMISSION' | 'CONCESSION';
   student: string;
   student_name: string;
   branch_name: string;
@@ -353,6 +354,11 @@ export default function AdminApprovalsQueue() {
                               {b.payment_mode}
                             </span>
                           </div>
+                          {b.description && (
+                            <p className="text-sm text-gray-700 mt-1 italic">
+                              "{b.description}"
+                            </p>
+                          )}
                           <p className="text-xs text-gray-400 pt-1">
                             Submitted by {b.submitted_by_name || "Unknown"}
                           </p>
@@ -455,9 +461,15 @@ export default function AdminApprovalsQueue() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center flex-wrap gap-2">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
-                            FEE CONCESSION
-                          </span>
+                          {req.request_type === 'CONCESSION' ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-violet-100 text-violet-800">
+                              CONCESSION REQUEST
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                              ADMISSION DISCOUNT
+                            </span>
+                          )}
                           <span className="text-sm font-semibold text-gray-900">{req.student_name}</span>
                           {req.branch_name && (
                             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">

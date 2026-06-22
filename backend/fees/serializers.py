@@ -164,6 +164,12 @@ class OfflinePaymentSerializer(serializers.Serializer):
     reference_number = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     bank_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
+    def validate(self, attrs):
+        if attrs.get('payment_mode') == 'UPI' and not attrs.get('reference_number'):
+            raise serializers.ValidationError({
+                'reference_number': 'Transaction ID is mandatory for UPI payments.'
+            })
+        return attrs
 
 class StudentFeeItemSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -188,7 +194,7 @@ class FeeApprovalRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = FeeApprovalRequest
         exclude = ('discount_amount',)
-        read_only_fields = ['id', 'created_at', 'reviewed_at', 'reviewed_by', 'tenant', 'routing']
+        read_only_fields = ['id', 'created_at', 'reviewed_at', 'reviewed_by', 'tenant', 'routing', 'request_type']
 
     def get_student_name(self, obj):
         return f"{obj.student.first_name} {obj.student.last_name}"
@@ -229,4 +235,8 @@ class InitialPaymentSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 'At least one of admission_fee, tuition_payment, fixed_deposit, or special_fee must be greater than zero.'
             )
+        if attrs.get('payment_mode') == 'UPI' and not attrs.get('reference_number'):
+            raise serializers.ValidationError({
+                'reference_number': 'Transaction ID is mandatory for UPI payments.'
+            })
         return attrs

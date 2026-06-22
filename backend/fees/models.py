@@ -345,6 +345,10 @@ class FeeApprovalRequest(models.Model):
         (ROUTING_ZONAL, 'Zonal admin'),
         (ROUTING_TENANT_SUPER, 'Tenant super admin'),
     ]
+    REQUEST_TYPE_CHOICES = [
+        ('ADMISSION', 'Admission'),   # created during enrollment (existing flow)
+        ('CONCESSION', 'Concession'), # raised post-enrollment from student profile (new)
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE)
@@ -364,6 +368,12 @@ class FeeApprovalRequest(models.Model):
         max_length=20,
         choices=ROUTING_CHOICES,
         default=ROUTING_TENANT_SUPER,
+    )
+    request_type = models.CharField(
+        max_length=15,
+        choices=REQUEST_TYPE_CHOICES,
+        default='ADMISSION',
+        help_text='ADMISSION = enrollment-time discount; CONCESSION = post-enrollment request from student profile',
     )
     reason = models.TextField(blank=True)
     

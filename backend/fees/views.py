@@ -169,6 +169,7 @@ class FeeApprovalRequestViewSet(viewsets.ModelViewSet):
             requested_by=self.request.user
         )
 
+    @transaction.atomic
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         approval = self.get_object()
@@ -179,14 +180,22 @@ class FeeApprovalRequestViewSet(viewsets.ModelViewSet):
         approval.reviewed_at = timezone.now()
         approval.admin_remarks = request.data.get('remarks', '')
         approval.save()
-        
-        # After approval, update student status if applicable
-        student = approval.student
-        if student.status in ['PENDING_APPROVAL', 'INACTIVE']:
-            student.status = 'ACTIVE'
-            student.save()
-        
-        return Response({'success': True, 'message': 'Fee reduction approved.'})
+
+        if approval.request_type == 'CONCESSION':
+            # Post-enrollment concession: update invoice, fee items, handle overpayment
+            from students.services import apply_approved_concession
+            apply_approved_concession(approval)
+            return Response({
+                'success': True,
+                'message': 'Concession approved. Student fee and invoice updated.',
+            })
+        else:
+            # Admission-time fee reduction: activate the student
+            student = approval.student
+            if student.status in ['PENDING_APPROVAL', 'INACTIVE']:
+                student.status = 'ACTIVE'
+                student.save()
+            return Response({'success': True, 'message': 'Fee reduction approved.'})
 
     @transaction.atomic
     @action(detail=True, methods=['post'])
@@ -201,6 +210,15 @@ class FeeApprovalRequestViewSet(viewsets.ModelViewSet):
         approval.admin_remarks = request.data.get('remarks', '')
         approval.save()
 
+        if approval.request_type == 'CONCESSION':
+            # Post-enrollment concession rejection: no payment reversal, no status change
+            return Response({
+                'success': True,
+                'message': 'Concession request rejected. No changes made to student fees or payments.',
+                'data': {'refund_total': 0, 'reversed_receipts': []},
+            })
+
+        # Admission-time fee reduction rejection: reverse payments + deactivate student
         student = approval.student
         cleanup = cleanup_after_fee_approval_rejection(
             student,

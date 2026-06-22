@@ -277,6 +277,203 @@ def _placeholder_parent_email(tenant_id, phone_digits: str) -> str:
     return f'parent.{tid}.{phone_digits}@parent.local'
 
 
+def request_post_enrollment_concession(student, offered_total, reason, requested_by):
+    """
+    Raise a post-enrollment fee concession request for an already-ACTIVE student.
+    Creates a FeeApprovalRequest (request_type='CONCESSION') and notifies reviewers.
+    Does NOT touch invoices, payments, or student status.
+    """
+    from fees.models import FeeApprovalRequest, StudentFeeItem
+    from fees.approval_routing import compute_fee_approval_routing
+
+    if student.status != 'ACTIVE':
+        raise ValidationError('Concession requests can only be raised for active students.')
+
+    try:
+        offered_total = Decimal(str(offered_total))
+    except (ValueError, TypeError, ArithmeticError):
+        raise ValidationError('Proposed fee must be a valid number.')
+
+    if offered_total <= 0:
+        raise ValidationError('Proposed fee must be greater than zero.')
+
+    # Locked total = sum of StudentFeeItem for current academic year
+    locked_total = StudentFeeItem.objects.filter(
+        student=student, academic_year=student.academic_year
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+    if locked_total <= 0:
+        raise ValidationError('No fee items found for this student\'s current academic year.')
+
+    if offered_total >= locked_total:
+        raise ValidationError(
+            f'No concession needed — proposed fee (₹{offered_total}) is not less than '
+            f'the locked fee (₹{locked_total}).'
+        )
+
+    # Block if a PENDING request already exists for this student + academic year
+    already_pending = FeeApprovalRequest.objects.filter(
+        student=student,
+        status='PENDING',
+    ).exists()
+    if already_pending:
+        raise ValidationError(
+            'A concession or fee approval request is already pending for this student. '
+            'Please wait for it to be resolved before raising a new one.'
+        )
+
+    branch = student.branch
+    tenant = student.tenant
+    discount_amount = locked_total - offered_total
+
+    routing, _ = compute_fee_approval_routing(branch, locked_total, offered_total)
+
+    # Fallback: escalate to TENANT_SUPER if no active zonal admins mapped to this zone
+    if routing == 'ZONAL' and branch.zone_id:
+        from accounts.models import User
+        has_zonal_reviewer = User.objects.filter(
+            tenant=tenant,
+            role='ZONAL_ADMIN',
+            is_active=True,
+            zone_accesses__zone_id=branch.zone_id,
+        ).exists()
+        if not has_zonal_reviewer:
+            routing = 'TENANT_SUPER'
+
+    approval = FeeApprovalRequest.objects.create(
+        tenant=tenant,
+        branch=branch,
+        student=student,
+        requested_by=requested_by,
+        standard_total=locked_total,
+        offered_total=offered_total,
+        discount_amount=discount_amount,
+        routing=routing,
+        request_type='CONCESSION',
+        reason=reason or '',
+    )
+    _notify_fee_approval_reviewers(approval, routing, branch, tenant)
+    return approval
+
+
+def apply_approved_concession(approval):
+    """
+    Apply an approved CONCESSION FeeApprovalRequest:
+      - Updates the student's annual academic invoice (net_amount, concession_amount, outstanding_amount)
+      - Updates FeeInvoiceItem concession/final amounts proportionally
+      - Updates StudentFeeItem amounts proportionally
+      - Credits overpayments (paid > new total) to the student wallet
+    Payment records are never modified.
+    """
+    from django.db import transaction
+    from fees.models import FeeInvoice, FeeInvoiceItem, StudentFeeItem, StudentWallet, WalletTransaction
+
+    student = approval.student
+    approved_total = Decimal(str(approval.offered_total))
+
+    with transaction.atomic():
+        # ── Find the annual academic invoice ────────────────────────────────
+        invoice = (
+            FeeInvoice.objects
+            .select_for_update()
+            .filter(
+                student=student,
+                academic_year=student.academic_year,
+                month='ANNUAL',
+            )
+            .exclude(status='CANCELLED')
+            .exclude(invoice_number__startswith='ADM-')
+            .exclude(invoice_number__startswith='TRN-')
+            .exclude(invoice_number__startswith='FDP-')
+            .exclude(invoice_number__startswith='SPF-')
+            .order_by('created_at')
+            .first()
+        )
+
+        if not invoice:
+            logger.warning(
+                'apply_approved_concession: no annual invoice found for student %s (approval %s)',
+                student.id, approval.id,
+            )
+            return
+
+        gross = invoice.gross_amount
+        paid = invoice.paid_amount
+
+        new_concession = gross - approved_total
+        new_outstanding = max(Decimal('0.00'), approved_total - paid)
+        overpaid = max(Decimal('0.00'), paid - approved_total)
+
+        # ── Update invoice ───────────────────────────────────────────────────
+        invoice.concession_amount = new_concession
+        invoice.net_amount = approved_total
+        invoice.outstanding_amount = new_outstanding
+
+        if new_outstanding <= 0:
+            invoice.status = 'PAID'
+        elif paid > 0:
+            invoice.status = 'PARTIALLY_PAID'
+        else:
+            invoice.status = 'SENT'
+
+        invoice.save(update_fields=[
+            'concession_amount', 'net_amount', 'outstanding_amount', 'status'
+        ])
+
+        # ── Update FeeInvoiceItems proportionally ────────────────────────────
+        ratio = approved_total / gross if gross > 0 else Decimal('1.00')
+        items = list(FeeInvoiceItem.objects.filter(invoice=invoice))
+        for item in items:
+            new_final = (item.original_amount * ratio).quantize(Decimal('0.01'))
+            item.concession = item.original_amount - new_final
+            item.final_amount = new_final
+        FeeInvoiceItem.objects.bulk_update(items, ['concession', 'final_amount'])
+
+        # ── Update StudentFeeItems proportionally ───────────────────────────
+        fee_items = list(StudentFeeItem.objects.filter(
+            student=student, academic_year=student.academic_year
+        ))
+        for fi in fee_items:
+            # Derive the original structure amount from FeeInvoiceItem if available
+            matching = next(
+                (inv_item for inv_item in items if inv_item.category_id == fi.category_id),
+                None
+            )
+            if matching:
+                fi.amount = matching.final_amount
+            else:
+                fi.amount = (fi.amount * ratio).quantize(Decimal('0.01'))
+        StudentFeeItem.objects.bulk_update(fee_items, ['amount'])
+
+        # ── Handle overpayment → credit to wallet ───────────────────────────
+        if overpaid > 0:
+            wallet, _ = StudentWallet.objects.get_or_create(
+                student=student,
+                defaults={'tenant': student.tenant, 'balance': Decimal('0.00')},
+            )
+            wallet.balance += overpaid
+            wallet.save(update_fields=['balance'])
+            WalletTransaction.objects.create(
+                wallet=wallet,
+                transaction_type='CREDIT',
+                amount=overpaid,
+                description=(
+                    f'Concession applied (Approval #{str(approval.id)[:8]}): '
+                    f'paid amount exceeded new approved fee. Excess credited to wallet.'
+                ),
+            )
+            logger.info(
+                'apply_approved_concession: ₹%s overpayment credited to wallet for student %s',
+                overpaid, student.id,
+            )
+
+    logger.info(
+        'apply_approved_concession: student %s invoice %s updated — '
+        'net ₹%s, concession ₹%s, outstanding ₹%s',
+        student.id, invoice.id, approved_total, new_concession, new_outstanding,
+    )
+
+
 def link_parent_accounts_to_student(
     student, father_info, mother_info, tenant, branch, *, strict_parent_email=True,
 ):

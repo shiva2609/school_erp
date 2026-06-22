@@ -370,6 +370,23 @@ export const reportsRegistry: ReportCategory[] = [
     title: 'Financial',
     reports: [
       {
+        id: 'uncommitted-fee-students',
+        categoryId: 'payments',
+        title: 'Non Committed Fee Students',
+        description: 'Students whose academic fee has not been set or confirmed yet',
+        apiEndpoint: 'reports/payments/uncommitted-fee-students/',
+        exportKey: 'PAYMENTS_UNCOMMITTED_FEE_STUDENTS',
+        filters: { showDateRange: false, showClassSection: true, showAcademicYear: true },
+        columns: [
+          { key: 'admission_number', label: 'Admission No.' },
+          { key: 'student_name', label: 'Student Name', render: (_v: any, row: any) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || '-' },
+          { key: 'class', label: 'Class', render: (_v: any, row: any) => `${row.class_section__grade || ''}-${row.class_section__section || ''}`.replace(/-$/, '') },
+          { key: 'father_name', label: 'Parent Name' },
+          { key: 'father_phone', label: 'Contact' },
+          { key: 'status', label: 'Status' }
+        ]
+      },
+      {
         id: 'fee-balances',
         categoryId: 'payments',
         title: 'Fee Balances',

@@ -37,7 +37,11 @@ from .serializers import (
 from fees.models import FeeStructure, StudentFeeItem, FeeApprovalRequest
 from fees.transition_services import sync_carry_forwards_from_invoices
 
-from .services import create_student_fees, link_parent_accounts_to_student, student_needs_promoted_year_fee_setup
+from .services import (
+    create_student_fees, link_parent_accounts_to_student,
+    student_needs_promoted_year_fee_setup,
+    request_post_enrollment_concession,
+)
 
 
 
@@ -792,6 +796,65 @@ class StudentViewSet(viewsets.ModelViewSet):
             raise ValidationError(msg)
         serializer = self.get_serializer(student)
         return Response({'success': True, 'data': serializer.data})
+
+    @action(detail=True, methods=['post'], url_path='request-concession')
+    @transaction.atomic
+    def request_concession(self, request, pk=None):
+        """
+        Accountants and above: raise a post-enrollment fee concession request for an ACTIVE student.
+        If the proposed fee is below the locked fee total, a FeeApprovalRequest
+        (request_type='CONCESSION') is created and routed to Zonal/Super admin for approval.
+        No invoices or payments are touched until the request is approved.
+        """
+        from accounts.permissions import IsAccountantOrAbove
+        from fees.serializers import FeeApprovalRequestSerializer
+        from decimal import Decimal, InvalidOperation
+
+        user = self.request.user
+        # Explicitly check permission (action doesn't inherit viewset default)
+        if not IsAccountantOrAbove().has_permission(request, self):
+            raise PermissionDenied('Only accountants and above can raise concession requests.')
+
+        student = self.get_object()
+        raw_offered = request.data.get('offered_total')
+        reason = (request.data.get('reason') or '').strip()
+
+        if raw_offered is None:
+            return Response(
+                {'detail': 'offered_total is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            offered_total = Decimal(str(raw_offered))
+        except (InvalidOperation, ValueError, TypeError):
+            return Response(
+                {'detail': 'offered_total must be a valid number.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            approval = request_post_enrollment_concession(
+                student=student,
+                offered_total=offered_total,
+                reason=reason,
+                requested_by=user,
+            )
+        except ValidationError as exc:
+            detail = exc.detail
+            if isinstance(detail, dict):
+                msg = ' | '.join(str(v[0] if isinstance(v, list) else v) for v in detail.values())
+            elif isinstance(detail, list):
+                msg = ' | '.join(str(m) for m in detail)
+            else:
+                msg = str(detail)
+            return Response({'detail': msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'success': True,
+            'message': 'Concession request submitted for approval.',
+            'data': FeeApprovalRequestSerializer(approval).data,
+        }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='update-class-fees')
     @transaction.atomic

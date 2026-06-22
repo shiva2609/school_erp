@@ -62,10 +62,59 @@ export default function StudentProfilePage() {
   const [reversingPayment, setReversingPayment] = useState(false);
 
   const isSuperAdmin = !!user && ['OWNER', 'SUPER_ADMIN'].includes((user.role || '').toUpperCase());
+  const isAccountantOrAbove = !!user && ['OWNER', 'SUPER_ADMIN', 'ZONAL_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'].includes((user.role || '').toUpperCase());
 
   const canConfirmPromotedFees = !!user && (
     ['OWNER', 'SUPER_ADMIN', 'ZONAL_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'].includes(user.role)
   );
+
+  // Concession requests state
+  const [concessionRequests, setConcessionRequests] = useState<any[]>([]);
+  const [showConcessionModal, setShowConcessionModal] = useState(false);
+  const [concessionOffered, setConcessionOffered] = useState('');
+  const [concessionReason, setConcessionReason] = useState('');
+  const [submittingConcession, setSubmittingConcession] = useState(false);
+
+  const fetchConcessionRequests = async () => {
+    try {
+      const res: any = await api.get(`/fees/approvals/?student_id=${id}`);
+      const raw = res.data?.results ?? res.data?.data ?? res.data;
+      const list = Array.isArray(raw) ? raw : [];
+      setConcessionRequests(list.filter((r: any) => r.request_type === 'CONCESSION'));
+    } catch { /* silent */ }
+  };
+
+  useEffect(() => {
+    if (!id || activeTab !== 'fees') return;
+    fetchConcessionRequests();
+  }, [id, activeTab]);
+
+  const handleSubmitConcession = async () => {
+    const offered = Number(concessionOffered);
+    if (!offered || offered <= 0) {
+      toast.error('Enter a valid proposed fee amount.');
+      return;
+    }
+    setSubmittingConcession(true);
+    try {
+      await api.post(`/students/${id}/request-concession/`, {
+        offered_total: offered,
+        reason: concessionReason.trim(),
+      });
+      toast.success('Concession request submitted for approval.');
+      setShowConcessionModal(false);
+      setConcessionOffered('');
+      setConcessionReason('');
+      fetchConcessionRequests();
+    } catch (err: any) {
+      const d = err.response?.data;
+      const msg = typeof d?.detail === 'string' ? d.detail :
+        (Array.isArray(d?.detail) ? d.detail[0] : 'Failed to submit concession request.');
+      toast.error(String(msg));
+    } finally {
+      setSubmittingConcession(false);
+    }
+  };
 
   useEffect(() => {
     if (!student?.needs_promoted_class_fee_setup || !student.class_section || !student.branch || !student.academic_year) {
@@ -1089,6 +1138,158 @@ export default function StudentProfilePage() {
                   </div>
                 </div>
               </div>
+
+              {/* Concession Requests Section */}
+              {(concessionRequests.length > 0 || isAccountantOrAbove) && student?.status === 'ACTIVE' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <SectionHeader title="Concession Requests" icon={FileText} />
+                    {isAccountantOrAbove && (
+                      <button
+                        type="button"
+                        onClick={() => setShowConcessionModal(true)}
+                        disabled={concessionRequests.some((r: any) => r.status === 'PENDING')}
+                        title={concessionRequests.some((r: any) => r.status === 'PENDING') ? 'A pending request already exists. Wait for it to be resolved.' : 'Request a fee concession for this student'}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-violet-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-violet-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-violet-100"
+                      >
+                        <Plus size={13} /> Request Concession
+                      </button>
+                    )}
+                  </div>
+
+                  {concessionRequests.length === 0 ? (
+                    <div className="bg-slate-50/60 border border-dashed border-slate-200 rounded-[2rem] p-8 text-center">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No concession requests raised yet</p>
+                      <p className="text-xs text-slate-400 mt-1">Click &ldquo;Request Concession&rdquo; above to raise a post-enrollment fee concession.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-sm">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="bg-slate-50/50 border-b border-slate-100">
+                            <th className="px-5 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                            <th className="px-5 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Locked Fee</th>
+                            <th className="px-5 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Proposed Fee</th>
+                            <th className="px-5 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Discount</th>
+                            <th className="px-5 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Routed To</th>
+                            <th className="px-5 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                            <th className="px-5 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Admin Remarks</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {concessionRequests.map((req: any) => (
+                            <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-5 py-4">
+                                <p className="text-xs font-bold text-slate-700">
+                                  {new Date(req.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                </p>
+                                {req.reason && (
+                                  <p className="text-[10px] text-slate-400 mt-0.5 max-w-[140px] truncate" title={req.reason}>{req.reason}</p>
+                                )}
+                              </td>
+                              <td className="px-5 py-4">
+                                <p className="text-xs font-black text-slate-800">₹{Number(req.standard_total).toLocaleString('en-IN')}</p>
+                              </td>
+                              <td className="px-5 py-4">
+                                <p className="text-xs font-black text-violet-700">₹{Number(req.offered_total).toLocaleString('en-IN')}</p>
+                              </td>
+                              <td className="px-5 py-4">
+                                <p className="text-xs font-black text-emerald-700">₹{Number(req.reduction_amount).toLocaleString('en-IN')}</p>
+                              </td>
+                              <td className="px-5 py-4">
+                                <span className="text-[10px] font-bold text-slate-500">
+                                  {req.routing === 'ZONAL' ? 'Zonal Admin' : 'Super Admin'}
+                                </span>
+                              </td>
+                              <td className="px-5 py-4">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                  req.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                                  req.status === 'REJECTED' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                                  'bg-amber-50 text-amber-700 border border-amber-100'
+                                }`}>
+                                  {req.status === 'APPROVED' ? <CheckCircle2 size={10} /> :
+                                   req.status === 'REJECTED' ? <AlertCircle size={10} /> :
+                                   <Clock size={10} />}
+                                  {req.status}
+                                </span>
+                              </td>
+                              <td className="px-5 py-4">
+                                <p className="text-[10px] text-slate-500 max-w-[160px] truncate" title={req.admin_remarks || '—'}>
+                                  {req.admin_remarks || '—'}
+                                </p>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Concession Request Modal */}
+              {showConcessionModal && (
+                <Modal onClose={() => { setShowConcessionModal(false); setConcessionOffered(''); setConcessionReason(''); }}>
+                  <div className="p-8 space-y-6 max-w-md w-full">
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900 tracking-tight">Request Fee Concession</h3>
+                      <p className="text-xs text-slate-500 mt-1">Enter the new proposed fee. If it is below the locked fee, it will be sent for admin approval.</p>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Locked Fee</p>
+                        <p className="text-2xl font-black text-slate-900">₹{Number(student?.fee_stats?.total_fee || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">New Proposed Fee (₹)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-violet-400 focus:border-transparent outline-none transition"
+                          placeholder="Enter new fee amount"
+                          value={concessionOffered}
+                          onChange={(e) => setConcessionOffered(e.target.value)}
+                        />
+                        {concessionOffered && Number(concessionOffered) > 0 && Number(student?.fee_stats?.total_fee || 0) > 0 && (
+                          <p className={`text-xs font-bold mt-1.5 ${Number(concessionOffered) < Number(student?.fee_stats?.total_fee || 0) ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {Number(concessionOffered) < Number(student?.fee_stats?.total_fee || 0)
+                              ? `Discount: ₹${(Number(student?.fee_stats?.total_fee || 0) - Number(concessionOffered)).toLocaleString('en-IN')} — will be sent for approval`
+                              : 'Proposed fee must be less than the locked fee to raise a concession.'}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Reason / Note (optional)</label>
+                        <input
+                          type="text"
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:ring-2 focus:ring-violet-400 focus:border-transparent outline-none transition"
+                          placeholder="e.g. Sibling discount, financial hardship"
+                          value={concessionReason}
+                          onChange={(e) => setConcessionReason(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => { setShowConcessionModal(false); setConcessionOffered(''); setConcessionReason(''); }}
+                        className="flex-1 px-6 py-3 rounded-2xl bg-slate-100 text-slate-700 text-sm font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSubmitConcession}
+                        disabled={submittingConcession || !concessionOffered || Number(concessionOffered) <= 0}
+                        className="flex-1 px-6 py-3 rounded-2xl bg-violet-600 text-white text-sm font-black uppercase tracking-widest hover:bg-violet-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-violet-100"
+                      >
+                        {submittingConcession ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Submit Request'}
+                      </button>
+                    </div>
+                  </div>
+                </Modal>
+              )}
 
               {/* Transactions Ledger */}
               <div className="space-y-6">

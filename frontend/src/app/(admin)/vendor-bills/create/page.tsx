@@ -115,6 +115,11 @@ export default function CreateVendorBillPage() {
       return;
     }
 
+    if (!description || description.trim() === '') {
+      toast.error('Description is required.');
+      return;
+    }
+
     if (!billDate) {
       toast.error('Bill Date is required.');
       return;
@@ -296,13 +301,14 @@ export default function CreateVendorBillPage() {
                 </div>
                 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Description (Optional)</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Description *</label>
                   <textarea 
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     rows={3}
                     placeholder="E.g. Invoice #1234 for services rendered in May."
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 ring-blue-500 resize-none"
+                    required
                   />
                 </div>
               </div>

@@ -57,6 +57,9 @@ class VendorBillSerializer(serializers.ModelSerializer):
             'bill_id', 'voucher_number', 'status', 'submitted_by', 
             'approved_by', 'approved_at', 'rejection_reason'
         ]
+        extra_kwargs = {
+            'description': {'required': True, 'allow_blank': False}
+        }
 
 class ExpenseSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
