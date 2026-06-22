@@ -8,7 +8,15 @@ interface ExportButtonProps {
 }
 
 const triggerDownload = (url: string) => {
-  const fullUrl = `${process.env.NEXT_PUBLIC_BASE_URL || ''}${url}`;
+  let baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  if (baseUrl.endsWith('/api/v1/')) {
+    baseUrl = baseUrl.replace('/api/v1/', '');
+  } else if (baseUrl.endsWith('/')) {
+    baseUrl = baseUrl.slice(0, -1);
+  }
+  const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+  const fullUrl = `${baseUrl}${cleanUrl}`;
+  
   const a = document.createElement('a');
   a.href = fullUrl;
   a.target = '_blank';
