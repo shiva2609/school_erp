@@ -1229,7 +1229,7 @@ export default function StudentProfilePage() {
 
               {/* Concession Request Modal */}
               {showConcessionModal && (
-                <Modal onClose={() => { setShowConcessionModal(false); setConcessionOffered(''); setConcessionReason(''); }}>
+                <Modal isOpen={showConcessionModal} onClose={() => { setShowConcessionModal(false); setConcessionOffered(''); setConcessionReason(''); }}>
                   <div className="p-8 space-y-6 max-w-md w-full">
                     <div>
                       <h3 className="text-xl font-black text-slate-900 tracking-tight">Request Fee Concession</h3>
