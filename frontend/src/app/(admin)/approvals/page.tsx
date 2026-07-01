@@ -2,7 +2,11 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api from "@/lib/axios";
-import { CheckCircle, XCircle, Clock, ShieldCheck, AlertTriangle, Inbox, IndianRupee, Building2 } from "lucide-react";
+import {
+  CheckCircle, XCircle, Clock, ShieldCheck, AlertTriangle,
+  Inbox, IndianRupee, Building2, CheckSquare, Square, MinusSquare,
+  ChevronDown, Loader2
+} from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useConfirm } from "@/components/common/ConfirmProvider";
 import { useAuth } from "@/components/common/AuthProvider";
@@ -74,6 +78,78 @@ function routingBadge(amount: number) {
   return { label: tier.label, className: tier.badge };
 }
 
+// ─── Checkbox Component ───────────────────────────────────────────────────────
+function Checkbox({ checked, indeterminate, onChange, disabled }: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+}) {
+  const Icon = indeterminate ? MinusSquare : checked ? CheckSquare : Square;
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      disabled={disabled}
+      className={`flex-shrink-0 transition-colors ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:opacity-70'}`}
+    >
+      <Icon
+        size={20}
+        className={indeterminate || checked ? 'text-indigo-600' : 'text-gray-400'}
+      />
+    </button>
+  );
+}
+
+// ─── Bulk Action Bar ──────────────────────────────────────────────────────────
+function BulkActionBar({ count, total, onSelectAll, onDeselectAll, onBulkApprove, onBulkReject, loading }: {
+  count: number;
+  total: number;
+  onSelectAll: () => void;
+  onDeselectAll: () => void;
+  onBulkApprove: () => void;
+  onBulkReject: () => void;
+  loading: boolean;
+}) {
+  const allSelected = count === total && total > 0;
+  const someSelected = count > 0 && count < total;
+
+  return (
+    <div className={`flex items-center justify-between px-4 py-3 bg-indigo-50 border-b border-indigo-100 transition-all ${count === 0 ? 'opacity-60' : ''}`}>
+      <div className="flex items-center gap-3">
+        <Checkbox
+          checked={allSelected}
+          indeterminate={someSelected}
+          onChange={allSelected ? onDeselectAll : onSelectAll}
+        />
+        <span className="text-sm font-medium text-indigo-700">
+          {count === 0 ? `${total} item${total !== 1 ? 's' : ''}` : `${count} of ${total} selected`}
+        </span>
+      </div>
+      {count > 0 && (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onBulkReject}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-rose-700 bg-rose-100 hover:bg-rose-200 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+            Reject {count}
+          </button>
+          <button
+            onClick={onBulkApprove}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors disabled:opacity-50"
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+            Approve {count}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminApprovalsQueue() {
   const { user, loading: authLoading } = useAuth();
   const { selectedBranch } = useBranch();
@@ -83,7 +159,14 @@ export default function AdminApprovalsQueue() {
   const [vendorBills, setVendorBills] = useState<PendingVendorBill[]>([]);
   const [billsLoading, setBillsLoading] = useState(false);
   const [processingBill, setProcessingBill] = useState<string | null>(null);
+  const [processingFee, setProcessingFee] = useState<string | null>(null);
   const { confirm } = useConfirm();
+
+  // ─── Selection state ───────────────────────────────────────────────────────
+  const [selectedFeeIds, setSelectedFeeIds] = useState<Set<string>>(new Set());
+  const [selectedBillIds, setSelectedBillIds] = useState<Set<string>>(new Set());
+  const [bulkFeeLoading, setBulkFeeLoading] = useState(false);
+  const [bulkBillLoading, setBulkBillLoading] = useState(false);
 
   const canReviewFees = Boolean(user?.tenant && user?.role && FEE_APPROVAL_API_ROLES.has(user.role));
   const canReviewBills = Boolean(user?.tenant && user?.role && VENDOR_BILL_QUEUE_ROLES.has(user.role));
@@ -101,6 +184,7 @@ export default function AdminApprovalsQueue() {
       return;
     }
     setLoading(true);
+    setSelectedFeeIds(new Set());
     api
       .get(`fees/approvals/?status=${activeTab}`)
       .then((res) => {
@@ -117,6 +201,7 @@ export default function AdminApprovalsQueue() {
       return;
     }
     setBillsLoading(true);
+    setSelectedBillIds(new Set());
     api
       .get(`vendor-bills/?status=SUBMITTED&page_size=100${branchQuery}`)
       .then((res) => {
@@ -127,14 +212,10 @@ export default function AdminApprovalsQueue() {
       .finally(() => setBillsLoading(false));
   }, [branchQuery, canReviewBills]);
 
-  useEffect(() => {
-    fetchApprovals();
-  }, [fetchApprovals]);
+  useEffect(() => { fetchApprovals(); }, [fetchApprovals]);
+  useEffect(() => { fetchVendorBills(); }, [fetchVendorBills]);
 
-  useEffect(() => {
-    fetchVendorBills();
-  }, [fetchVendorBills]);
-
+  // ─── Individual Fee Actions ────────────────────────────────────────────────
   const handleApprove = async (id: string, studentName: string) => {
     const ok = await confirm({
       title: "Approve fee reduction",
@@ -143,13 +224,15 @@ export default function AdminApprovalsQueue() {
       isDestructive: false,
     });
     if (!ok) return;
-
+    setProcessingFee(id);
     try {
       await api.post(`fees/approvals/${id}/approve/`, { remarks: "" });
       toast.success(`Fee reduction for ${studentName} approved`);
       fetchApprovals();
     } catch {
       toast.error("Failed to approve request");
+    } finally {
+      setProcessingFee(null);
     }
   };
 
@@ -161,16 +244,67 @@ export default function AdminApprovalsQueue() {
       isDestructive: true,
     });
     if (!ok) return;
-
+    setProcessingFee(id);
     try {
       const res = await api.post(`fees/approvals/${id}/reject/`, { remarks: "" });
       toast.success(res.data?.message || `Fee reduction for ${studentName} rejected`);
       fetchApprovals();
     } catch {
       toast.error("Failed to reject request");
+    } finally {
+      setProcessingFee(null);
     }
   };
 
+  // ─── Bulk Fee Actions ──────────────────────────────────────────────────────
+  const handleBulkFeeApprove = async () => {
+    const ids = Array.from(selectedFeeIds);
+    const ok = await confirm({
+      title: `Approve ${ids.length} fee request${ids.length !== 1 ? 's' : ''}`,
+      message: `This will approve all ${ids.length} selected fee reduction request${ids.length !== 1 ? 's' : ''}. Students in PENDING_APPROVAL state will be activated.`,
+      confirmText: "Approve All",
+      isDestructive: false,
+    });
+    if (!ok) return;
+    setBulkFeeLoading(true);
+    try {
+      const res = await api.post('fees/approvals/bulk-approve/', { ids, remarks: "" });
+      const d = res.data;
+      toast.success(d.message || `${d.approved} request(s) approved`);
+      if (d.skipped?.length > 0) {
+        toast.error(`${d.skipped.length} request(s) skipped — check permissions`);
+      }
+      fetchApprovals();
+    } catch {
+      toast.error("Bulk approval failed");
+    } finally {
+      setBulkFeeLoading(false);
+    }
+  };
+
+  const handleBulkFeeReject = async () => {
+    const ids = Array.from(selectedFeeIds);
+    const ok = await confirm({
+      title: `Reject ${ids.length} fee request${ids.length !== 1 ? 's' : ''}`,
+      message: `Reject all ${ids.length} selected fee reduction request${ids.length !== 1 ? 's' : ''}? This cannot be undone.`,
+      confirmText: "Reject All",
+      isDestructive: true,
+    });
+    if (!ok) return;
+    setBulkFeeLoading(true);
+    try {
+      const res = await api.post('fees/approvals/bulk-reject/', { ids, remarks: "" });
+      const d = res.data;
+      toast.success(d.message || `${d.rejected} request(s) rejected`);
+      fetchApprovals();
+    } catch {
+      toast.error("Bulk rejection failed");
+    } finally {
+      setBulkFeeLoading(false);
+    }
+  };
+
+  // ─── Individual Bill Actions ───────────────────────────────────────────────
   const handleBillApprove = async (b: PendingVendorBill) => {
     if (!canUserApproveBill(user?.role, Number(b.total_amount))) {
       toast.error(getApprovalTierLabel(Number(b.total_amount)).who);
@@ -220,6 +354,84 @@ export default function AdminApprovalsQueue() {
       setProcessingBill(null);
     }
   };
+
+  // ─── Bulk Bill Actions ─────────────────────────────────────────────────────
+  const handleBulkBillApprove = async () => {
+    const ids = Array.from(selectedBillIds);
+    const ok = await confirm({
+      title: `Approve ${ids.length} vendor bill${ids.length !== 1 ? 's' : ''}`,
+      message: `Approve ${ids.length} selected vendor bill${ids.length !== 1 ? 's' : ''}? They will be posted to the cashbook.`,
+      confirmText: "Approve All",
+      isDestructive: false,
+    });
+    if (!ok) return;
+    setBulkBillLoading(true);
+    try {
+      const res = await api.post('vendor-bills/bulk-status/', { ids, status: 'APPROVED' });
+      const d = res.data;
+      toast.success(d.message || `${d.processed} bill(s) approved`);
+      if (d.skipped?.length > 0) toast.error(`${d.skipped.length} bill(s) skipped — amount exceeds tier`);
+      fetchVendorBills();
+    } catch {
+      toast.error("Bulk bill approval failed");
+    } finally {
+      setBulkBillLoading(false);
+    }
+  };
+
+  const handleBulkBillReject = async () => {
+    const ids = Array.from(selectedBillIds);
+    const ok = await confirm({
+      title: `Reject ${ids.length} vendor bill${ids.length !== 1 ? 's' : ''}`,
+      message: `Reject ${ids.length} selected vendor bill${ids.length !== 1 ? 's' : ''}?`,
+      confirmText: "Reject All",
+      isDestructive: true,
+    });
+    if (!ok) return;
+    setBulkBillLoading(true);
+    try {
+      const res = await api.post('vendor-bills/bulk-status/', { ids, status: 'REJECTED' });
+      const d = res.data;
+      toast.success(d.message || `${d.processed} bill(s) rejected`);
+      fetchVendorBills();
+    } catch {
+      toast.error("Bulk bill rejection failed");
+    } finally {
+      setBulkBillLoading(false);
+    }
+  };
+
+  // ─── Selection Helpers ─────────────────────────────────────────────────────
+  const toggleFeeSelection = (id: string) => {
+    setSelectedFeeIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllFees = () => {
+    setSelectedFeeIds(new Set(requests.map(r => r.id)));
+  };
+
+  const deselectAllFees = () => setSelectedFeeIds(new Set());
+
+  const toggleBillSelection = (id: string, canAct: boolean) => {
+    if (!canAct) return;
+    setSelectedBillIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const approvableBillIds = useMemo(
+    () => vendorBills.filter(b => canUserApproveBill(user?.role, Number(b.total_amount))).map(b => b.id),
+    [vendorBills, user?.role]
+  );
+
+  const selectAllBills = () => setSelectedBillIds(new Set(approvableBillIds));
+  const deselectAllBills = () => setSelectedBillIds(new Set());
 
   const tabs: { key: ApprovalStatus; label: string; icon: React.ReactNode }[] = [
     { key: "PENDING", label: "Pending", icon: <Clock size={14} /> },
@@ -284,6 +496,7 @@ export default function AdminApprovalsQueue() {
         </div>
       </div>
 
+      {/* ── Vendor Bill Approvals ─────────────────────────────────────────── */}
       {canReviewBills && (
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
@@ -306,107 +519,135 @@ export default function AdminApprovalsQueue() {
                 </p>
               </div>
             ) : (
-              <ul className="divide-y divide-gray-100">
-                {vendorBills.map((b) => {
-                  const badge = routingBadge(Number(b.total_amount));
-                  const canAct = canUserApproveBill(user?.role, Number(b.total_amount));
-                  return (
-                    <li key={b.id} className="p-6 hover:bg-gray-50/50 transition-colors">
-                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900">
-                              VENDOR BILL
-                            </span>
-                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badge.className}`}>
-                              {badge.label}
-                            </span>
-                            {b.branch_name ? (
-                              <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                                <Building2 size={12} />
-                                {b.branch_name}
-                              </span>
-                            ) : null}
-                          </div>
-                          <p className="font-semibold text-gray-900">{b.vendor_display}</p>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                            <span>
-                              <span className="font-bold text-gray-500">Bill ID: </span>
-                              {b.bill_id}
-                            </span>
-                            {b.items && b.items.length > 0 ? (
-                              <span>
-                                <span className="font-bold text-gray-500">Types: </span>
-                                {b.items.map(i => i.expense_type_name).join(", ")}
-                              </span>
-                            ) : null}
-                            <span>
-                              <span className="font-bold text-gray-500">Date: </span>
-                              {b.bill_date
-                                ? new Date(b.bill_date + "T12:00:00").toLocaleDateString("en-IN", {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                  })
-                                : "N/A"}
-                            </span>
-                            <span>
-                              <span className="font-bold text-gray-500">Mode: </span>
-                              {b.payment_mode}
-                            </span>
-                          </div>
-                          {b.description && (
-                            <p className="text-sm text-gray-700 mt-1 italic">
-                              "{b.description}"
-                            </p>
-                          )}
-                          <p className="text-xs text-gray-400 pt-1">
-                            Submitted by {b.submitted_by_name || "Unknown"}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-4 lg:w-64 lg:shrink-0 justify-between lg:justify-end">
-                          <div className="text-right">
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5">
-                              Net Amount
-                            </p>
-                            <p className="text-lg font-black text-gray-900 flex items-center justify-end">
-                              <IndianRupee size={16} className="mr-0.5 text-gray-400" />
-                              {formatRupee(b.net_amount).replace("₹", "")}
-                            </p>
-                          </div>
-                          {canAct ? (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleBillReject(b)}
-                                disabled={processingBill === b.id}
-                                className="px-4 py-2 text-rose-600 font-bold bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-50"
-                              >
-                                Reject
-                              </button>
-                              <button
-                                onClick={() => handleBillApprove(b)}
-                                disabled={processingBill === b.id}
-                                className="px-4 py-2 text-white font-bold bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors disabled:opacity-50"
-                              >
-                                {processingBill === b.id ? "..." : "Approve"}
-                              </button>
+              <>
+                {/* Bulk action bar for bills */}
+                <BulkActionBar
+                  count={selectedBillIds.size}
+                  total={approvableBillIds.length}
+                  onSelectAll={selectAllBills}
+                  onDeselectAll={deselectAllBills}
+                  onBulkApprove={handleBulkBillApprove}
+                  onBulkReject={handleBulkBillReject}
+                  loading={bulkBillLoading}
+                />
+                <ul className="divide-y divide-gray-100">
+                  {vendorBills.map((b) => {
+                    const badge = routingBadge(Number(b.total_amount));
+                    const canAct = canUserApproveBill(user?.role, Number(b.total_amount));
+                    const isSelected = selectedBillIds.has(b.id);
+                    const isProcessing = processingBill === b.id;
+                    return (
+                      <li
+                        key={b.id}
+                        className={`p-6 transition-colors ${isSelected ? 'bg-indigo-50/60' : 'hover:bg-gray-50/50'}`}
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            {/* Checkbox */}
+                            <div className="pt-1">
+                              <Checkbox
+                                checked={isSelected}
+                                onChange={() => toggleBillSelection(b.id, canAct)}
+                                disabled={!canAct}
+                              />
                             </div>
-                          ) : (
-                            <div className="text-xs text-gray-400 italic text-right max-w-[120px] leading-tight">
-                              {getApprovalTierLabel(Number(b.total_amount)).who}
+                            <div className="flex-1 min-w-0 space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900">
+                                  VENDOR BILL
+                                </span>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badge.className}`}>
+                                  {badge.label}
+                                </span>
+                                {b.branch_name ? (
+                                  <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                    <Building2 size={12} />
+                                    {b.branch_name}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p className="font-semibold text-gray-900">{b.vendor_display}</p>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                                <span>
+                                  <span className="font-bold text-gray-500">Bill ID: </span>
+                                  {b.bill_id}
+                                </span>
+                                {b.items && b.items.length > 0 ? (
+                                  <span>
+                                    <span className="font-bold text-gray-500">Types: </span>
+                                    {b.items.map(i => i.expense_type_name).join(", ")}
+                                  </span>
+                                ) : null}
+                                <span>
+                                  <span className="font-bold text-gray-500">Date: </span>
+                                  {b.bill_date
+                                    ? new Date(b.bill_date + "T12:00:00").toLocaleDateString("en-IN", {
+                                        day: "2-digit",
+                                        month: "short",
+                                        year: "numeric",
+                                      })
+                                    : "N/A"}
+                                </span>
+                                <span>
+                                  <span className="font-bold text-gray-500">Mode: </span>
+                                  {b.payment_mode}
+                                </span>
+                              </div>
+                              {b.description && (
+                                <p className="text-sm text-gray-700 mt-1 italic">
+                                  "{b.description}"
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-400 pt-1">
+                                Submitted by {b.submitted_by_name || "Unknown"}
+                              </p>
                             </div>
-                          )}
+                          </div>
+                          <div className="flex items-center gap-4 lg:w-64 lg:shrink-0 justify-between lg:justify-end">
+                            <div className="text-right">
+                              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5">
+                                Net Amount
+                              </p>
+                              <p className="text-lg font-black text-gray-900 flex items-center justify-end">
+                                <IndianRupee size={16} className="mr-0.5 text-gray-400" />
+                                {formatRupee(b.net_amount).replace("₹", "")}
+                              </p>
+                            </div>
+                            {canAct ? (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleBillReject(b)}
+                                  disabled={isProcessing || bulkBillLoading}
+                                  className="px-4 py-2 text-rose-600 font-bold bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                  Reject
+                                </button>
+                                <button
+                                  onClick={() => handleBillApprove(b)}
+                                  disabled={isProcessing || bulkBillLoading}
+                                  className="px-4 py-2 text-white font-bold bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors disabled:opacity-50"
+                                >
+                                  {isProcessing ? <Loader2 size={14} className="animate-spin" /> : "Approve"}
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-gray-400 italic text-right max-w-[120px] leading-tight">
+                                {getApprovalTierLabel(Number(b.total_amount)).who}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
             )}
           </div>
         </section>
       )}
 
+      {/* ── Fee Concession Approvals ──────────────────────────────────────── */}
       {canReviewFees && (
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
@@ -456,121 +697,157 @@ export default function AdminApprovalsQueue() {
                 </p>
               </div>
             ) : (
-              <ul className="divide-y divide-gray-100">
-                {requests.map((req) => (
-                  <li key={req.id} className="p-6 hover:bg-gray-50/50 transition-colors">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center flex-wrap gap-2">
-                          {req.request_type === 'CONCESSION' ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-violet-100 text-violet-800">
-                              CONCESSION REQUEST
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
-                              ADMISSION DISCOUNT
+              <>
+                {/* Bulk action bar — only for PENDING tab */}
+                {activeTab === "PENDING" && (
+                  <BulkActionBar
+                    count={selectedFeeIds.size}
+                    total={requests.length}
+                    onSelectAll={selectAllFees}
+                    onDeselectAll={deselectAllFees}
+                    onBulkApprove={handleBulkFeeApprove}
+                    onBulkReject={handleBulkFeeReject}
+                    loading={bulkFeeLoading}
+                  />
+                )}
+                <ul className="divide-y divide-gray-100">
+                  {requests.map((req) => {
+                    const isSelected = selectedFeeIds.has(req.id);
+                    const isProcessing = processingFee === req.id;
+                    return (
+                      <li
+                        key={req.id}
+                        className={`p-6 transition-colors ${isSelected ? 'bg-indigo-50/60' : 'hover:bg-gray-50/50'}`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            {/* Checkbox — only for PENDING */}
+                            {activeTab === "PENDING" && (
+                              <div className="pt-0.5">
+                                <Checkbox
+                                  checked={isSelected}
+                                  onChange={() => toggleFeeSelection(req.id)}
+                                />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center flex-wrap gap-2">
+                                {req.request_type === 'CONCESSION' ? (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-violet-100 text-violet-800">
+                                    CONCESSION REQUEST
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                                    ADMISSION DISCOUNT
+                                  </span>
+                                )}
+                                <span className="text-sm font-semibold text-gray-900">{req.student_name}</span>
+                                {req.branch_name && (
+                                  <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                                    {req.branch_name}
+                                  </span>
+                                )}
+                                <span className="text-sm text-gray-500">— Requested by {req.requested_by_name}</span>
+                              </div>
+                              {(req.academic_year_name || req.class_section_display) ? (
+                                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                                  {req.academic_year_name ? (
+                                    <span>
+                                      <span className="font-bold text-gray-500 uppercase tracking-wide">Academic year: </span>
+                                      {req.academic_year_name}
+                                    </span>
+                                  ) : null}
+                                  {req.class_section_display ? (
+                                    <span>
+                                      <span className="font-bold text-gray-500 uppercase tracking-wide">Class: </span>
+                                      {req.class_section_display}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : null}
+
+                              <div className="mt-3 flex flex-wrap gap-3 text-sm">
+                                <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                    Locked fee
+                                  </span>
+                                  <span className="font-bold tabular-nums text-slate-900">{formatRupee(req.standard_total)}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-3 py-2">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
+                                    Agreed fee
+                                  </span>
+                                  <span className="font-bold tabular-nums text-indigo-900">{formatRupee(req.offered_total)}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                                    Discount
+                                  </span>
+                                  <span className="font-bold tabular-nums text-amber-900">{formatRupee(req.reduction_amount)}</span>
+                                </div>
+                              </div>
+                              {req.reason?.trim() ? (
+                                <p className="mt-2 text-sm text-gray-600">
+                                  <span className="font-semibold text-gray-700">Reason: </span>
+                                  {req.reason}
+                                </p>
+                              ) : null}
+
+                              <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
+                                <span className="flex items-center gap-1">
+                                  <Clock size={12} />
+                                  Submitted {formatTimeAgo(req.created_at)}
+                                </span>
+                                {req.reviewed_by_name && (
+                                  <span>
+                                    Reviewed by <span className="font-medium text-gray-500">{req.reviewed_by_name}</span>
+                                  </span>
+                                )}
+                                {req.admin_remarks ? <span className="italic">&quot;{req.admin_remarks}&quot;</span> : null}
+                              </div>
+                            </div>
+                          </div>
+
+                          {activeTab === "PENDING" && (
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleReject(req.id, req.student_name)}
+                                disabled={isProcessing || bulkFeeLoading}
+                                className="text-red-600 hover:text-red-800 border border-red-200 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 flex items-center text-sm font-medium transition-colors disabled:opacity-50"
+                              >
+                                {isProcessing ? <Loader2 size={14} className="animate-spin mr-1" /> : <XCircle size={16} className="mr-1.5" />}
+                                Reject
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleApprove(req.id, req.student_name)}
+                                disabled={isProcessing || bulkFeeLoading}
+                                className="text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg flex items-center text-sm font-medium shadow-sm transition-colors disabled:opacity-50"
+                              >
+                                {isProcessing ? <Loader2 size={14} className="animate-spin mr-1" /> : <CheckCircle size={16} className="mr-1.5" />}
+                                Approve
+                              </button>
+                            </div>
+                          )}
+
+                          {activeTab === "APPROVED" && (
+                            <span className="flex items-center gap-1 text-green-600 text-sm font-medium bg-green-50 px-3 py-1.5 rounded-lg">
+                              <CheckCircle size={16} /> Approved
                             </span>
                           )}
-                          <span className="text-sm font-semibold text-gray-900">{req.student_name}</span>
-                          {req.branch_name && (
-                            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                              {req.branch_name}
+
+                          {activeTab === "REJECTED" && (
+                            <span className="flex items-center gap-1 text-red-600 text-sm font-medium bg-red-50 px-3 py-1.5 rounded-lg">
+                              <XCircle size={16} /> Rejected
                             </span>
                           )}
-                          <span className="text-sm text-gray-500">— Requested by {req.requested_by_name}</span>
                         </div>
-                        {(req.academic_year_name || req.class_section_display) ? (
-                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                            {req.academic_year_name ? (
-                              <span>
-                                <span className="font-bold text-gray-500 uppercase tracking-wide">Academic year: </span>
-                                {req.academic_year_name}
-                              </span>
-                            ) : null}
-                            {req.class_section_display ? (
-                              <span>
-                                <span className="font-bold text-gray-500 uppercase tracking-wide">Class: </span>
-                                {req.class_section_display}
-                              </span>
-                            ) : null}
-                          </div>
-                        ) : null}
-
-                        <div className="mt-3 flex flex-wrap gap-3 text-sm">
-                          <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                              Locked fee
-                            </span>
-                            <span className="font-bold tabular-nums text-slate-900">{formatRupee(req.standard_total)}</span>
-                          </div>
-                          <div className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-3 py-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
-                              Agreed fee
-                            </span>
-                            <span className="font-bold tabular-nums text-indigo-900">{formatRupee(req.offered_total)}</span>
-                          </div>
-                          <div className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                              Discount
-                            </span>
-                            <span className="font-bold tabular-nums text-amber-900">{formatRupee(req.reduction_amount)}</span>
-                          </div>
-                        </div>
-                        {req.reason?.trim() ? (
-                          <p className="mt-2 text-sm text-gray-600">
-                            <span className="font-semibold text-gray-700">Reason: </span>
-                            {req.reason}
-                          </p>
-                        ) : null}
-
-                        <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
-                          <span className="flex items-center gap-1">
-                            <Clock size={12} />
-                            Submitted {formatTimeAgo(req.created_at)}
-                          </span>
-                          {req.reviewed_by_name && (
-                            <span>
-                              Reviewed by <span className="font-medium text-gray-500">{req.reviewed_by_name}</span>
-                            </span>
-                          )}
-                          {req.admin_remarks ? <span className="italic">&quot;{req.admin_remarks}&quot;</span> : null}
-                        </div>
-                      </div>
-
-                      {activeTab === "PENDING" && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleReject(req.id, req.student_name)}
-                            className="text-red-600 hover:text-red-800 border border-red-200 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 flex items-center text-sm font-medium transition-colors"
-                          >
-                            <XCircle size={16} className="mr-1.5" /> Reject
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleApprove(req.id, req.student_name)}
-                            className="text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg flex items-center text-sm font-medium shadow-sm transition-colors"
-                          >
-                            <CheckCircle size={16} className="mr-1.5" /> Approve
-                          </button>
-                        </div>
-                      )}
-
-                      {activeTab === "APPROVED" && (
-                        <span className="flex items-center gap-1 text-green-600 text-sm font-medium bg-green-50 px-3 py-1.5 rounded-lg">
-                          <CheckCircle size={16} /> Approved
-                        </span>
-                      )}
-
-                      {activeTab === "REJECTED" && (
-                        <span className="flex items-center gap-1 text-red-600 text-sm font-medium bg-red-50 px-3 py-1.5 rounded-lg">
-                          <XCircle size={16} /> Rejected
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
             )}
           </div>
         </section>

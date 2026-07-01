@@ -139,7 +139,7 @@ class FeeApprovalRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsFeeApprovalReviewer]
 
     def get_permissions(self):
-        if self.action in ('approve', 'reject'):
+        if self.action in ('approve', 'reject', 'bulk_approve', 'bulk_reject'):
             return [IsAuthenticated(), CanActOnFeeApproval()]
         return [IsAuthenticated(), IsFeeApprovalReviewer()]
 
@@ -242,6 +242,86 @@ class FeeApprovalRequestViewSet(viewsets.ModelViewSet):
                 'refund_total': float(refund_total),
                 'reversed_receipts': reversed_receipts,
             },
+        })
+
+    @transaction.atomic
+    @action(detail=False, methods=['post'], url_path='bulk-approve')
+    def bulk_approve(self, request):
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response({'detail': 'No approval IDs provided.'}, status=400)
+
+        approved_count = 0
+        skipped = []
+        qs = self.get_queryset().filter(id__in=ids, status='PENDING')
+
+        for approval in qs:
+            if not user_can_act_on_fee_approval(request.user, approval):
+                skipped.append({'id': str(approval.id), 'student': approval.student_name if hasattr(approval, 'student_name') else str(approval.student_id), 'reason': 'Not authorized'})
+                continue
+            approval.status = 'APPROVED'
+            approval.reviewed_by = request.user
+            approval.reviewed_at = timezone.now()
+            approval.admin_remarks = request.data.get('remarks', '')
+            approval.save()
+
+            if approval.request_type == 'CONCESSION':
+                from students.services import apply_approved_concession
+                try:
+                    apply_approved_concession(approval)
+                except Exception:
+                    pass
+            else:
+                student = approval.student
+                if student.status in ['PENDING_APPROVAL', 'INACTIVE']:
+                    student.status = 'ACTIVE'
+                    student.save()
+            approved_count += 1
+
+        return Response({
+            'success': True,
+            'approved': approved_count,
+            'skipped': skipped,
+            'message': f'{approved_count} request(s) approved.' + (f' {len(skipped)} skipped.' if skipped else ''),
+        })
+
+    @transaction.atomic
+    @action(detail=False, methods=['post'], url_path='bulk-reject')
+    def bulk_reject(self, request):
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response({'detail': 'No approval IDs provided.'}, status=400)
+
+        rejected_count = 0
+        skipped = []
+        qs = self.get_queryset().filter(id__in=ids, status='PENDING')
+
+        for approval in qs:
+            if not user_can_act_on_fee_approval(request.user, approval):
+                skipped.append({'id': str(approval.id), 'reason': 'Not authorized'})
+                continue
+            approval.status = 'REJECTED'
+            approval.reviewed_by = request.user
+            approval.reviewed_at = timezone.now()
+            approval.admin_remarks = request.data.get('remarks', '')
+            approval.save()
+
+            if approval.request_type != 'CONCESSION':
+                student = approval.student
+                try:
+                    cleanup_after_fee_approval_rejection(student, request.user, remarks=approval.admin_remarks or '')
+                except Exception:
+                    pass
+                if student.status == 'PENDING_APPROVAL':
+                    student.status = 'INACTIVE'
+                    student.save(update_fields=['status'])
+            rejected_count += 1
+
+        return Response({
+            'success': True,
+            'rejected': rejected_count,
+            'skipped': skipped,
+            'message': f'{rejected_count} request(s) rejected.' + (f' {len(skipped)} skipped.' if skipped else ''),
         })
 
 

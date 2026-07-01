@@ -306,6 +306,54 @@ class VendorBillViewSet(viewsets.ModelViewSet):
                 status=500
             )
 
+    @action(detail=False, methods=['post'], url_path='bulk-status')
+    def bulk_update_status(self, request):
+        """
+        Bulk approve or reject multiple vendor bills.
+        Request body: { "ids": [...], "status": "APPROVED"|"REJECTED", "reason": "..." }
+        """
+        from .approval import user_can_approve_submitted_expense
+        ids = request.data.get('ids', [])
+        new_status = request.data.get('status')
+        reason = request.data.get('reason', '')
+
+        if not ids:
+            return Response({'detail': 'No bill IDs provided.'}, status=400)
+        if new_status not in ('APPROVED', 'REJECTED'):
+            return Response({'detail': 'status must be APPROVED or REJECTED.'}, status=400)
+
+        processed_count = 0
+        skipped = []
+
+        bills_qs = filter_queryset_for_user_tenant(
+            VendorBill.objects.filter(id__in=ids, status='SUBMITTED').select_related('branch'),
+            request.user,
+            'branch__tenant',
+        )
+
+        with transaction.atomic():
+            for bill in bills_qs:
+                if not user_can_approve_submitted_expense(request.user, bill.total_amount):
+                    skipped.append({'id': str(bill.id), 'bill_id': bill.bill_id, 'reason': 'Amount exceeds your authorization tier'})
+                    continue
+                if new_status == 'APPROVED':
+                    bill.status = 'APPROVED'
+                    bill.approved_by = request.user
+                    bill.approved_at = timezone.now()
+                else:
+                    bill.status = 'REJECTED'
+                    bill.rejection_reason = reason
+                bill.save()
+                processed_count += 1
+
+        action_word = 'approved' if new_status == 'APPROVED' else 'rejected'
+        return Response({
+            'success': True,
+            'processed': processed_count,
+            'skipped': skipped,
+            'message': f'{processed_count} bill(s) {action_word}.' + (f' {len(skipped)} skipped.' if skipped else ''),
+        })
+
 
 class ExpenseViewSet(viewsets.ModelViewSet):
     serializer_class = ExpenseSerializer

@@ -173,7 +173,7 @@ class TransportFeeEnrollmentViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         from students.models import Student
         from tenants.models import AcademicYear
-        from fees.models import FeeCategory, FeeInvoice, FeeInvoiceItem, DocumentSequence
+        from fees.models import FeeCategory, FeeInvoice, FeeInvoiceItem, DocumentSequence, Payment, PaymentAllocation, StudentFeeItem
 
         student_id = request.data.get('student') or request.data.get('student_id')
         academic_year_id = request.data.get('academic_year') or request.data.get('academic_year_id')
@@ -263,6 +263,68 @@ class TransportFeeEnrollmentViewSet(viewsets.ModelViewSet):
             final_amount=agreed_amount,
             description=f"Annual Transport Fee - Pickup: {pickup_point}"
         )
+
+        # ─── Override CSV-imported transport invoice if one already exists ─────
+        # CSV import creates transport invoices with prefix TRN-{branch_code}-{year}
+        # and month="ANNUAL". If such an invoice already exists for this student and
+        # academic year, we cancel it and migrate any completed payments to the new
+        # TRN-ANN invoice so the student is never double-billed for transport.
+        csv_transport_inv = FeeInvoice.objects.filter(
+            student=student,
+            academic_year=academic_year,
+            month="ANNUAL",
+            invoice_number__startswith=f'TRN-{student.branch.branch_code}-',
+        ).exclude(
+            invoice_number__startswith='TRN-ANN-'
+        ).first()
+
+        if csv_transport_inv:
+            # Collect completed payments from the old CSV invoice
+            completed_payments_qs = csv_transport_inv.payments.filter(status='COMPLETED')
+            total_migrated = sum(p.amount for p in completed_payments_qs)
+
+            # Re-point payments and their allocations to the new TRN-ANN invoice
+            completed_payments_qs.update(invoice=invoice)
+            PaymentAllocation.objects.filter(invoice=csv_transport_inv).update(invoice=invoice)
+
+            # Recompute new invoice amounts to reflect migrated payments
+            paid = min(total_migrated, agreed_amount)
+            outstanding = max(Decimal('0'), agreed_amount - paid)
+            if outstanding == Decimal('0'):
+                new_status = 'PAID'
+            elif paid > Decimal('0'):
+                new_status = 'PARTIALLY_PAID'
+            else:
+                new_status = 'SENT'
+
+            invoice.paid_amount = paid
+            invoice.outstanding_amount = outstanding
+            invoice.status = new_status
+            invoice.save(update_fields=['paid_amount', 'outstanding_amount', 'status'])
+
+            # Cancel the old CSV-imported transport invoice
+            csv_transport_inv.status = 'CANCELLED'
+            csv_transport_inv.outstanding_amount = Decimal('0')
+            csv_transport_inv.save(update_fields=['status', 'outstanding_amount'])
+        # ──────────────────────────────────────────────────────────────────────
+
+        # Upsert StudentFeeItem so the fee ledger reflects the enrollment amount
+        sf_item = StudentFeeItem.objects.filter(
+            student=student,
+            academic_year=academic_year,
+            category=transport_cat,
+        ).first()
+        if sf_item:
+            sf_item.amount = agreed_amount
+            sf_item.save(update_fields=['amount'])
+        else:
+            StudentFeeItem.objects.create(
+                student=student,
+                academic_year=academic_year,
+                category=transport_cat,
+                amount=agreed_amount,
+                is_locked=True,
+            )
 
         serializer = self.get_serializer(enrollment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
