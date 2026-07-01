@@ -5,7 +5,7 @@ import api from "@/lib/axios";
 import {
   CheckCircle, XCircle, Clock, ShieldCheck, AlertTriangle,
   Inbox, IndianRupee, Building2, CheckSquare, Square, MinusSquare,
-  ChevronDown, Loader2
+  Loader2, SlidersHorizontal, X
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useConfirm } from "@/components/common/ConfirmProvider";
@@ -101,6 +101,166 @@ function Checkbox({ checked, indeterminate, onChange, disabled }: {
   );
 }
 
+// ─── Filter state types ───────────────────────────────────────────────────────
+interface BillFilters {
+  search: string;
+  minAmount: string;
+  maxAmount: string;
+  tier: string; // 'all' | 'auto' | 'zonal' | 'super'
+}
+
+interface FeeFilters {
+  search: string;
+  minDiscount: string;
+  maxDiscount: string;
+  requestType: string; // 'all' | 'ADMISSION' | 'CONCESSION'
+}
+
+// ─── Filter Bar (Bills) ───────────────────────────────────────────────────────
+function BillFilterBar({ filters, onChange, total, filtered }: {
+  filters: BillFilters;
+  onChange: (f: BillFilters) => void;
+  total: number;
+  filtered: number;
+}) {
+  const active = filters.search || filters.minAmount || filters.maxAmount || filters.tier !== 'all';
+  return (
+    <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          <SlidersHorizontal size={13} />
+          Filters
+          {active && (
+            <span className="ml-1 bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">
+              {filtered} of {total}
+            </span>
+          )}
+        </div>
+        {active && (
+          <button
+            onClick={() => onChange({ search: '', minAmount: '', maxAmount: '', tier: 'all' })}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
+          >
+            <X size={12} /> Clear
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {/* Search */}
+        <input
+          type="text"
+          placeholder="Search vendor / bill ID…"
+          value={filters.search}
+          onChange={e => onChange({ ...filters, search: e.target.value })}
+          className="flex-1 min-w-[160px] text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+        />
+        {/* Amount range */}
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-400 font-medium">₹</span>
+          <input
+            type="number"
+            placeholder="Min amount"
+            value={filters.minAmount}
+            onChange={e => onChange({ ...filters, minAmount: e.target.value })}
+            className="w-28 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+          />
+          <span className="text-xs text-gray-400">–</span>
+          <input
+            type="number"
+            placeholder="Max amount"
+            value={filters.maxAmount}
+            onChange={e => onChange({ ...filters, maxAmount: e.target.value })}
+            className="w-28 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+          />
+        </div>
+        {/* Tier */}
+        <select
+          value={filters.tier}
+          onChange={e => onChange({ ...filters, tier: e.target.value })}
+          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white text-gray-700"
+        >
+          <option value="all">All tiers</option>
+          <option value="auto">Auto (≤ ₹3,000)</option>
+          <option value="zonal">Zonal (₹3,001–₹5,000)</option>
+          <option value="super">Super Admin (&gt; ₹5,000)</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
+// ─── Filter Bar (Fee Approvals) ───────────────────────────────────────────────
+function FeeFilterBar({ filters, onChange, total, filtered }: {
+  filters: FeeFilters;
+  onChange: (f: FeeFilters) => void;
+  total: number;
+  filtered: number;
+}) {
+  const active = filters.search || filters.minDiscount || filters.maxDiscount || filters.requestType !== 'all';
+  return (
+    <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          <SlidersHorizontal size={13} />
+          Filters
+          {active && (
+            <span className="ml-1 bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">
+              {filtered} of {total}
+            </span>
+          )}
+        </div>
+        {active && (
+          <button
+            onClick={() => onChange({ search: '', minDiscount: '', maxDiscount: '', requestType: 'all' })}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
+          >
+            <X size={12} /> Clear
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {/* Search */}
+        <input
+          type="text"
+          placeholder="Search student name…"
+          value={filters.search}
+          onChange={e => onChange({ ...filters, search: e.target.value })}
+          className="flex-1 min-w-[160px] text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+        />
+        {/* Discount range */}
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-400 font-medium">Discount ₹</span>
+          <input
+            type="number"
+            placeholder="Min"
+            value={filters.minDiscount}
+            onChange={e => onChange({ ...filters, minDiscount: e.target.value })}
+            className="w-24 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+          />
+          <span className="text-xs text-gray-400">–</span>
+          <input
+            type="number"
+            placeholder="Max"
+            value={filters.maxDiscount}
+            onChange={e => onChange({ ...filters, maxDiscount: e.target.value })}
+            className="w-24 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+          />
+        </div>
+        {/* Request type */}
+        <select
+          value={filters.requestType}
+          onChange={e => onChange({ ...filters, requestType: e.target.value })}
+          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white text-gray-700"
+        >
+          <option value="all">All types</option>
+          <option value="ADMISSION">Admission Discount</option>
+          <option value="CONCESSION">Concession Request</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
 // ─── Bulk Action Bar ──────────────────────────────────────────────────────────
 function BulkActionBar({ count, total, onSelectAll, onDeselectAll, onBulkApprove, onBulkReject, loading }: {
   count: number;
@@ -168,6 +328,14 @@ export default function AdminApprovalsQueue() {
   const [bulkFeeLoading, setBulkFeeLoading] = useState(false);
   const [bulkBillLoading, setBulkBillLoading] = useState(false);
 
+  // ─── Filter state ──────────────────────────────────────────────────────────
+  const [billFilters, setBillFilters] = useState<BillFilters>({
+    search: '', minAmount: '', maxAmount: '', tier: 'all',
+  });
+  const [feeFilters, setFeeFilters] = useState<FeeFilters>({
+    search: '', minDiscount: '', maxDiscount: '', requestType: 'all',
+  });
+
   const canReviewFees = Boolean(user?.tenant && user?.role && FEE_APPROVAL_API_ROLES.has(user.role));
   const canReviewBills = Boolean(user?.tenant && user?.role && VENDOR_BILL_QUEUE_ROLES.has(user.role));
   const canAccess = canReviewFees || canReviewBills;
@@ -186,7 +354,7 @@ export default function AdminApprovalsQueue() {
     setLoading(true);
     setSelectedFeeIds(new Set());
     api
-      .get(`fees/approvals/?status=${activeTab}`)
+      .get(`fees/approvals/?status=${activeTab}&page_size=9999`)
       .then((res) => {
         const data = res.data?.results ?? res.data?.data ?? res.data;
         setRequests(Array.isArray(data) ? data : []);
@@ -203,7 +371,7 @@ export default function AdminApprovalsQueue() {
     setBillsLoading(true);
     setSelectedBillIds(new Set());
     api
-      .get(`vendor-bills/?status=SUBMITTED&page_size=100${branchQuery}`)
+      .get(`vendor-bills/?status=SUBMITTED&page_size=9999${branchQuery}`)
       .then((res) => {
         const raw = res.data?.results ?? res.data?.data?.results ?? res.data?.data ?? res.data;
         setVendorBills(Array.isArray(raw) ? raw : []);
@@ -411,7 +579,7 @@ export default function AdminApprovalsQueue() {
   };
 
   const selectAllFees = () => {
-    setSelectedFeeIds(new Set(requests.map(r => r.id)));
+    setSelectedFeeIds(new Set(filteredRequests.map(r => r.id)));
   };
 
   const deselectAllFees = () => setSelectedFeeIds(new Set());
@@ -430,8 +598,47 @@ export default function AdminApprovalsQueue() {
     [vendorBills, user?.role]
   );
 
-  const selectAllBills = () => setSelectedBillIds(new Set(approvableBillIds));
+  const selectAllBills = () => setSelectedBillIds(new Set(
+    filteredApprovableBillIds
+  ));
   const deselectAllBills = () => setSelectedBillIds(new Set());
+
+  // ─── Filtered data (client-side, instant) ──────────────────────────────────────────
+  const filteredBills = useMemo(() => {
+    const { search, minAmount, maxAmount, tier } = billFilters;
+    const q = search.toLowerCase();
+    const min = minAmount ? Number(minAmount) : null;
+    const max = maxAmount ? Number(maxAmount) : null;
+    return vendorBills.filter(b => {
+      const amt = Number(b.net_amount);
+      if (q && !b.vendor_display.toLowerCase().includes(q) && !b.bill_id.toLowerCase().includes(q)) return false;
+      if (min !== null && amt < min) return false;
+      if (max !== null && amt > max) return false;
+      if (tier === 'auto' && amt > AUTO_APPROVE_MAX) return false;
+      if (tier === 'zonal' && (amt <= AUTO_APPROVE_MAX || amt > ZONAL_MAX)) return false;
+      if (tier === 'super' && amt <= ZONAL_MAX) return false;
+      return true;
+    });
+  }, [vendorBills, billFilters]);
+
+  const filteredApprovableBillIds = useMemo(
+    () => filteredBills.filter(b => canUserApproveBill(user?.role, Number(b.total_amount))).map(b => b.id),
+    [filteredBills, user?.role]
+  );
+
+  const filteredRequests = useMemo(() => {
+    const { search, minDiscount, maxDiscount, requestType } = feeFilters;
+    const q = search.toLowerCase();
+    const min = minDiscount ? Number(minDiscount) : null;
+    const max = maxDiscount ? Number(maxDiscount) : null;
+    return requests.filter(r => {
+      if (q && !r.student_name.toLowerCase().includes(q)) return false;
+      if (min !== null && r.reduction_amount < min) return false;
+      if (max !== null && r.reduction_amount > max) return false;
+      if (requestType !== 'all' && r.request_type !== requestType) return false;
+      return true;
+    });
+  }, [requests, feeFilters]);
 
   const tabs: { key: ApprovalStatus; label: string; icon: React.ReactNode }[] = [
     { key: "PENDING", label: "Pending", icon: <Clock size={14} /> },
@@ -520,18 +727,32 @@ export default function AdminApprovalsQueue() {
               </div>
             ) : (
               <>
+                {/* Filter bar for bills */}
+                <BillFilterBar
+                  filters={billFilters}
+                  onChange={f => { setBillFilters(f); setSelectedBillIds(new Set()); }}
+                  total={vendorBills.length}
+                  filtered={filteredBills.length}
+                />
                 {/* Bulk action bar for bills */}
                 <BulkActionBar
                   count={selectedBillIds.size}
-                  total={approvableBillIds.length}
+                  total={filteredApprovableBillIds.length}
                   onSelectAll={selectAllBills}
                   onDeselectAll={deselectAllBills}
                   onBulkApprove={handleBulkBillApprove}
                   onBulkReject={handleBulkBillReject}
                   loading={bulkBillLoading}
                 />
+                {filteredBills.length === 0 ? (
+                  <div className="py-10 flex flex-col items-center text-gray-400">
+                    <Inbox size={32} strokeWidth={1.5} />
+                    <p className="mt-2 text-sm font-semibold text-gray-500">No bills match your filters</p>
+                    <button onClick={() => setBillFilters({ search: '', minAmount: '', maxAmount: '', tier: 'all' })} className="mt-1 text-xs text-indigo-500 hover:underline">Clear filters</button>
+                  </div>
+                ) : (
                 <ul className="divide-y divide-gray-100">
-                  {vendorBills.map((b) => {
+                  {filteredBills.map((b) => {
                     const badge = routingBadge(Number(b.total_amount));
                     const canAct = canUserApproveBill(user?.role, Number(b.total_amount));
                     const isSelected = selectedBillIds.has(b.id);
@@ -641,6 +862,7 @@ export default function AdminApprovalsQueue() {
                     );
                   })}
                 </ul>
+                )}
               </>
             )}
           </div>
@@ -686,7 +908,7 @@ export default function AdminApprovalsQueue() {
                   <div key={i} className="h-20 bg-gray-50 rounded-xl animate-pulse" />
                 ))}
               </div>
-            ) : requests.length === 0 ? (
+            ) : filteredRequests.length === 0 ? (
               <div className="py-20 flex flex-col items-center justify-center text-gray-400">
                 <Inbox size={48} strokeWidth={1.5} />
                 <p className="mt-4 font-semibold text-gray-500">No {activeTab.toLowerCase()} fee requests</p>
@@ -698,11 +920,18 @@ export default function AdminApprovalsQueue() {
               </div>
             ) : (
               <>
+                {/* Filter bar for fees */}
+                <FeeFilterBar
+                  filters={feeFilters}
+                  onChange={f => { setFeeFilters(f); setSelectedFeeIds(new Set()); }}
+                  total={requests.length}
+                  filtered={filteredRequests.length}
+                />
                 {/* Bulk action bar — only for PENDING tab */}
                 {activeTab === "PENDING" && (
                   <BulkActionBar
                     count={selectedFeeIds.size}
-                    total={requests.length}
+                    total={filteredRequests.length}
                     onSelectAll={selectAllFees}
                     onDeselectAll={deselectAllFees}
                     onBulkApprove={handleBulkFeeApprove}
@@ -711,7 +940,7 @@ export default function AdminApprovalsQueue() {
                   />
                 )}
                 <ul className="divide-y divide-gray-100">
-                  {requests.map((req) => {
+                  {filteredRequests.map((req) => {
                     const isSelected = selectedFeeIds.has(req.id);
                     const isProcessing = processingFee === req.id;
                     return (
