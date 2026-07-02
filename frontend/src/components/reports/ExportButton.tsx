@@ -1,105 +1,113 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Download, Loader2, FileSpreadsheet, FileText } from 'lucide-react';
 import api from '@/lib/axios';
+import { toast } from 'react-hot-toast';
 
 interface ExportButtonProps {
   reportType: string;
-  filters: any;
+  filters: Record<string, unknown>;
 }
 
-const triggerDownload = (url: string) => {
-  let baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-  if (baseUrl.endsWith('/api/v1/')) {
-    baseUrl = baseUrl.replace('/api/v1/', '');
-  } else if (baseUrl.endsWith('/')) {
-    baseUrl = baseUrl.slice(0, -1);
-  }
-  const cleanUrl = url.startsWith('/') ? url : `/${url}`;
-  const fullUrl = `${baseUrl}${cleanUrl}`;
-  
+/**
+ * Triggers a browser download from raw file bytes received via axios blob response.
+ * Works with the streamed Django response — no /media/ URL required.
+ */
+function downloadBlob(data: Blob, filename: string) {
+  const url = window.URL.createObjectURL(data);
   const a = document.createElement('a');
-  a.href = fullUrl;
-  a.target = '_blank';
-  a.download = url.split('/').pop() || 'download';
+  a.href = url;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-};
+  // Small delay ensures the click processes before cleanup
+  setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  }, 150);
+}
+
+/**
+ * Parse the filename from the Content-Disposition response header.
+ * Falls back to a generated name if the header is absent.
+ */
+function parseFilename(
+  contentDisposition: string | undefined,
+  format: 'EXCEL' | 'PDF',
+  reportType: string
+): string {
+  if (contentDisposition) {
+    // Handles both:  filename="foo.xlsx"  and  filename*=UTF-8''foo.xlsx
+    const match =
+      contentDisposition.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i);
+    if (match?.[1]) return decodeURIComponent(match[1].replace(/"/g, ''));
+  }
+  const ext = format === 'PDF' ? 'pdf' : 'xlsx';
+  return `${reportType}_export.${ext}`;
+}
 
 export default function ExportButton({ reportType, filters }: ExportButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [jobId, setJobId] = useState<string | null>(null);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    const checkStatus = async () => {
-      if (!jobId) return;
-      try {
-        const res = await api.get(`reports/export/${jobId}/status/`);
-        const { status, file_url } = res.data;
-        
-        if (status === 'COMPLETED') {
-          setLoading(false);
-          setJobId(null);
-          // Trigger download
-          if (file_url) {
-            triggerDownload(file_url);
-          }
-        } else if (status === 'FAILED') {
-          setLoading(false);
-          setJobId(null);
-          alert('Export failed. Please try again.');
-        }
-      } catch (e) {
-        console.error(e);
-        setLoading(false);
-        setJobId(null);
-      }
-    };
-
-    if (jobId) {
-      interval = setInterval(checkStatus, 2000);
-    }
-    
-    return () => clearInterval(interval);
-  }, [jobId]);
 
   const handleExport = async (format: 'EXCEL' | 'PDF') => {
     setIsOpen(false);
     setLoading(true);
+
     try {
-      const res = await api.post('reports/export/generate/', {
-        report_type: reportType,
-        filters,
-        format
-      });
-      
-      // If it completed synchronously
-      if (res.data.status === 'COMPLETED' && res.data.file_url) {
-        setLoading(false);
-        triggerDownload(res.data.file_url);
-      } else {
-        // Fallback to polling if it's still pending
-        setJobId(res.data.id);
+      const res = await api.post(
+        'reports/export/generate/',
+        { report_type: reportType, filters, format },
+        {
+          // Critical: tell axios to receive binary data, not JSON text
+          responseType: 'blob',
+        }
+      );
+
+      // Check if the server returned an error disguised as a blob
+      if (res.data instanceof Blob && res.data.type === 'application/json') {
+        const text = await res.data.text();
+        const json = JSON.parse(text);
+        toast.error(json.error || 'Export failed');
+        return;
       }
-    } catch (e) {
-      console.error(e);
+
+      const filename = parseFilename(
+        res.headers['content-disposition'],
+        format,
+        reportType
+      );
+
+      downloadBlob(res.data as Blob, filename);
+      toast.success(`${format === 'PDF' ? 'PDF' : 'Excel'} downloaded`);
+    } catch (err: unknown) {
+      console.error('Export error:', err);
+      // If axios received a blob error response, try to read the error text
+      const errAny = err as { response?: { data?: Blob } };
+      if (errAny?.response?.data instanceof Blob) {
+        try {
+          const text = await errAny.response.data.text();
+          const json = JSON.parse(text);
+          toast.error(json.error || 'Export failed');
+          return;
+        } catch {
+          // fall through
+        }
+      }
+      toast.error('Export failed. Please try again.');
+    } finally {
       setLoading(false);
-      alert('Failed to start export');
     }
   };
 
   return (
     <div className="relative">
       <button
-        onClick={() => !loading && setIsOpen(!isOpen)}
+        onClick={() => !loading && setIsOpen((o) => !o)}
         disabled={loading}
         className="flex items-center gap-2 bg-gradient-to-br from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition-all disabled:opacity-75 disabled:cursor-wait"
       >
         {loading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-        {loading ? 'Generating...' : 'Export'}
+        {loading ? 'Generating…' : 'Export'}
       </button>
 
       {isOpen && (
