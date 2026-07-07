@@ -697,10 +697,16 @@ export default function StudentForm({
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Class / Section <span className="text-red-500">*</span></label>
-              <select required disabled={isEdit} value={formData.class_section} onChange={e => setFormData(prev => ({...prev, class_section: e.target.value}))}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500 bg-gray-50/50 disabled:opacity-50">
+              <select required value={formData.class_section} onChange={e => setFormData(prev => ({...prev, class_section: e.target.value}))}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500 bg-white">
                 <option value="">Select Class</option>
-                {classes.map(c => <option key={c.id} value={c.id}>{c.display_name}</option>)}
+                {classes
+                  .filter(c => {
+                    if (!isEdit || !initialData?.class_section) return true;
+                    const initialClass = classes.find(orig => orig.id === initialData.class_section);
+                    return initialClass ? c.grade === initialClass.grade : true;
+                  })
+                  .map(c => <option key={c.id} value={c.id}>{c.display_name}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
