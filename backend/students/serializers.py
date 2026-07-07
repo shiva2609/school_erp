@@ -9,18 +9,39 @@ from .models import (
 
 
 class ClassSectionSerializer(serializers.ModelSerializer):
-    student_count = serializers.SerializerMethodField()
+    student_count    = serializers.SerializerMethodField()
+    is_over_capacity = serializers.SerializerMethodField()
+    capacity_percent = serializers.SerializerMethodField()
 
     class Meta:
         model = ClassSection
         fields = [
             'id', 'branch', 'academic_year', 'grade', 'section',
-            'display_name', 'class_teacher', 'max_capacity', 'is_active', 'student_count',
+            'display_name', 'class_teacher', 'max_capacity', 'display_order',
+            'is_active', 'student_count', 'is_over_capacity', 'capacity_percent',
         ]
-        read_only_fields = ['id', 'display_name', 'student_count']
+        read_only_fields = ['id', 'display_name', 'student_count',
+                            'is_over_capacity', 'capacity_percent']
 
     def get_student_count(self, obj):
         return obj.students.filter(status='ACTIVE').count()
+
+    def get_is_over_capacity(self, obj):
+        return self.get_student_count(obj) > obj.max_capacity
+
+    def get_capacity_percent(self, obj):
+        if obj.max_capacity == 0:
+            return 0
+        return round((self.get_student_count(obj) / obj.max_capacity) * 100, 1)
+
+    def validate_max_capacity(self, value):
+        if self.instance:
+            count = self.instance.students.filter(status='ACTIVE').count()
+            if value < count:
+                raise serializers.ValidationError(
+                    f"Cannot set capacity below current student count ({count})."
+                )
+        return value
 
 
 class AdmissionInquirySerializer(serializers.ModelSerializer):

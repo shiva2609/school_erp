@@ -64,6 +64,7 @@ class ClassSection(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='class_teacher_of'
     )
     max_capacity = models.PositiveIntegerField(default=40)
+    display_order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
 
     class Meta:

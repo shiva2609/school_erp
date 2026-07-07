@@ -54,9 +54,16 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
     search_fields = ['grade', 'section', 'display_name']
 
     def get_permissions(self):
+        # Read access: any authenticated teacher or above
         if self.action in ['list', 'retrieve', 'students']:
             return [IsAuthenticated(), IsTeacherOrAbove()]
+        # Section management (create, edit, archive, transfer): Accountant and above
+        if self.action in ['create', 'update', 'partial_update',
+                           'assign_students', 'archive', 'transfer_students']:
+            return [IsAuthenticated(), IsAccountantOrAbove()]
+        # Hard delete: School Admin and above only
         return [IsAuthenticated(), IsSchoolAdminOrAbove()]
+
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
