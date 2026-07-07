@@ -158,7 +158,18 @@ function SectionsModal({ gradeRow, academicYearId, branchId, onClose, onSaved }:
       }
 
       await Promise.all(ops);
-      toast.success('Sections saved successfully.');
+      
+      const created = drafts.filter(d => d._isNew && !d._deleted).length;
+      const updated = drafts.filter(d => d.id && !d._deleted).length;
+      const deleted = drafts.filter(d => d.id && d._deleted).length;
+      
+      const parts = [];
+      if (created > 0) parts.push(`created ${created}`);
+      if (updated > 0) parts.push(`updated ${updated}`);
+      if (deleted > 0) parts.push(`deleted ${deleted}`);
+      
+      toast.success(parts.length > 0 ? `Successfully ${parts.join(', ')} section(s).` : 'No changes made.');
+      
       onSaved();
       onClose();
     } catch (err: unknown) {
