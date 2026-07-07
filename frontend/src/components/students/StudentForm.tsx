@@ -704,7 +704,7 @@ export default function StudentForm({
                   .filter(c => {
                     if (!isEdit || !initialData?.class_section) return true;
                     const initialSectionId = typeof initialData.class_section === 'object' 
-                      ? initialData.class_section?.id 
+                      ? (initialData.class_section as any)?.id 
                       : initialData.class_section;
                     const initialClass = classes.find(orig => orig.id === initialSectionId);
                     return initialClass ? c.grade === initialClass.grade : true;
