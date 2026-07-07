@@ -72,9 +72,8 @@ class ClassSection(models.Model):
         ordering = ['grade', 'section']
 
     def save(self, *args, **kwargs):
-        if not self.display_name:
-            # get_grade_display already includes "Grade " as per choices
-            self.display_name = f"{self.get_grade_display()} - Section {self.section}"
+        # Always update display_name based on the current grade and section
+        self.display_name = f"{self.get_grade_display()} - Section {self.section}"
         super().save(*args, **kwargs)
 
     def __str__(self):
