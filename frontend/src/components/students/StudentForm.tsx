@@ -707,7 +707,15 @@ export default function StudentForm({
                       ? (initialData.class_section as any)?.id 
                       : initialData.class_section;
                     const initialClass = classes.find(orig => orig.id === initialSectionId);
-                    return initialClass ? c.grade === initialClass.grade : true;
+                    
+                    if (!initialClass) return true;
+                    
+                    // Normalize grade formats (e.g. "Grade 1" -> "1", "Grade 3" -> "3") for robust comparison
+                    // This handles legacy database records that might have saved the display string instead of the enum key
+                    const normInitial = initialClass.grade.replace(/^Grade\s+/i, '').trim();
+                    const normCurrent = c.grade.replace(/^Grade\s+/i, '').trim();
+                    
+                    return normCurrent === normInitial;
                   })
                   .map(c => <option key={c.id} value={c.id}>{c.display_name}</option>)}
               </select>
