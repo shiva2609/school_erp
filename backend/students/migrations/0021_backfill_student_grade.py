@@ -13,10 +13,12 @@ def copy_grades(apps, schema_editor):
     Student.objects.filter(class_section__isnull=False).update(
         grade=Subquery(class_section_subquery)
     )
+    Student.objects.filter(grade__isnull=True).update(grade='NURSERY')
     
     StudentAcademicRecord.objects.filter(class_section__isnull=False).update(
         grade=Subquery(class_section_subquery)
     )
+    StudentAcademicRecord.objects.filter(grade__isnull=True).update(grade='NURSERY')
 
 class Migration(migrations.Migration):
 

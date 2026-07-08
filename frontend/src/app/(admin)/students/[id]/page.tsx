@@ -253,7 +253,17 @@ export default function StudentProfilePage() {
   const hasTransferTrail = transferNote.toLowerCase().startsWith('transferred from ');
   const requiresInitialPayment = !!student?.requires_initial_payment && !student?.is_csv_imported;
   const canManageInitialPaymentStatus = user?.role === 'ACCOUNTANT' || user?.role === 'SUPER_ADMIN';
-  const canManageStatus = ['ACCOUNTANT', 'BRANCH_ADMIN', 'SUPER_ADMIN'].includes(user?.role);
+  const canManageStatus = ['ACCOUNTANT', 'BRANCH_ADMIN', 'SUPER_ADMIN'].includes(user?.role || '');
+
+  const admInvoiceIds = admissionInvoices.map((i: any) => i.id);
+  const cautionInvoiceIds = fixedDepositInvoices.map((i: any) => i.id);
+  const specialInvoiceIds = specialFeeInvoices.map((i: any) => i.id);
+  const transportInvoiceIds = (student?.invoices || []).filter((inv: any) => String(inv?.invoice_number || '').startsWith('TRN-')).map((i: any) => i.id);
+
+  const admPaymentTarget = completedPayments.find((p: any) => admInvoiceIds.includes(p.invoice_id));
+  const cautionPaymentTarget = completedPayments.find((p: any) => cautionInvoiceIds.includes(p.invoice_id));
+  const specialPaymentTarget = completedPayments.find((p: any) => specialInvoiceIds.includes(p.invoice_id));
+  const transportPaymentTarget = completedPayments.find((p: any) => transportInvoiceIds.includes(p.invoice_id));
 
   if (loading && !student) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -759,10 +769,25 @@ export default function StudentProfilePage() {
                             )}
                             <h4 className="font-black text-lg text-slate-900">{record.academic_year_name}</h4>
                           </div>
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight border ${style}`}>
-                            {record.status}
+                          <span className="inline-flex items-center px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-black uppercase tracking-widest">
+                            <CheckCircle2 size={12} className="mr-1" />
+                            Paid
                           </span>
                         </div>
+                        {transportPaymentTarget && isSuperAdmin && (
+                          <div className="mt-2 flex items-center justify-end">
+                            <button
+                              onClick={() => {
+                                setReverseReason('');
+                                setReversePaymentTarget({ id: transportPaymentTarget.id, receipt: transportPaymentTarget.receipt_number, amount: Number(transportPaymentTarget.amount) });
+                              }}
+                              className="text-[10px] font-black text-rose-600 uppercase tracking-widest hover:text-rose-700 flex items-center gap-1"
+                            >
+                              <RotateCcw size={10} />
+                              Reverse
+                            </button>
+                          </div>
+                        )}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Class & Section</p>
@@ -1007,15 +1032,31 @@ export default function StudentProfilePage() {
                     {admissionMarkedEarlier && (
                       <div className="mt-2 flex items-center justify-between gap-2">
                         <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Marked as collected earlier</p>
-                        {canManageInitialPaymentStatus && (
+                        {isSuperAdmin && (
                           <button
                             onClick={() => setConfirmInitialStatusChange({ target: 'ADMISSION_FEE', paidEarlier: false })}
                             disabled={markingInitialStatus === 'ADMISSION_FEE'}
-                            className="text-[10px] font-black text-amber-700 uppercase tracking-widest hover:text-amber-800 disabled:opacity-50"
+                            className="text-[10px] font-black text-rose-600 uppercase tracking-widest hover:text-rose-700 disabled:opacity-50 flex items-center gap-1"
                           >
-                            Edit status
+                            <RotateCcw size={10} />
+                            Reverse
                           </button>
                         )}
+                      </div>
+                    )}
+                    {!admissionMarkedEarlier && admPaymentTarget && isSuperAdmin && (
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Receipt {admPaymentTarget.receipt_number}</p>
+                        <button
+                          onClick={() => {
+                            setReverseReason('');
+                            setReversePaymentTarget({ id: admPaymentTarget.id, receipt: admPaymentTarget.receipt_number, amount: Number(admPaymentTarget.amount) });
+                          }}
+                          className="text-[10px] font-black text-rose-600 uppercase tracking-widest hover:text-rose-700 flex items-center gap-1"
+                        >
+                          <RotateCcw size={10} />
+                          Reverse
+                        </button>
                       </div>
                     )}
                     {canManageInitialPaymentStatus && !admissionPaid && (
@@ -1074,15 +1115,31 @@ export default function StudentProfilePage() {
                     {fixedDepositMarkedEarlier && (
                       <div className="mt-2 flex items-center justify-between gap-2">
                         <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Marked as collected earlier</p>
-                        {canManageInitialPaymentStatus && (
+                        {isSuperAdmin && (
                           <button
                             onClick={() => setConfirmInitialStatusChange({ target: 'FIXED_DEPOSIT', paidEarlier: false })}
                             disabled={markingInitialStatus === 'FIXED_DEPOSIT'}
-                            className="text-[10px] font-black text-amber-700 uppercase tracking-widest hover:text-amber-800 disabled:opacity-50"
+                            className="text-[10px] font-black text-rose-600 uppercase tracking-widest hover:text-rose-700 disabled:opacity-50 flex items-center gap-1"
                           >
-                            Edit status
+                            <RotateCcw size={10} />
+                            Reverse
                           </button>
                         )}
+                      </div>
+                    )}
+                    {!fixedDepositMarkedEarlier && cautionPaymentTarget && isSuperAdmin && (
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Receipt {cautionPaymentTarget.receipt_number}</p>
+                        <button
+                          onClick={() => {
+                            setReverseReason('');
+                            setReversePaymentTarget({ id: cautionPaymentTarget.id, receipt: cautionPaymentTarget.receipt_number, amount: Number(cautionPaymentTarget.amount) });
+                          }}
+                          className="text-[10px] font-black text-rose-600 uppercase tracking-widest hover:text-rose-700 flex items-center gap-1"
+                        >
+                          <RotateCcw size={10} />
+                          Reverse
+                        </button>
                       </div>
                     )}
                     {canManageInitialPaymentStatus && !fixedDepositPaid && (
@@ -1151,6 +1208,21 @@ export default function StudentProfilePage() {
                           </span>
                         ) : null}
                       </p>
+                    )}
+                    {specialPaymentTarget && isSuperAdmin && (
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Receipt {specialPaymentTarget.receipt_number}</p>
+                        <button
+                          onClick={() => {
+                            setReverseReason('');
+                            setReversePaymentTarget({ id: specialPaymentTarget.id, receipt: specialPaymentTarget.receipt_number, amount: Number(specialPaymentTarget.amount) });
+                          }}
+                          className="text-[10px] font-black text-rose-600 uppercase tracking-widest hover:text-rose-700 flex items-center gap-1"
+                        >
+                          <RotateCcw size={10} />
+                          Reverse
+                        </button>
+                      </div>
                     )}
                     {canManageInitialPaymentStatus && !specialFeeFullyPaid && (
                       <div className="mt-3 flex gap-2">
