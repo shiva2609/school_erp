@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('students', '0021_backfill_student_grade'),
+        ('students', '0022_backfill_null_grades'),
     ]
 
     operations = [
