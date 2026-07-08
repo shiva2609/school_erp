@@ -260,10 +260,10 @@ export default function StudentProfilePage() {
   const specialInvoiceIds = specialFeeInvoices.map((i: any) => i.id);
   const transportInvoiceIds = (student?.invoices || []).filter((inv: any) => String(inv?.invoice_number || '').startsWith('TRN-')).map((i: any) => i.id);
 
-  const admPaymentTarget = completedPayments.find((p: any) => admInvoiceIds.includes(p.invoice_id));
-  const cautionPaymentTarget = completedPayments.find((p: any) => cautionInvoiceIds.includes(p.invoice_id));
-  const specialPaymentTarget = completedPayments.find((p: any) => specialInvoiceIds.includes(p.invoice_id));
-  const transportPaymentTarget = completedPayments.find((p: any) => transportInvoiceIds.includes(p.invoice_id));
+  const admPaymentTarget = completedPayments.find((p: any) => admInvoiceIds.includes(p.invoice || p.invoice_id));
+  const cautionPaymentTarget = completedPayments.find((p: any) => cautionInvoiceIds.includes(p.invoice || p.invoice_id));
+  const specialPaymentTarget = completedPayments.find((p: any) => specialInvoiceIds.includes(p.invoice || p.invoice_id));
+  const transportPaymentTarget = completedPayments.find((p: any) => transportInvoiceIds.includes(p.invoice || p.invoice_id));
 
   if (loading && !student) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
