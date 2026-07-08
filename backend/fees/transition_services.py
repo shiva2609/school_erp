@@ -681,7 +681,7 @@ def preview_promotion(tenant, source_year, target_year, branch, scope='BRANCH', 
 
 @transaction.atomic
 def allocate_payment(user, student, total_amount, payment_mode, payment_date,
-                     allocations=None, reference_number=None, auto_mode=True):
+                     allocations=None, reference_number=None, bank_name=None, auto_mode=True):
     """
     Create a payment and allocate it across carry-forwards and invoices.
     
@@ -721,6 +721,7 @@ def allocate_payment(user, student, total_amount, payment_mode, payment_date,
         payment_mode=payment_mode,
         payment_date=payment_date,
         reference_number=reference_number,
+        bank_name=bank_name,
         status='COMPLETED',
         collected_by=user,
         receipt_number=receipt_number,

@@ -44,6 +44,7 @@ export default function PaymentModal({ invoice, onClose, onSuccess }: PaymentMod
           payment_mode: formData.payment_mode,
           payment_date: formData.payment_date,
           reference_number: formData.reference_number || null,
+          bank_name: formData.bank_name || null,
           auto_allocate: true
         });
       } else {

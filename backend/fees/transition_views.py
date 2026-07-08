@@ -412,6 +412,7 @@ class AllocatedPaymentViewSet(viewsets.GenericViewSet):
                 payment_date=data['payment_date'],
                 allocations=data.get('allocations'),
                 reference_number=data.get('reference_number'),
+                bank_name=data.get('bank_name'),
                 auto_mode=data.get('auto_allocate', True),
             )
             return Response({'success': True, 'data': result}, status=status.HTTP_201_CREATED)

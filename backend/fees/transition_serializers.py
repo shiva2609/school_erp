@@ -242,9 +242,17 @@ class AllocatedPaymentSerializer(serializers.Serializer):
         'CASH', 'CHEQUE', 'NEFT', 'RTGS', 'UPI', 'CARD', 'BANK_TRANSFER'
     ])
     payment_date = serializers.DateField()
-    reference_number = serializers.CharField(required=False, allow_blank=True)
+    reference_number = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    bank_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     auto_allocate = serializers.BooleanField(default=True)
     allocations = PaymentAllocationInputSerializer(many=True, required=False)
+
+    def validate(self, attrs):
+        if attrs.get('payment_mode') == 'UPI' and not attrs.get('reference_number'):
+            raise serializers.ValidationError({
+                'reference_number': 'Transaction ID is mandatory for UPI payments.'
+            })
+        return attrs
 
 
 # ─── Dropout Input ──────────────────────────────────────────────
