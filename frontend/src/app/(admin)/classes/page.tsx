@@ -172,9 +172,19 @@ function SectionsModal({ gradeRow, academicYearId, branchId, onClose, onSaved }:
       
       onSaved();
       onClose();
-    } catch (err: unknown) {
-      const anyErr = err as { response?: { data?: { detail?: string } } };
-      toast.error(anyErr?.response?.data?.detail || 'Error saving sections.');
+    } catch (err: any) {
+      const data = err?.response?.data;
+      let errMsg = 'Error saving sections.';
+      if (data) {
+        if (typeof data.detail === 'string') errMsg = data.detail;
+        else if (data.non_field_errors) errMsg = data.non_field_errors[0];
+        else if (typeof data === 'object') {
+          const firstKey = Object.keys(data)[0];
+          if (Array.isArray(data[firstKey])) errMsg = `${firstKey}: ${data[firstKey][0]}`;
+          else if (typeof data[firstKey] === 'string') errMsg = data[firstKey];
+        }
+      }
+      toast.error(errMsg);
     } finally {
       setSaving(false);
     }
