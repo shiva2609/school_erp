@@ -82,8 +82,7 @@ export default function ReportFilters({
       fetchBranches();
     }
     if (showAcademicYear || showExam) fetchAcademicYears();
-    if (showClassSection) fetchClassSections();
-  }, [user, showAcademicYear, showClassSection, showExam]);
+  }, [user, showAcademicYear, showExam]);
 
   useEffect(() => {
     if (!showExam) return;
@@ -151,15 +150,30 @@ export default function ReportFilters({
     }
   };
 
-  const fetchClassSections = async () => {
-    try {
-      const res = await api.get('classes/');
-      const raw = res.data?.data ?? res.data?.results ?? res.data;
-      setClassSections(Array.isArray(raw) ? raw : []);
-    } catch (e) {
-      console.error('Failed to fetch class sections:', e);
-    }
-  };
+  useEffect(() => {
+    if (!showClassSection) return;
+    const loadClasses = async () => {
+      try {
+        const params: Record<string, string> = {};
+        if (effectiveBranchId) params.branch_id = effectiveBranchId;
+        
+        let ayId = filters.academic_year_id;
+        if (!ayId && academicYears.length > 0) {
+          const active = academicYears.find(y => y.is_active);
+          if (active) ayId = active.id;
+        }
+        if (ayId) params.academic_year_id = ayId;
+        
+        const res = await api.get('classes/', { params });
+        const raw = res.data?.data ?? res.data?.results ?? res.data;
+        setClassSections(Array.isArray(raw) ? raw : []);
+      } catch (e) {
+        console.error('Failed to fetch class sections:', e);
+        setClassSections([]);
+      }
+    };
+    loadClasses();
+  }, [showClassSection, effectiveBranchId, filters.academic_year_id, academicYears]);
 
   const handleChange = (key: string, value: string) => {
     setFilters((prev: any) => ({ ...prev, [key]: value }));
