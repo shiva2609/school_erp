@@ -196,7 +196,13 @@ class ReportingViewSet(viewsets.ViewSet):
             approval_qs = approval_qs.filter(branch__zone_id__in=zone_ids)
         pending_approvals = approval_qs.count()
 
-        # Today's collection
+        # Carry-forward payment IDs: these Payment rows have their invoice FK pointing
+        # to the current-year invoice (backward-compat), so they would be incorrectly
+        # included in the Payment-table aggregates below AND in cf_collected_* aggregates.
+        # Exclude them from the Payment queries to prevent double-counting.
+        cf_payment_ids = cf_payments_qs.values_list('payment_id', flat=True)
+
+        # Today's collection (current-year payments only — carry-forwards counted separately)
         today_payments = Payment.objects.filter(
             tenant=request.user.tenant,
             payment_date=timezone.now().date(),
@@ -206,17 +212,19 @@ class ReportingViewSet(viewsets.ViewSet):
         if ay_id:
             today_payments = today_payments.filter(invoice__academic_year_id=ay_id)
         today_payments = self._billable_payments(today_payments)
+        today_payments = today_payments.exclude(id__in=cf_payment_ids)
         today_collection = today_payments.aggregate(total=Sum('amount'))['total'] or 0
 
-        # Revenue received to date (completed payments only — source of truth for cash-in)
+        # Revenue received to date (current-year payments only — carry-forwards counted separately)
         revenue_qs = Payment.objects.filter(tenant=request.user.tenant, status='COMPLETED')
         revenue_qs = self._filter_payment_qs(revenue_qs, branch_id, zone_ids)
         if ay_id:
             revenue_qs = revenue_qs.filter(invoice__academic_year_id=ay_id)
         revenue_qs = self._billable_payments(revenue_qs)
+        revenue_qs = revenue_qs.exclude(id__in=cf_payment_ids)
         revenue_collected = revenue_qs.aggregate(total=Sum('amount'))['total'] or 0
-        
-        # Add carry forward amounts to collection metrics
+
+        # Add carry forward amounts to collection metrics (now counted exactly once each)
         today_collection_total = Decimal(str(today_collection)) + cf_collected_today
         revenue_collected_total = Decimal(str(revenue_collected)) + cf_collected_total
 
