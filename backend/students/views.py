@@ -275,13 +275,9 @@ class AdmissionApplicationViewSet(viewsets.ModelViewSet):
                 )
 
             # Get params from request
-            class_section_id = request.data.get('class_section_id')
             offered_total = request.data.get('offered_total')
             standard_total = request.data.get('standard_total')
             fee_reason = request.data.get('reason', '')
-
-            if not class_section_id:
-                return Response({'detail': 'Class Section is required for enrollment.'}, status=400)
 
             if offered_total is None:
                 return Response({'detail': 'Agreed total fee (offered_total) is required for enrollment.'}, status=400)
@@ -298,17 +294,14 @@ class AdmissionApplicationViewSet(viewsets.ModelViewSet):
             branch = application.branch
             ay = application.academic_year
 
-            try:
-                cs = ClassSection.objects.get(id=class_section_id)
-            except ClassSection.DoesNotExist:
-                return Response({'detail': 'Selected Class Section does not exist.'}, status=400)
+            grade = application.grade_applying_for
 
             structure = FeeStructure.objects.filter(
-                branch=branch, academic_year=ay, grade=cs.grade, is_active=True
+                branch=branch, academic_year=ay, grade=grade, is_active=True
             ).first()
             if not structure:
                 return Response({
-                    'detail': f"No active fee structure found for grade '{cs.grade}' in academic year '{ay.name}'."
+                    'detail': f"No active fee structure found for grade '{grade}' in academic year '{ay.name}'."
                 }, status=400)
 
             offered_total = offered_total_val
@@ -321,7 +314,8 @@ class AdmissionApplicationViewSet(viewsets.ModelViewSet):
                 tenant=application.tenant,
                 branch=branch,
                 academic_year=ay,
-                class_section_id=class_section_id,
+                grade=grade,
+                class_section_id=None,
                 admission_number=admission_number,
                 first_name=application.first_name,
                 last_name=application.last_name,
@@ -626,6 +620,65 @@ class StudentViewSet(viewsets.ModelViewSet):
         student.save()
         return Response({'success': True, 'message': 'Student deactivated successfully.'}, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['patch'], url_path='assign-section')
+    def assign_section(self, request, pk=None):
+        student = self.get_object()
+        section_id = request.data.get('section_id')
+        
+        if not section_id:
+            student.class_section = None
+            student.save(update_fields=['class_section'])
+            return Response({'success': True, 'message': 'Section cleared.', 'data': StudentSerializer(student).data})
+            
+        try:
+            section = ClassSection.objects.get(id=section_id, tenant=student.tenant, branch=student.branch)
+        except ClassSection.DoesNotExist:
+            return Response({'detail': 'Section not found.'}, status=400)
+            
+        if section.grade != student.grade:
+            return Response({'detail': f"Cannot assign student of grade {student.grade} to a section of grade {section.grade}."}, status=400)
+            
+        student.class_section = section
+        student.save(update_fields=['class_section'])
+        
+        # Also update the current academic record if it exists
+        record = student.academic_records.filter(academic_year=student.academic_year, status='ACTIVE').first()
+        if record:
+            record.class_section = section
+            record.save(update_fields=['class_section'])
+            
+        return Response({'success': True, 'message': 'Section assigned successfully.', 'data': StudentSerializer(student).data})
+
+    @action(detail=False, methods=['post'], url_path='bulk-assign-sections')
+    def bulk_assign_sections(self, request):
+        student_ids = request.data.get('student_ids', [])
+        section_id = request.data.get('section_id')
+        
+        if not student_ids or not isinstance(student_ids, list):
+            return Response({'detail': 'student_ids must be a non-empty list.'}, status=400)
+            
+        try:
+            section = ClassSection.objects.get(id=section_id, tenant=request.user.tenant)
+        except ClassSection.DoesNotExist:
+            return Response({'detail': 'Section not found.'}, status=400)
+            
+        students = Student.objects.filter(id__in=student_ids, tenant=request.user.tenant)
+        invalid_students = [s.first_name for s in students if s.grade != section.grade]
+        
+        if invalid_students:
+            return Response({'detail': f"Some students do not belong to grade {section.grade}: {', '.join(invalid_students)}"}, status=400)
+            
+        updated = students.update(class_section=section)
+        
+        from students.models import StudentAcademicRecord
+        StudentAcademicRecord.objects.filter(
+            student_id__in=student_ids, 
+            academic_year_id=section.academic_year_id,
+            status='ACTIVE'
+        ).update(class_section=section)
+        
+        return Response({'success': True, 'message': f'{updated} students assigned to section successfully.'})
+
     @action(detail=True, methods=['patch'], url_path='status')
     def update_status(self, request, pk=None):
         student = self.get_object()
@@ -764,16 +817,16 @@ class StudentViewSet(viewsets.ModelViewSet):
         student = self.get_object()
         if not student_needs_promoted_year_fee_setup(student):
             raise ValidationError('Fees for this year are already set, or promotion fee setup is not required.')
-        if not student.class_section_id:
-            raise ValidationError('Student must have a class assigned.')
+        if not student.grade:
+            raise ValidationError('Student must have a grade assigned.')
         structure = FeeStructure.objects.filter(
             branch_id=student.branch_id,
             academic_year_id=student.academic_year_id,
-            grade=student.class_section.grade,
+            grade=student.grade,
             is_active=True,
         ).first()
         if not structure:
-            raise ValidationError('No active fee structure for this class and academic year. Configure it under Setup first.')
+            raise ValidationError('No active fee structure for this grade and academic year. Configure it under Setup first.')
         offered_raw = request.data.get('offered_total')
         if offered_raw is None or str(offered_raw).strip() == '':
             raise ValidationError('offered_total is required.')
@@ -1037,6 +1090,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                 academic_year=student.academic_year,
                 defaults={
                     'class_section': student.class_section,
+                    'grade': student.grade,
                     'roll_number': student.roll_number,
                     'status': 'PROMOTED',
                     'status_changed_at': timezone.now(),
@@ -1056,6 +1110,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                 academic_year=target_ay,
                 defaults={
                     'class_section': target_cs,
+                    'grade': target_cs.grade,
                     'roll_number': student.roll_number,
                     'status': 'ACTIVE',
                     'promoted_from': old_record,

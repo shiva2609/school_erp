@@ -292,6 +292,7 @@ class Student(models.Model):
     # Photo
     photo_url = models.URLField(blank=True, null=True)
     # Academic
+    grade = models.CharField(max_length=50, choices=GRADE_CHOICES, db_index=True)
     class_section = models.ForeignKey(ClassSection, on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
     roll_number = models.PositiveIntegerField(null=True, blank=True)
     # Status
@@ -422,6 +423,7 @@ class StudentAcademicRecord(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='academic_records')
     academic_year = models.ForeignKey('tenants.AcademicYear', on_delete=models.PROTECT, related_name='student_records')
+    grade = models.CharField(max_length=50, choices=GRADE_CHOICES, db_index=True)
     class_section = models.ForeignKey(ClassSection, on_delete=models.PROTECT, null=True, blank=True, related_name='academic_records')
     roll_number = models.PositiveIntegerField(null=True, blank=True)
 

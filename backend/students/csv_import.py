@@ -418,6 +418,8 @@ def process_rows(job, rows):
                             student.last_name = last_name or ''
                             student.date_of_birth = parsed_dob
                             student.gender = gender
+                            if grade:
+                                student.grade = grade
                             if cs:
                                 student.class_section = cs
                             student.roll_number = roll_num
@@ -477,7 +479,7 @@ def process_rows(job, rows):
                         legacy_stored = (csv_admission or '')[:64]
 
                         student = Student.objects.create(
-                            tenant=tenant, branch=branch, academic_year=ay, class_section=cs,
+                            tenant=tenant, branch=branch, academic_year=ay, grade=grade, class_section=cs,
                             first_name=first_name, last_name=last_name or '', date_of_birth=parsed_dob,
                             gender=gender, admission_number=platform_admission,
                             legacy_admission_number=legacy_stored,

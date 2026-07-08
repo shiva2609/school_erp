@@ -52,9 +52,9 @@ def generate_monthly_invoices(tenant, branch, academic_year_id, month, target='B
                 continue
 
             # Lookup fee structure for student's grade
-            grade = student.class_section.grade if student.class_section else None
+            grade = student.grade
             if not grade:
-                errors.append({'student_id': str(student.id), 'error': 'No class assigned'})
+                errors.append({'student_id': str(student.id), 'error': 'No grade assigned'})
                 continue
 
             structure = FeeStructure.objects.filter(

@@ -116,13 +116,13 @@ class FinancialIntegrityTests(TransactionTestCase):
             outstanding_amount=Decimal('1000.00'),
             status='SENT'
         )
-        
         url = reverse('payment-record-offline')
         self.client.post(url, {
             'invoice_id': invoice.id,
             'amount': '400.00',
             'payment_mode': 'UPI',
-            'payment_date': '2026-04-10'
+            'payment_date': '2026-04-10',
+            'reference_number': 'UPI123456789'
         }, format='json')
         
         logs = TransactionLog.objects.filter(transaction_type='INCOME', reference_model='Payment')

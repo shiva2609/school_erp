@@ -253,6 +253,7 @@ export default function StudentProfilePage() {
   const hasTransferTrail = transferNote.toLowerCase().startsWith('transferred from ');
   const requiresInitialPayment = !!student?.requires_initial_payment && !student?.is_csv_imported;
   const canManageInitialPaymentStatus = user?.role === 'ACCOUNTANT' || user?.role === 'SUPER_ADMIN';
+  const canManageStatus = ['ACCOUNTANT', 'BRANCH_ADMIN', 'SUPER_ADMIN'].includes(user?.role);
 
   if (loading && !student) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -379,6 +380,17 @@ export default function StudentProfilePage() {
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to reinstate.');
     } finally { setReinstating(false); }
+  };
+
+  const handleToggleActiveStatus = async (newStatus: 'ACTIVE' | 'INACTIVE') => {
+    if (!confirm(`Are you sure you want to mark this student as ${newStatus}?`)) return;
+    try {
+      await api.patch(`/students/${id}/status/`, { status: newStatus });
+      toast.success(`Student marked as ${newStatus} successfully.`);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || `Failed to mark student as ${newStatus}.`);
+    }
   };
 
   const updateInitialPaymentStatus = async (
@@ -559,7 +571,23 @@ export default function StudentProfilePage() {
                 >
                   <LogOut size={16} /> Transferred
                 </button>
+                {canManageStatus && (
+                  <button 
+                    onClick={() => handleToggleActiveStatus('INACTIVE')}
+                    className="flex items-center gap-2 bg-white text-slate-600 px-5 py-3.5 rounded-2xl text-sm font-black border-2 border-slate-200 hover:bg-slate-50 transition-all shadow-lg uppercase tracking-widest"
+                  >
+                    <UserMinus size={16} /> Mark Inactive
+                  </button>
+                )}
               </>
+            )}
+            {student.status === 'INACTIVE' && canManageStatus && (
+              <button 
+                onClick={() => handleToggleActiveStatus('ACTIVE')}
+                className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-3.5 rounded-2xl text-sm font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 uppercase tracking-widest"
+              >
+                <UserPlus size={16} /> Mark Active
+              </button>
             )}
             {student.status === 'DROPOUT' && (
               <button
