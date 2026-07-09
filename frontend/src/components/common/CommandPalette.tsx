@@ -165,7 +165,7 @@ export default function CommandPalette() {
                        >
                          <div className="flex items-center gap-4">
                            <div className={`p-2 rounded-xl border transition-colors ${isSelected ? 'bg-blue-500 border-blue-400 text-white' : 'bg-white border-gray-100 text-slate-400'}`}>
-                              <Icon size={18} />
+                              {Icon && <Icon size={18} />}
                            </div>
                            <div>
                               <p className="font-bold text-sm tracking-tight">{item.label}</p>

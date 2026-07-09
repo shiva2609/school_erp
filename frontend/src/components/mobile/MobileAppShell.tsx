@@ -140,7 +140,7 @@ export default function MobileAppShell({ children }: { children: React.ReactNode
                   active ? 'text-blue-600' : 'text-slate-500'
                 }`}
               >
-                <Icon size={20} strokeWidth={active ? 2.5 : 2} />
+                {Icon && <Icon size={20} strokeWidth={active ? 2.5 : 2} />}
                 <span className="truncate max-w-[4.5rem] text-center leading-tight">{it.label}</span>
               </Link>
             );
