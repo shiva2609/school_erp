@@ -21,7 +21,7 @@ export default function MobileMenuPage() {
         <section key={g.group} className="space-y-2">
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">{g.group}</h3>
           <ul className="rounded-2xl bg-white border border-slate-100 divide-y divide-slate-50 overflow-hidden shadow-sm">
-            {g.items.map((it) => {
+            {g.sections.flatMap(s => s.items).map((it) => {
               const Icon = it.icon;
               return (
                 <li key={it.href}>
