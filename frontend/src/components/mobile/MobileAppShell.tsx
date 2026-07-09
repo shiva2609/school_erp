@@ -12,14 +12,16 @@ import { getMobilePostLoginPath, stripMobilePrefix, toMobilePath } from '@/lib/m
 import { getPostLoginPath } from '@/lib/rolePortal';
 import { LayoutDashboard, Menu as MenuIcon, ExternalLink } from 'lucide-react';
 
-function flattenNavItems(groups: { items: NavItem[] }[]): NavItem[] {
+function flattenNavItems(groups: { sections: { items: NavItem[] }[] }[]): NavItem[] {
   const seen = new Set<string>();
   const out: NavItem[] = [];
   for (const g of groups) {
-    for (const it of g.items) {
-      if (seen.has(it.href)) continue;
-      seen.add(it.href);
-      out.push(it);
+    for (const s of g.sections) {
+      for (const it of s.items) {
+        if (seen.has(it.href)) continue;
+        seen.add(it.href);
+        out.push(it);
+      }
     }
   }
   return out;
