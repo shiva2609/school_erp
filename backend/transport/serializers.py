@@ -61,41 +61,41 @@ class TransportFeeEnrollmentSerializer(serializers.ModelSerializer):
     def get_student_name(self, obj):
         return f"{obj.student.first_name} {obj.student.last_name}"
 
-    def _get_invoice(self, obj):
-        if not hasattr(obj, '_cached_invoice'):
+    def _get_all_invoices(self, obj):
+        if not hasattr(obj, '_cached_all_invoices'):
             from fees.models import FeeInvoice
-            # Look for any active transport invoice for this student and academic year.
-            # Prioritize 'TRN-ANN-' but gracefully fall back to older 'TRN-*' invoices
-            # if they contain the active payment data.
+            # Find all active transport invoices for this student and academic year
             invoices = FeeInvoice.objects.filter(
                 student=obj.student,
                 academic_year=obj.academic_year,
                 invoice_number__startswith='TRN-'
             ).exclude(status='CANCELLED').order_by('-created_at')
-            
-            # Prefer TRN-ANN- if multiple exist
-            invoice = next((inv for inv in invoices if inv.invoice_number.startswith('TRN-ANN-')), invoices.first() if invoices else None)
-            
-            obj._cached_invoice = invoice
-        return obj._cached_invoice
+            obj._cached_all_invoices = list(invoices)
+        return obj._cached_all_invoices
+
+    def _get_primary_invoice(self, obj):
+        invoices = self._get_all_invoices(obj)
+        # For UI actions (like Pay button), prefer the TRN-ANN- invoice
+        return next((inv for inv in invoices if inv.invoice_number.startswith('TRN-ANN-')), invoices[0] if invoices else None)
 
     def get_paid_amount(self, obj):
-        inv = self._get_invoice(obj)
-        return float(inv.paid_amount) if inv else 0.0
+        invoices = self._get_all_invoices(obj)
+        # Sum payments across all duplicate/old transport invoices so nothing is lost
+        return sum(float(inv.paid_amount) for inv in invoices)
 
     def get_balance_amount(self, obj):
-        inv = self._get_invoice(obj)
-        return float(inv.outstanding_amount) if inv else float(obj.agreed_amount)
+        total_paid = self.get_paid_amount(obj)
+        return max(0.0, float(obj.agreed_amount) - total_paid)
 
     def get_invoice_id(self, obj):
-        inv = self._get_invoice(obj)
+        inv = self._get_primary_invoice(obj)
         return inv.id if inv else None
 
     def get_invoice_number(self, obj):
-        inv = self._get_invoice(obj)
+        inv = self._get_primary_invoice(obj)
         return inv.invoice_number if inv else None
 
     def get_invoice_status(self, obj):
-        inv = self._get_invoice(obj)
+        inv = self._get_primary_invoice(obj)
         return inv.status if inv else None
 
