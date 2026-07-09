@@ -126,29 +126,29 @@ export default function AttendancePage() {
           <p className="text-gray-500 text-sm">Efficient classroom management and record-keeping.</p>
         </div>
 
-        <div className="flex gap-4 items-end bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex gap-4 items-end esms-card p-4">
           <div className="flex-1 min-w-[160px]">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Select Class</label>
+            <label className="esms-label">Select Class</label>
             <select value={selectedClass} onChange={e => fetchData(e.target.value, date)}
-              className="w-full px-4 py-2 border-none bg-slate-50 rounded-xl text-sm font-bold focus:ring-2 ring-blue-500 transition-all">
+              className="esms-input">
               <option value="">Select class...</option>
               {classes?.map((c: ClassSection) => <option key={c.id} value={c.id}>{c.display_name}</option>)}
             </select>
           </div>
           <div className="w-[140px]">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Session Date</label>
+            <label className="esms-label">Session Date</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
-              className="w-full px-4 py-2 border-none bg-slate-50 rounded-xl text-sm font-bold focus:ring-2 ring-blue-500" />
+              className="esms-input" />
           </div>
         </div>
       </div>
 
       {students.length > 0 && !loadingStudents && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+            <div className="esms-card p-4 flex items-center justify-between">
                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Total Students</p>
-                  <p className="text-xl font-black text-slate-900">{attendanceStats.total}</p>
+                  <p className="esms-label !mb-0">Total Students</p>
+                  <p className="text-xl font-bold text-slate-900">{attendanceStats.total}</p>
                </div>
                <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-400">
                   <Users size={18} />
@@ -156,8 +156,8 @@ export default function AttendancePage() {
             </div>
             <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 shadow-sm flex items-center justify-between">
                <div>
-                  <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-tighter">Marked Present</p>
-                  <p className="text-xl font-black text-emerald-700">{attendanceStats.present}</p>
+                  <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-0.5">Marked Present</p>
+                  <p className="text-xl font-bold text-emerald-800">{attendanceStats.present}</p>
                </div>
                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
                   <Check size={18} />
@@ -165,8 +165,8 @@ export default function AttendancePage() {
             </div>
             <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 shadow-sm flex items-center justify-between">
                <div>
-                  <p className="text-[10px] font-black text-rose-600/70 uppercase tracking-tighter">Marked Absent</p>
-                  <p className="text-xl font-black text-rose-700">{attendanceStats.absent}</p>
+                  <p className="text-xs font-semibold text-rose-700 uppercase tracking-wider mb-0.5">Marked Absent</p>
+                  <p className="text-xl font-bold text-rose-800">{attendanceStats.absent}</p>
                </div>
                <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-rose-600">
                   <AlertCircle size={18} />
@@ -190,12 +190,12 @@ export default function AttendancePage() {
               </div>
           </div>
 
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="divide-y divide-gray-50">
+          <div className="esms-card overflow-hidden">
+            <div className="divide-y divide-slate-100">
               {students.map((s: Student) => (
                 <div key={s.id} className="flex flex-col md:flex-row md:items-center justify-between px-6 py-4 hover:bg-slate-50/50 transition-colors group">
                   <div className="flex flex-col">
-                    <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{s.first_name} {s.last_name}</span>
+                    <span className="font-semibold text-slate-900 group-hover:text-brand-600 transition-colors">{s.first_name} {s.last_name}</span>
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">adm: {s.admission_no}</span>
                   </div>
                   <div className="flex gap-1 mt-2 md:mt-0">
@@ -228,10 +228,10 @@ export default function AttendancePage() {
           </div>
         </div>
       ) : selectedClass ? (
-        <div className="bg-white border border-gray-100 rounded-3xl p-16 text-center shadow-sm">
-          <Zap className="mx-auto text-slate-100 mb-4 animate-bounce" size={48} />
-          <p className="text-slate-900 font-bold">Class directory not synced.</p>
-          <p className="text-slate-400 text-sm mt-1">Check class assignments or try another group.</p>
+        <div className="esms-card p-16 text-center">
+          <Zap className="mx-auto text-slate-200 mb-4 animate-bounce" size={48} />
+          <p className="text-slate-900 font-semibold">Class directory not synced.</p>
+          <p className="text-slate-500 text-sm mt-1">Check class assignments or try another group.</p>
         </div>
       ) : (
         <div className="bg-blue-50 border border-blue-100 rounded-3xl p-16 text-center flex flex-col items-center">

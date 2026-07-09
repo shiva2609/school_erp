@@ -495,9 +495,9 @@ export default function StudentProfilePage() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header Card */}
-      <div className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-50 relative overflow-hidden">
+      <div className="esms-card p-8 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-8">
            <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest ${
              student.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100' :
@@ -621,10 +621,10 @@ export default function StudentProfilePage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-4 p-5 rounded-3xl transition-all duration-300 relative group ${
+              className={`w-full flex items-center gap-3 p-4 rounded-xl transition-all duration-300 relative group ${
                 activeTab === tab.id 
-                  ? 'bg-blue-600 text-white shadow-xl shadow-blue-200 translate-x-2' 
-                  : 'bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600 shadow-sm border border-slate-50'
+                  ? 'bg-brand-600 text-white shadow-md shadow-brand-200 translate-x-2' 
+                  : 'bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-slate-200'
               }`}
             >
               <tab.icon size={22} className={activeTab === tab.id ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'} />
@@ -637,7 +637,7 @@ export default function StudentProfilePage() {
         </div>
 
         {/* Content Pane */}
-        <div className="lg:col-span-3 bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-50 p-8 min-h-[500px]">
+        <div className="lg:col-span-3 esms-card p-8 min-h-[500px]">
           {activeTab === 'overview' && (
             <div className="space-y-10 animate-in fade-in slide-in-from-right-4">
               {hasTransferTrail && (

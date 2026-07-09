@@ -71,69 +71,72 @@ export default function BranchDashboard({ user }: { user: any }) {
   return (
     <div className="space-y-6 pb-10">
       {/* Header with Academic Year filter */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Branch Operations</h1>
-          <p className="text-gray-500 mt-1">Actions and metrics for your branch.</p>
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Branch Operations</h1>
+          <p className="text-sm text-slate-500 mt-1">Key metrics and recent activities across your branch.</p>
         </div>
-        <AcademicYearFilter
-          value={selectedAY}
-          onChange={id => { setSelectedAY(id); setLoading(true); }}
-        />
+        <div className="flex items-center gap-3">
+          <AcademicYearFilter
+            value={selectedAY}
+            onChange={id => { setSelectedAY(id); setLoading(true); }}
+          />
+        </div>
       </div>
 
       {loading ? (
-        <div className="animate-pulse h-96 bg-gray-100 rounded-2xl w-full flex items-center justify-center">
-          <p className="text-slate-400 font-medium">Loading metrics...</p>
+        <div className="animate-pulse h-96 esms-card w-full flex flex-col items-center justify-center space-y-4">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-brand-600 rounded-full animate-spin" />
+          <p className="text-sm text-slate-500 font-medium">Loading metrics...</p>
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Today's Collection" value={`₹${(data.stats?.today_collection || 0).toLocaleString('en-IN')}`} icon={IndianRupee} color="green" />
-        <StatCard
-          title="Academic revenue received"
-          value={`₹${(data.stats?.academic_revenue_collected ?? data.stats?.revenue_collected ?? data.stats?.total_paid ?? 0).toLocaleString('en-IN')}`}
-          icon={TrendingUp}
-          color="purple"
-        />
-        {hasTransportRevenue && (
-          <StatCard
-            title="Transport revenue received"
-            value={`₹${(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}`}
-            icon={IndianRupee}
-            color="amber"
-          />
-        )}
-        <StatCard title="Outstanding Dues" value={`₹${(data.stats?.total_outstanding || 0).toLocaleString('en-IN')}`} icon={AlertCircle} color="red" />
-        <StatCard title="Today's Attendance" value={`${avgAttendance}%`} icon={Calendar} color="blue" />
-      </div>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard title="Today's Collection" value={`₹${(data.stats?.today_collection || 0).toLocaleString('en-IN')}`} icon={IndianRupee} color="green" />
+            <StatCard
+              title="Academic Revenue"
+              value={`₹${(data.stats?.academic_revenue_collected ?? data.stats?.revenue_collected ?? data.stats?.total_paid ?? 0).toLocaleString('en-IN')}`}
+              icon={TrendingUp}
+              color="blue"
+            />
+            {hasTransportRevenue && (
+              <StatCard
+                title="Transport Revenue"
+                value={`₹${(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}`}
+                icon={IndianRupee}
+                color="amber"
+              />
+            )}
+            <StatCard title="Outstanding Dues" value={`₹${(data.stats?.total_outstanding || 0).toLocaleString('en-IN')}`} icon={AlertCircle} color="red" />
+            <StatCard title="Today's Attendance" value={`${avgAttendance}%`} icon={Calendar} color="purple" />
+          </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-         <div className="xl:col-span-1">
-           <FinanceChart title="Branch Cashflow" data={data.finance} />
-         </div>
-         <div className="xl:col-span-1">
-           <DashboardLineChart 
-             title="Attendance Trend (30 Days)" 
-             data={data.attendanceTrend} 
-             xKey="date" 
-             yKey="percentage" 
-           />
-         </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-1">
-          <DashboardPieChart 
-            title="Fee Aging" 
-            data={Object.entries(data.feeAging).map(([key, value]) => ({
-              name: key.replace('_', '-').replace('plus', '+') + ' days',
-              value: value
-            }))}
-          />
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="xl:col-span-2 esms-card p-6">
+              <FinanceChart title="Branch Cashflow" data={data.finance} />
+            </div>
+            <div className="xl:col-span-1 esms-card p-6">
+              <DashboardPieChart 
+                title="Fee Aging Breakdown" 
+                data={Object.entries(data.feeAging).map(([key, value]) => ({
+                  name: key.replace('_', '-').replace('plus', '+') + ' days',
+                  value: value
+                }))}
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-6">
+             <div className="esms-card p-6">
+               <DashboardLineChart 
+                 title="Attendance Trend (30 Days)" 
+                 data={data.attendanceTrend} 
+                 xKey="date" 
+                 yKey="percentage" 
+               />
+             </div>
+          </div>
         </div>
-      </div>
-        </>
       )}
     </div>
   );

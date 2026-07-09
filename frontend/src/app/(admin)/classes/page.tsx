@@ -425,12 +425,12 @@ export default function ClassesPage() {
 
         {/* Academic Year Selector */}
         <div className="relative inline-flex items-center">
-          <CalendarDays size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400 pointer-events-none z-10" />
+          <CalendarDays size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-500 pointer-events-none z-10" />
           <select
             value={selectedAY}
             onChange={e => setSelectedAY(e.target.value)}
             disabled={yearsLoading || years.length === 0}
-            className="appearance-none pl-9 pr-8 py-2 bg-white border border-indigo-100 rounded-xl text-sm font-semibold text-slate-700 shadow-sm hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-50 min-w-[160px]"
+            className="appearance-none pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 shadow-sm hover:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:opacity-50 min-w-[160px]"
           >
             {yearsLoading
               ? <option>Loading...</option>
@@ -447,28 +447,28 @@ export default function ClassesPage() {
 
       {/* ── Content ────────────────────────────────────────────────────── */}
       {loading ? (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm h-64 animate-pulse" />
+        <div className="esms-card h-64 animate-pulse" />
       ) : error ? (
         <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm">{error}</div>
       ) : !selectedAY ? (
-        <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
-          <CalendarDays className="mx-auto text-gray-300 mb-4" size={48} />
-          <p className="text-gray-500 font-medium">Select an academic year to view classes</p>
+        <div className="border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center">
+          <CalendarDays className="mx-auto text-slate-300 mb-4" size={48} />
+          <p className="text-slate-500 font-medium">Select an academic year to view classes</p>
         </div>
       ) : gradeRows.length === 0 ? (
-        <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
-          <BookOpen className="mx-auto text-gray-300 mb-4" size={48} />
-          <p className="text-gray-500 font-medium">No classes for this academic year</p>
-          <p className="text-gray-400 text-sm mt-1">
+        <div className="border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center">
+          <BookOpen className="mx-auto text-slate-300 mb-4" size={48} />
+          <p className="text-slate-500 font-medium">No classes for this academic year</p>
+          <p className="text-slate-400 text-sm mt-1">
             Click the ✏ icon on any row to add sections.
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[800px]">
+        <div className="esms-card overflow-hidden">
+          <div className="esms-table-container">
+            <table className="esms-table min-w-[800px]">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
+                <tr>
                   {[
                     { label: 'Class Name',        align: 'left'  },
                     { label: 'Sections',           align: 'center'},
@@ -481,7 +481,7 @@ export default function ClassesPage() {
                   ].map((h, i) => (
                     <th
                       key={i}
-                      className={`px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap text-${h.align}`}
+                      className={`text-${h.align}`}
                     >
                       {h.label}
                     </th>
@@ -489,52 +489,51 @@ export default function ClassesPage() {
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-gray-100">
+              <tbody>
                 {gradeRows.map(row => (
-                  <tr key={row.grade} className="hover:bg-gray-50/60 transition-colors group">
-
+                  <tr key={row.grade}>
                     {/* Class Name */}
-                    <td className="px-5 py-3">
-                      <span className="font-medium text-gray-800 border-b border-gray-300 pb-px">
+                    <td>
+                      <span className="font-semibold text-slate-800 border-b border-slate-300 pb-px">
                         {row.display}
                       </span>
                     </td>
 
                     {/* Sections — interactive */}
-                    <td className="px-5 py-3 text-center">
+                    <td className="text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        <span className="font-semibold text-gray-700">{row.sections.length}</span>
+                        <span className="font-semibold text-slate-700">{row.sections.length}</span>
                         <button
                           onClick={() => setActiveModal(row)}
-                          className="text-blue-500 hover:text-blue-700 p-0.5 rounded hover:bg-blue-50 transition-colors"
+                          className="text-brand-600 hover:text-brand-700 p-1 rounded hover:bg-brand-50 transition-colors"
                           title="Manage sections"
                         >
-                          <Pencil size={13} />
+                          <Pencil size={14} />
                         </button>
                       </div>
                     </td>
 
                     {/* Subjects — placeholder */}
-                    <td className="px-5 py-3 text-center"><PlaceholderCell count={0} /></td>
+                    <td className="text-center"><PlaceholderCell count={0} /></td>
 
                     {/* Optional Subjects — placeholder */}
-                    <td className="px-5 py-3 text-center"><PlaceholderCell count={0} /></td>
+                    <td className="text-center"><PlaceholderCell count={0} /></td>
 
                     {/* Grades — placeholder */}
-                    <td className="px-5 py-3 text-center"><PlaceholderCell /></td>
+                    <td className="text-center"><PlaceholderCell /></td>
 
                     {/* Teachers — placeholder */}
-                    <td className="px-5 py-3 text-center"><PlaceholderCell count={0} /></td>
+                    <td className="text-center"><PlaceholderCell count={0} /></td>
 
                     {/* Time Table — placeholder */}
-                    <td className="px-5 py-3 text-center"><PlaceholderCell /></td>
+                    <td className="text-center"><PlaceholderCell /></td>
 
                     {/* Deactivate — placeholder */}
-                    <td className="px-4 py-3 text-right">
+                    <td className="text-right">
                       <button
                         disabled
                         title="Coming soon"
-                        className="text-xs font-medium px-3 py-1 border border-gray-200 text-gray-400 rounded cursor-not-allowed"
+                        className="text-xs font-semibold px-3 py-1 border border-slate-200 text-slate-400 rounded cursor-not-allowed"
                       >
                         Deactivate
                       </button>

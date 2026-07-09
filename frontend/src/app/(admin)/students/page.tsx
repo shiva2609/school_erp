@@ -225,22 +225,22 @@ export default function StudentsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Student Directory</h1>
-           <p className="text-gray-500 text-sm mt-1">Manage enrollments, academic mapping, and student lifecycle.</p>
+           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Student Directory</h1>
+           <p className="text-slate-500 text-sm mt-1">Manage enrollments, academic mapping, and student lifecycle.</p>
         </div>
         <div className="flex gap-3">
           <button 
             onClick={() => setShowImport(true)}
-            className="bg-white border border-gray-200 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:border-blue-300 transition-all flex items-center gap-2 group"
+            className="btn btn-outline"
           >
-            <Users size={18} className="text-blue-500 group-hover:scale-110 transition-transform" />
+            <Users size={16} className="text-brand-600" />
             Import CSV
           </button>
           <button 
             onClick={() => setShowDrawer(true)}
-            className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center gap-2 group"
+            className="btn btn-primary"
           >
-            <UserPlus size={18} className="group-hover:scale-110 transition-transform" />
+            <UserPlus size={16} />
             Enroll Student
           </button>
         </div>
@@ -250,37 +250,37 @@ export default function StudentsPage() {
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
         <div className="relative flex-1 min-w-[240px]">
-           <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
+           <Search size={16} className="absolute left-3.5 top-2.5 text-slate-400" />
            <input 
              placeholder="Search by name or admission number..." 
              value={search}
              onChange={e => { setSearch(e.target.value); }}
-             className="w-full pl-11 pr-4 py-2.5 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 ring-blue-500" 
+             className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" 
            />
         </div>
 
         {/* Class/Section Filter */}
         <div className="relative min-w-[180px]">
-          <BookOpen size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
+          <BookOpen size={14} className="absolute left-3 top-3 text-slate-400 pointer-events-none" />
           <select
             value={classSectionFilter}
             onChange={e => setClassSectionFilter(e.target.value)}
-            className="w-full pl-9 pr-8 py-2.5 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 ring-blue-500 bg-white appearance-none text-slate-700"
+            className="w-full pl-9 pr-8 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white appearance-none text-slate-700"
           >
             <option value="">All Classes</option>
             {classSections.map(cs => (
               <option key={cs.id} value={cs.id}>{cs.display_name}</option>
             ))}
           </select>
-          <ChevronRight size={13} className="absolute right-3 top-3 text-gray-400 pointer-events-none rotate-90" />
+          <ChevronRight size={13} className="absolute right-3 top-3 text-slate-400 pointer-events-none rotate-90" />
         </div>
         
         {/* Status Filter */}
-        <div className="flex gap-2 bg-white p-1 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto scrollbar-hide">
+        <div className="flex gap-1 bg-slate-100/50 p-1 rounded-lg border border-slate-200 overflow-x-auto scrollbar-hide">
            {['ACTIVE', 'PENDING_APPROVAL', 'DROPOUT', 'ARCHIVED'].map(s => (
              <button key={s} onClick={() => setStatusFilter(s)}
-               className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all ${
-                 statusFilter === s ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'
+               className={`px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all ${
+                 statusFilter === s ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700 border border-transparent'
                }`}>
                {s.replace('_', ' ')}
              </button>
@@ -289,7 +289,7 @@ export default function StudentsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden min-h-[400px]">
+      <div className="esms-card overflow-hidden min-h-[400px]">
         {loading ? (
           <div className="p-20 text-center animate-pulse text-slate-300">
              <Users size={64} className="mx-auto mb-4 opacity-20" />
@@ -308,60 +308,62 @@ export default function StudentsPage() {
              <p className="text-sm">Try adjusting your filters or search query.</p>
           </div>
         ) : (
-          <>
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50/50 border-b border-gray-100">
+          <div className="esms-table-container">
+            <table className="esms-table">
+              <thead>
                 <tr>
-                   <th className="px-6 py-4 w-10">
+                   <th className="w-10">
                       <input type="checkbox" onChange={(e) => {
                          if (e.target.checked) setSelectedIds(students.map(s => s.id));
                          else setSelectedIds([]);
-                      }} checked={selectedIds.length === students.length && students.length > 0} />
+                      }} checked={selectedIds.length === students.length && students.length > 0} 
+                      className="rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
                    </th>
-                   <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Admission</th>
-                   <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Student Name</th>
-                   <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Parent Name</th>
-                   <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Context</th>
-                   <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Mapping</th>
-                   <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-tighter text-[10px]">Status</th>
+                   <th>Admission</th>
+                   <th>Student Name</th>
+                   <th>Parent Name</th>
+                   <th>Context</th>
+                   <th>Mapping</th>
+                   <th>Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody>
                 {students.map((s) => (
-                  <tr key={s.id} className={`hover:bg-blue-50/30 transition-colors group ${selectedIds.includes(s.id) ? 'bg-blue-50/50' : ''}`}>
-                    <td className="px-6 py-4">
-                       <input type="checkbox" checked={selectedIds.includes(s.id)} onChange={() => toggleSelect(s.id)} />
+                  <tr key={s.id} className={selectedIds.includes(s.id) ? 'esms-table-selected' : ''}>
+                    <td>
+                       <input type="checkbox" checked={selectedIds.includes(s.id)} onChange={() => toggleSelect(s.id)}
+                       className="rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
                     </td>
-                    <td className="px-6 py-4">
-                       <span className="font-mono text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md group-hover:bg-white transition-colors border border-transparent group-hover:border-slate-200">
+                    <td>
+                       <span className="font-mono text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200">
                          {s.admission_number}
                        </span>
                     </td>
-                    <td className="px-6 py-4 font-bold text-slate-900">
-                      <Link href={`/students/${s.id}`} className="hover:text-blue-600 transition-colors block">
+                    <td className="font-semibold text-slate-900">
+                      <Link href={`/students/${s.id}`} className="hover:text-brand-600 transition-colors block">
                         {s.first_name} {s.last_name}
                       </Link>
                     </td>
-                    <td className="px-6 py-4 font-medium text-slate-700 text-xs">
+                    <td className="text-slate-600 text-sm">
                       {s.father_name || '-'}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase">
-                         <Building2 size={10} />
+                    <td>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                         <Building2 size={12} />
                          {s.branch_name || 'N/A'}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-slate-500 italic">
+                    <td className="text-slate-600 italic">
                       {s.class_section_display || 'Unassigned'}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${
-                        s.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 
-                        s.status === 'PENDING_APPROVAL' ? 'bg-blue-50 text-blue-700' :
-                        s.status === 'DROPOUT' ? 'bg-red-50 text-red-600' :
-                        s.status === 'ARCHIVED' ? 'bg-amber-50 text-amber-800' :
-                        s.status === 'TRANSFERRED' ? 'bg-purple-50 text-purple-600' :
-                        'bg-slate-100 text-slate-600'
+                    <td>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold uppercase tracking-tight ${
+                        s.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 
+                        s.status === 'PENDING_APPROVAL' ? 'bg-brand-50 text-brand-700 border border-brand-200' :
+                        s.status === 'DROPOUT' ? 'bg-red-50 text-red-700 border border-red-200' :
+                        s.status === 'ARCHIVED' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                        s.status === 'TRANSFERRED' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                        'bg-slate-100 text-slate-600 border border-slate-200'
                       }`}>
                         {s.status.replace('_', ' ')}
                       </span>
@@ -370,9 +372,12 @@ export default function StudentsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
 
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-slate-50/30">
+        {/* Pagination Controls */}
+        {!loading && !error && students.length > 0 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50/50">
               <p className="text-xs text-slate-500">
                 Showing <span className="font-bold text-slate-700">{startRecord}–{endRecord}</span> of{' '}
                 <span className="font-bold text-slate-700">{totalCount}</span> students
@@ -427,7 +432,6 @@ export default function StudentsPage() {
                 </button>
               </div>
             </div>
-          </>
         )}
       </div>
 

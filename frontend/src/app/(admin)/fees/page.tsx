@@ -175,21 +175,21 @@ export default function FeesPage() {
               </h3>
              {appLoading ? (
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 {[1,2].map(i => <div key={i} className="h-40 bg-white rounded-2xl border animate-pulse" />)}
+                 {[1,2].map(i => <div key={i} className="esms-card h-40 animate-pulse" />)}
                </div>
              ) : approvals?.length === 0 ? (
-               <div className="bg-white border border-gray-100 rounded-3xl p-12 text-center shadow-sm">
-                 <CheckCircle2 className="mx-auto text-emerald-300 mb-3" size={32} />
-                 <p className="text-slate-900 font-bold">Clear queue!</p>
-                 <p className="text-slate-400 text-sm">No pending approval requests.</p>
+               <div className="esms-card p-12 text-center">
+                 <CheckCircle2 className="mx-auto text-emerald-400 mb-3" size={32} />
+                 <p className="text-slate-900 font-semibold">Clear queue!</p>
+                 <p className="text-slate-500 text-sm">No pending approval requests.</p>
                </div>
              ) : (
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  {approvals?.map((req) => (
-                   <div key={req.id} className="bg-white p-6 rounded-2xl border border-blue-50 shadow-sm hover:shadow-md transition-all">
+                   <div key={req.id} className="esms-card p-6">
                      <div className="flex justify-between items-start mb-4">
                         <div>
-                           <h4 className="font-bold text-slate-900">{req.student_name}</h4>
+                           <h4 className="font-semibold text-slate-900">{req.student_name}</h4>
                            <p className="text-[10px] font-mono text-slate-400 uppercase">{req.admission_number}</p>
                            {(req.academic_year_name || req.class_section_display) ? (
                              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
@@ -242,9 +242,9 @@ export default function FeesPage() {
                 <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
                 High Priority Collections
               </h3>
-             <div className="bg-white rounded-3xl border border-gray-100 p-8 text-center">
-                <AlertTriangle className="mx-auto text-rose-300 mb-2" />
-                <p className="text-slate-400 text-sm">Switch to the &quot;All Invoices&quot; tab and filter by &quot;OVERDUE&quot; to view collections.</p>
+             <div className="esms-card p-8 text-center">
+                <AlertTriangle className="mx-auto text-rose-400 mb-2" />
+                <p className="text-slate-500 text-sm">Switch to the &quot;All Invoices&quot; tab and filter by &quot;OVERDUE&quot; to view collections.</p>
              </div>
            </div>
         </div>
@@ -253,14 +253,14 @@ export default function FeesPage() {
         <>
           <div className="flex flex-wrap items-center gap-4">
              <div className="relative flex-1 min-w-[300px]">
-                <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
-                <input placeholder="Search invoice or student name..." className="w-full pl-11 pr-4 py-2.5 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 ring-blue-500" />
+                <Search size={16} className="absolute left-3.5 top-2.5 text-slate-400" />
+                <input placeholder="Search invoice or student name..." className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
              </div>
-             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+             <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-hide bg-slate-100/50 p-1 rounded-lg border border-slate-200">
               {['', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'].map(s => (
                 <button key={s} onClick={() => setStatusFilter(s)}
-                  className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${
-                    statusFilter === s ? 'bg-slate-900 text-white' : 'bg-white border text-slate-500 hover:bg-slate-50'
+                  className={`px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all ${
+                    statusFilter === s ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700 border border-transparent'
                   }`}>
                   {s || 'All Status'}
                 </button>
@@ -268,45 +268,59 @@ export default function FeesPage() {
              </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-4">
-            <table className="w-full text-sm text-left">
-               <thead className="bg-slate-50/50 border-b border-gray-100">
+          <div className="esms-card overflow-hidden mt-4">
+            <div className="esms-table-container">
+              <table className="esms-table">
+                 <thead>
                   <tr>
-                    <th className="px-6 py-4 w-10">
+                    <th className="w-10">
                        <input type="checkbox" onChange={(e) => {
                           if (e.target.checked) setSelectedIds(invoices?.map(i => i.id) || []);
                           else setSelectedIds([]);
-                       }} />
+                       }} 
+                       className="rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
                     </th>
-                    <th className="px-6 py-4 font-bold text-slate-600">Invoice</th>
-                    <th className="px-6 py-4 font-bold text-slate-600">Student</th>
-                    <th className="px-6 py-4 font-bold text-slate-600">Due Date</th>
-                    <th className="px-6 py-4 font-bold text-slate-600">Amount</th>
-                    <th className="px-6 py-4 font-bold text-slate-600">Status</th>
+                    <th>Invoice</th>
+                    <th>Student</th>
+                    <th>Due Date</th>
+                    <th>Amount</th>
+                    <th>Status</th>
                   </tr>
                </thead>
-               <tbody className="divide-y divide-slate-50">
+               <tbody>
                   {invoices?.map((inv) => (
-                    <tr key={inv.id} className={`hover:bg-slate-50/50 transition-colors ${selectedIds.includes(inv.id) ? 'bg-blue-50/30' : ''}`}>
-                       <td className="px-6 py-4">
-                          <input type="checkbox" checked={selectedIds.includes(inv.id)} onChange={() => toggleSelect(inv.id)} />
+                    <tr key={inv.id} className={selectedIds.includes(inv.id) ? 'esms-table-selected' : ''}>
+                       <td>
+                          <input type="checkbox" checked={selectedIds.includes(inv.id)} onChange={() => toggleSelect(inv.id)}
+                          className="rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
                        </td>
-                       <td className="px-6 py-4 font-mono text-xs">{inv.invoice_number}</td>
-                       <td className="px-6 py-4 font-bold text-slate-900">{inv.student_name}</td>
-                       <td className="px-6 py-4 text-slate-500">{inv.due_date}</td>
-                       <td className="px-6 py-4">
-                          <p className="font-bold">₹{Number(inv.net_amount).toLocaleString('en-IN')}</p>
-                          {Number(inv.outstanding_amount) > 0 && <p className="text-[10px] text-rose-500 font-bold">₹{Number(inv.outstanding_amount).toLocaleString('en-IN')} left</p>}
+                       <td>
+                         <span className="font-mono text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200">
+                           {inv.invoice_number}
+                         </span>
                        </td>
-                       <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${statusStyles[inv.status]}`}>
+                       <td className="font-semibold text-slate-900">{inv.student_name}</td>
+                       <td className="text-slate-500">{inv.due_date}</td>
+                       <td>
+                          <p className="font-semibold">₹{Number(inv.net_amount).toLocaleString('en-IN')}</p>
+                          {Number(inv.outstanding_amount) > 0 && <p className="text-[11px] text-rose-600 font-semibold">₹{Number(inv.outstanding_amount).toLocaleString('en-IN')} left</p>}
+                       </td>
+                       <td>
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold uppercase tracking-tight border ${
+                            inv.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                            inv.status === 'PARTIALLY_PAID' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            inv.status === 'OVERDUE' ? 'bg-red-50 text-red-700 border-red-200' :
+                            inv.status === 'SENT' ? 'bg-brand-50 text-brand-700 border-brand-200' :
+                            'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}>
                              {inv.status.replace('_', ' ')}
                           </span>
                        </td>
                     </tr>
                   ))}
                </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         </>
       )}

@@ -1,26 +1,144 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  
+  /* Modern Enterprise Color Palette */
+  
+  /* Brand (Deep Blue) */
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6; /* Primary */
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+  --color-brand-950: #172554;
+
+  /* Surface / Neutrals (Slate for a cooler, modern feel) */
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+
+  /* Semantic Colors */
+  --color-success-500: #10b981;
+  --color-warning-500: #f59e0b;
+  --color-danger-500: #ef4444;
+  --color-info-500: #0ea5e9;
+  
+  /* Shadows - Crisp, enterprise feel */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-card: 0px 4px 20px rgba(15, 23, 42, 0.05);
+  --shadow-dropdown: 0px 10px 30px rgba(15, 23, 42, 0.1);
+  
+  /* Border radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Base resets & global styles */
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+  }
+
+  /* Custom Scrollbar for Webkit */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded-full hover:bg-slate-400 transition-colors;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Component classes */
+@layer components {
+  /* Modern Card */
+  .esms-card {
+    @apply bg-white rounded-xl shadow-card border border-slate-200 overflow-hidden;
+  }
+  
+  /* Tables */
+  .esms-table-container {
+    @apply w-full overflow-x-auto;
+  }
+  
+  .esms-table {
+    @apply w-full text-left text-sm text-slate-600;
+  }
+  
+  .esms-table thead {
+    @apply bg-slate-50/80 border-b border-slate-200;
+  }
+  
+  .esms-table th {
+    @apply px-4 py-3 font-semibold text-slate-500 uppercase tracking-wider text-[11px];
+  }
+  
+  .esms-table tbody {
+    @apply divide-y divide-slate-100;
+  }
+  
+  .esms-table td {
+    @apply px-4 py-3 align-middle;
+  }
+  
+  .esms-table tr {
+    @apply hover:bg-slate-50/50 transition-colors;
+  }
+  
+  .esms-table-selected {
+    @apply bg-brand-50/30 hover:bg-brand-50/50;
+  }
+  
+  /* Forms */
+  .esms-input {
+    @apply w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all;
+  }
+  
+  .esms-label {
+    @apply block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5;
+  }
+  
+  /* Focus Rings */
+  .focus-ring {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2;
+  }
+  
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 active:scale-[0.98];
+  }
+  .btn-primary {
+    @apply bg-brand-600 text-white hover:bg-brand-700 shadow-sm;
+  }
+  .btn-secondary {
+    @apply bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-sm;
+  }
+  .btn-ghost {
+    @apply bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900;
+  }
+  .btn-danger {
+    @apply bg-danger-500 text-white hover:bg-red-600 shadow-sm;
+  }
 }

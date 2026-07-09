@@ -10,14 +10,14 @@ import CommandPalette from '@/components/common/CommandPalette';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import NotificationBell from '@/components/common/NotificationBell';
 import ForcePasswordChange from '@/components/common/ForcePasswordChange';
-import { LogOut, Menu, X, Search } from 'lucide-react';
+import TopNavigation from '@/components/common/TopNavigation';
+import { LogOut, Search, User } from 'lucide-react';
 import { getNavGroups } from '@/lib/roleNav';
 
 function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, refreshUser, logout } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout({ confirm: true });
@@ -33,21 +33,17 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600/30 border-t-blue-600 rounded-full animate-spin" />
+          <div className="w-12 h-12 border-4 border-brand-600/30 border-t-brand-600 rounded-full animate-spin" />
           <p className="text-slate-500 font-medium animate-pulse">Initializing Portal...</p>
         </div>
       </div>
     );
   }
 
-  // Hide UI while redirecting
   if (!user) {
     return null;
   }
 
-  // ─── Forced Password Change Gate ──────────────────────────────
-  // If the user has must_change_password=true (e.g. parent with Welcome@123),
-  // block ALL navigation and show the password change modal.
   if (user?.must_change_password) {
     return (
       <ForcePasswordChange
@@ -60,181 +56,97 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 
   const navGroups = user?.role ? getNavGroups({ role: user.role, tenant: user.tenant }) : [];
 
-  // Determine the active item by finding the longest matching href prefix
-  let activeItemHref = '';
-  navGroups.forEach(group => {
-    group.items.forEach(item => {
-      if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
-        if (item.href.length > activeItemHref.length) {
-          activeItemHref = item.href;
-        }
-      }
-    });
-  });
-
   return (
     <BranchProvider>
       <CommandPalette />
-      <div className="flex h-screen bg-gray-50 text-gray-900">
-        {/* Mobile Sidebar Overlay */}
-        {sidebarOpen && (
-          <div className="fixed inset-0 z-40 md:hidden">
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
-            <aside className="fixed inset-y-0 left-0 w-72 bg-slate-900 text-white flex flex-col z-50 shadow-2xl animate-in slide-in-from-left duration-300">
-              {/* Mobile sidebar logo area */}
-              <div className="h-16 flex items-center justify-between px-4 border-b border-white/10 flex-shrink-0">
-                {user?.tenant_logo ? (
-                  <img
-                    src={user.tenant_logo}
-                    alt={user.tenant_name || 'Logo'}
-                    className="max-h-10 flex-1 min-w-0 object-contain object-left"
-                  />
-                ) : (
-                  <h1 className="text-xl font-bold font-sans tracking-tight truncate flex-1 min-w-0">{user?.tenant_name || 'ScoolERP'}</h1>
-                )}
-                <button onClick={() => setSidebarOpen(false)} className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors ml-2 flex-shrink-0">
-                  <X size={20} />
-                </button>
+      <div className="flex flex-col h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+        
+        {/* Global Utility Header */}
+        <header className="h-16 bg-slate-900 text-white flex items-center justify-between px-6 shrink-0 z-20">
+          <div className="flex items-center gap-6">
+            {/* Branding */}
+            <Link href="/" className="flex items-center gap-3">
+              {user?.tenant_logo ? (
+                <img
+                  src={user.tenant_logo}
+                  alt={user.tenant_name || 'Logo'}
+                  className="max-h-8 object-contain"
+                />
+              ) : (
+                <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center font-bold text-lg">
+                  S
+                </div>
+              )}
+              <h1 className="text-lg font-semibold tracking-tight hidden sm:block">
+                {user?.tenant_name || 'ScoolERP'}
+              </h1>
+            </Link>
+
+            <div className="hidden md:block h-6 w-px bg-white/20 mx-2" />
+
+            {/* Context Selectors */}
+            <div className="hidden md:flex items-center">
+              <GlobalBranchSelector user={user} />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Search Trigger */}
+            <button 
+              onClick={() => {
+                const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true });
+                window.dispatchEvent(e);
+              }}
+              className="flex items-center gap-3 bg-white/10 hover:bg-white/20 border border-white/5 rounded-lg px-3 py-2 transition-colors group"
+            >
+              <Search size={16} className="text-slate-300 group-hover:text-white" />
+              <span className="text-sm font-medium text-slate-300 group-hover:text-white hidden sm:block">Search...</span>
+              <div className="hidden lg:flex items-center gap-1 opacity-50 ml-2">
+                <span className="text-[10px] font-black border border-white/30 rounded px-1">⌘</span>
+                <span className="text-[10px] font-black border border-white/30 rounded px-1">K</span>
               </div>
-              <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6 scrollbar-hide">
-                {navGroups.map((group, groupIndex) => (
-                  <div key={groupIndex} className="space-y-1">
-                    <h3 className="px-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">{group.group}</h3>
-                    {group.items.map(({ href, label, icon: Icon }) => {
-                      const active = href === activeItemHref;
-                      return (
-                        <Link key={href} href={href} onClick={() => setSidebarOpen(false)}
-                          className={`flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                            active ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                          }`}>
-                          <Icon size={18} />{label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ))}
-              </nav>
-              <div className="p-4 border-t border-white/10 flex-shrink-0">
-                <div className="flex items-center gap-3 px-3">
-                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-sm font-bold shadow-inner">
-                    {user?.first_name?.charAt(0) || 'U'}
-                  </div>
-                  <div className="flex-1 min-w-0 text-sm">
-                    <p className="font-medium text-white truncate">{user?.first_name} {user?.last_name}</p>
-                    <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider truncate">{user?.role?.replace('_', ' ')}</p>
-                  </div>
-                  <button onClick={handleLogout} className="p-1.5 text-slate-400 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-colors" title="Log out">
-                    <LogOut size={16} />
+            </button>
+
+            <NotificationBell />
+
+            {/* User Profile Dropdown (Simplified for now) */}
+            <div className="relative group ml-2">
+              <button className="flex items-center gap-2 focus:outline-none">
+                <div className="w-9 h-9 bg-brand-600 rounded-full flex items-center justify-center text-sm font-bold shadow-inner border-2 border-slate-800 group-hover:border-slate-700 transition-colors">
+                  {user?.first_name?.charAt(0) || 'U'}
+                </div>
+              </button>
+              
+              {/* Simple hover dropdown for profile */}
+              <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-dropdown border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 origin-top-right">
+                <div className="p-3 border-b border-slate-100">
+                  <p className="font-semibold text-slate-900 truncate">{user?.first_name} {user?.last_name}</p>
+                  <p className="text-xs text-slate-500 font-medium tracking-wide mt-0.5 truncate">{user?.role?.replace('_', ' ') || 'User'}</p>
+                </div>
+                <div className="p-1">
+                  <Link href="/profile" className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-brand-600 rounded-md">
+                    <User size={16} /> My Profile
+                  </Link>
+                  <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md">
+                    <LogOut size={16} /> Log out
                   </button>
                 </div>
               </div>
-            </aside>
-          </div>
-        )}
-
-        {/* Desktop Sidebar */}
-        <aside className="w-64 bg-slate-900 text-white flex-col hidden md:flex overflow-hidden">
-          {/* Desktop sidebar logo area */}
-          <div className="h-16 flex items-center justify-center px-3 border-b border-white/10 flex-shrink-0 overflow-hidden">
-            {user?.tenant_logo ? (
-              <img
-                src={user.tenant_logo}
-                alt={user.tenant_name || 'Logo'}
-                className="max-h-10 w-full object-contain"
-                style={{ maxWidth: '100%' }}
-              />
-            ) : (
-              <h1 className="text-xl font-bold font-sans tracking-tight truncate px-3">{user?.tenant_name || 'ScoolERP'}</h1>
-            )}
-          </div>
-          
-          <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6 scrollbar-hide">
-            {navGroups.map((group, groupIndex) => (
-              <div key={groupIndex} className="space-y-1">
-                <h3 className="px-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                  {group.group}
-                </h3>
-                {group.items.map(({ href, label, icon: Icon }) => {
-                  const active = href === activeItemHref;
-                  return (
-                    <Link key={href} href={href}
-                      className={`flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                        active ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                      }`}>
-                      <Icon size={18} />
-                      {label}
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
-
-          <div className="p-4 border-t border-white/10 space-y-3 flex-shrink-0">
-            <div className="flex items-center gap-3 px-3">
-              <Link href="/profile" className="flex items-center gap-3 flex-1 min-w-0 group hover:opacity-80 transition-opacity">
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-sm font-bold group-hover:ring-2 ring-blue-400 ring-offset-2 ring-offset-slate-900 transition-all shadow-inner">
-                  {user?.first_name?.charAt(0) || 'U'}
-                </div>
-                <div className="flex-1 min-w-0 text-sm truncate">
-                  <p className="font-medium text-white truncate">{user?.first_name} {user?.last_name}</p>
-                  <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider truncate">{user?.role?.replace('_', ' ') || 'Loading...'}</p>
-                </div>
-              </Link>
-              <button 
-                onClick={handleLogout}
-                className="p-1.5 text-slate-400 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-colors ml-auto"
-                title="Log out"
-              >
-                <LogOut size={16} />
-              </button>
             </div>
           </div>
-        </aside>
+        </header>
+
+        {/* Mega Menu Navigation Bar */}
+        <TopNavigation navGroups={navGroups} />
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <header className="h-16 bg-white border-b flex items-center px-6 justify-between flex-shrink-0">
-            <div className="flex items-center gap-4">
-              {/* Mobile hamburger */}
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors md:hidden"
-                aria-label="Open menu"
-              >
-                <Menu size={20} />
-              </button>
-              <div className="font-semibold text-lg capitalize text-gray-800">
-                {pathname.split('/')[1]?.replace('-', ' ') || 'Dashboard'}
-              </div>
-              <GlobalBranchSelector user={user} />
-            </div>
-            <div className="flex items-center gap-4">
-               {/* Search Trigger */}
-               <div 
-                 onClick={() => {
-                   const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true });
-                   window.dispatchEvent(e);
-                 }}
-                 className="flex items-center gap-3 bg-slate-50 border border-gray-100 rounded-xl px-4 py-2 cursor-pointer hover:bg-slate-100 transition-all group"
-               >
-                  <Search size={14} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
-                  <span className="text-xs font-semibold text-slate-400 group-hover:text-slate-600 transition-colors hidden sm:block">Quick Search...</span>
-                  <div className="hidden lg:flex items-center gap-1 opacity-40 ml-2">
-                     <span className="text-[10px] font-black border rounded px-1">⌘</span>
-                     <span className="text-[10px] font-black border rounded px-1">K</span>
-                  </div>
-               </div>
-               {/* Universal Notification Bell */}
-               <NotificationBell />
-            </div>
-          </header>
-          <main className="flex-1 overflow-y-auto p-6 bg-slate-50">
-            <ErrorBoundary>
+        <main className="flex-1 overflow-y-auto p-6 bg-slate-50 relative z-0">
+          <ErrorBoundary>
+            <div key={pathname} className="animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out h-full">
               {children}
-            </ErrorBoundary>
-          </main>
-        </div>
+            </div>
+          </ErrorBoundary>
+        </main>
       </div>
     </BranchProvider>
   );

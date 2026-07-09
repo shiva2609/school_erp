@@ -26,25 +26,27 @@ const colorMap = {
 export default function StatCard({ title, value, icon: Icon, color, trend }: StatCardProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group"
+      className="esms-card p-6 group hover:border-slate-300 transition-colors"
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-gray-500 text-sm font-medium tracking-wide uppercase">{title}</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2 tracking-tight">{value}</p>
+          <p className="text-slate-500 text-sm font-medium tracking-wide">{title}</p>
+          <p className="text-3xl font-semibold text-slate-900 mt-2 tracking-tight">{value}</p>
           
           {trend && (
-            <div className={`flex items-center gap-1 mt-2 text-sm ${trend.value >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              <span className="font-semibold">{trend.value >= 0 ? '+' : ''}{trend.value}%</span>
-              <span className="text-gray-400 font-normal">{trend.label}</span>
+            <div className={`flex items-center gap-1 mt-3 text-sm ${trend.value >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              <span className="font-semibold px-2 py-0.5 rounded bg-slate-50 border border-slate-100">
+                {trend.value >= 0 ? '+' : ''}{trend.value}%
+              </span>
+              <span className="text-slate-500 font-medium ml-1">{trend.label}</span>
             </div>
           )}
         </div>
         
-        <div className={`p-3 rounded-xl border ${colorMap[color]} group-hover:scale-110 transition-transform`}>
-          <Icon size={24} strokeWidth={2.5} />
+        <div className={`p-3 rounded-lg border shadow-sm ${colorMap[color]} transition-colors`}>
+          <Icon size={20} strokeWidth={2.5} />
         </div>
       </div>
     </motion.div>

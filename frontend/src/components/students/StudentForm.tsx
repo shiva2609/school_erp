@@ -348,16 +348,16 @@ export default function StudentForm({
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">First Name <span className="text-red-500">*</span></label>
+                <label className="esms-label">First Name <span className="text-red-500">*</span></label>
                 <input placeholder="Enter first name" required value={formData.first_name}
                   onChange={e => setFormData(prev => ({...prev, first_name: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Last Name</label>
+                <label className="esms-label">Last Name</label>
                 <input placeholder="Enter last name" value={formData.last_name}
                   onChange={e => setFormData(prev => ({...prev, last_name: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" />
+                  className="esms-input" />
               </div>
               <DateInput 
                 label="Date of Birth"
@@ -367,36 +367,36 @@ export default function StudentForm({
                 className="space-y-1.5"
               />
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Gender <span className="text-red-500">*</span></label>
+                <label className="esms-label">Gender <span className="text-red-500">*</span></label>
                 <select value={formData.gender} onChange={e => setFormData(prev => ({...prev, gender: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all">
+                  className="esms-input">
                   <option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option>
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Blood Group</label>
+                <label className="esms-label">Blood Group</label>
                 <select value={formData.blood_group} onChange={e => setFormData(prev => ({...prev, blood_group: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all">
+                  className="esms-input">
                   <option value="UNKNOWN">Select Blood Group</option>
                   {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => <option key={bg} value={bg}>{bg}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Mother Tongue</label>
+                <label className="esms-label">Mother Tongue</label>
                 <input placeholder="e.g. Telugu, English..." value={formData.mother_tongue}
                   onChange={e => setFormData(prev => ({...prev, mother_tongue: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Religion</label>
+                <label className="esms-label">Religion</label>
                 <input placeholder="e.g. Hindu, Muslim, Christian..." value={formData.religion}
                   onChange={e => setFormData(prev => ({...prev, religion: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Caste Category</label>
+                <label className="esms-label">Caste Category</label>
                 <select value={formData.caste_category} onChange={e => setFormData(prev => ({...prev, caste_category: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all">
+                  className="esms-input">
                   <option value="OC">Open Category (OC)</option>
                   <option value="BC">Backward Class (BC)</option>
                   <option value="SC">Scheduled Caste (SC)</option>
@@ -405,7 +405,7 @@ export default function StudentForm({
                 </select>
               </div>
               <div className="lg:col-span-2 space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Aadhaar Card Number</label>
+                <label className="esms-label">Aadhaar Card Number</label>
                 <input
                   placeholder="12 digit number"
                   inputMode="numeric"
@@ -418,22 +418,22 @@ export default function StudentForm({
                       aadhar_number: digitsOnlyAadhaar(e.target.value),
                     }))
                   }
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  className="esms-input"
                 />
               </div>
               <div className="lg:col-span-2 space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Identification Mark 1</label>
+                <label className="esms-label">Identification Mark 1</label>
                 <input placeholder="e.g. A mole on right hand" value={formData.identification_mark_1}
                   onChange={e => setFormData(prev => ({...prev, identification_mark_1: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" />
+                  className="esms-input" />
               </div>
               <div className="lg:col-span-4 space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Health Status / Medical Conditions</label>
+                <label className="esms-label">Health Status / Medical Conditions</label>
                 <textarea 
                   placeholder="Mention any allergies or chronic conditions..." 
                   value={formData.health_status}
                   onChange={e => setFormData(prev => ({...prev, health_status: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all min-h-[80px]" 
+                  className="esms-input min-h-[80px]" 
                 />
               </div>
             </div>
@@ -447,32 +447,32 @@ export default function StudentForm({
               <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest border-l-4 border-blue-600 pl-3">Father's Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Full Name</label>
+                  <label className="esms-label">Full Name</label>
                   <input value={formData.father_name} onChange={e => setFormData(prev => ({...prev, father_name: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500" />
+                    className="esms-input" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Phone Number</label>
+                  <label className="esms-label">Phone Number</label>
                   <input value={formData.father_phone} onChange={e => setFormData(prev => ({...prev, father_phone: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500" />
+                    className="esms-input" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Email (for parent login)</label>
+                  <label className="esms-label">Email (for parent login)</label>
                   <input type="email" autoComplete="email" value={formData.father_email} onChange={e => setFormData(prev => ({...prev, father_email: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500" placeholder="father@example.com" />
+                    className="esms-input" placeholder="father@example.com" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Occupation</label>
+                  <label className="esms-label">Occupation</label>
                   <input value={formData.father_occupation} onChange={e => setFormData(prev => ({...prev, father_occupation: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500" />
+                    className="esms-input" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Qualification</label>
+                  <label className="esms-label">Qualification</label>
                   <input value={formData.father_qualification} onChange={e => setFormData(prev => ({...prev, father_qualification: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500" />
+                    className="esms-input" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Aadhaar Number</label>
+                  <label className="esms-label">Aadhaar Number</label>
                   <input
                     inputMode="numeric"
                     autoComplete="off"
@@ -484,7 +484,7 @@ export default function StudentForm({
                         father_aadhaar: digitsOnlyAadhaar(e.target.value),
                       }))
                     }
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500"
+                    className="esms-input"
                   />
                 </div>
               </div>
@@ -495,27 +495,27 @@ export default function StudentForm({
               <h4 className="text-xs font-black text-pink-600 uppercase tracking-widest border-l-4 border-pink-500 pl-3">Mother's Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Full Name</label>
+                  <label className="esms-label">Full Name</label>
                   <input value={formData.mother_name} onChange={e => setFormData(prev => ({...prev, mother_name: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-pink-500" />
+                    className="esms-input" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Phone Number</label>
+                  <label className="esms-label">Phone Number</label>
                   <input value={formData.mother_phone} onChange={e => setFormData(prev => ({...prev, mother_phone: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-pink-500" />
+                    className="esms-input" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Email (for parent login)</label>
+                  <label className="esms-label">Email (for parent login)</label>
                   <input type="email" autoComplete="email" value={formData.mother_email} onChange={e => setFormData(prev => ({...prev, mother_email: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-pink-500" placeholder="mother@example.com" />
+                    className="esms-input" placeholder="mother@example.com" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Qualification</label>
+                  <label className="esms-label">Qualification</label>
                   <input value={formData.mother_qualification} onChange={e => setFormData(prev => ({...prev, mother_qualification: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-pink-500" />
+                    className="esms-input" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Aadhaar Number</label>
+                  <label className="esms-label">Aadhaar Number</label>
                   <input
                     inputMode="numeric"
                     autoComplete="off"
@@ -527,7 +527,7 @@ export default function StudentForm({
                         mother_aadhaar: digitsOnlyAadhaar(e.target.value),
                       }))
                     }
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-pink-500"
+                    className="esms-input"
                   />
                 </div>
               </div>
@@ -537,14 +537,14 @@ export default function StudentForm({
             <div className="space-y-4 pt-4 border-t border-gray-50">
               <div className="flex gap-6 items-end">
                 <div className="flex-1 space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Guardian Name (Optional)</label>
+                  <label className="esms-label">Guardian Name (Optional)</label>
                   <input value={formData.guardian_name} onChange={e => setFormData(prev => ({...prev, guardian_name: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-gray-500" />
+                    className="esms-input" />
                 </div>
                 <div className="flex-1 space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Relation</label>
+                  <label className="esms-label">Relation</label>
                   <input value={formData.guardian_relation} onChange={e => setFormData(prev => ({...prev, guardian_relation: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-gray-500" />
+                    className="esms-input" />
                 </div>
               </div>
             </div>
@@ -556,49 +556,49 @@ export default function StudentForm({
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Plot / House / Flat No. <span className="text-red-500">*</span></label>
+                <label className="esms-label">Plot / House / Flat No. <span className="text-red-500">*</span></label>
                 <input required value={formData.address_line1} onChange={e => setFormData(prev => ({...prev, address_line1: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-indigo-500" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Apartment Name</label>
+                <label className="esms-label">Apartment Name</label>
                 <input value={formData.apartment_name} onChange={e => setFormData(prev => ({...prev, apartment_name: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-indigo-500" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Colony / Area <span className="text-red-500">*</span></label>
+                <label className="esms-label">Colony / Area <span className="text-red-500">*</span></label>
                 <input required value={formData.address_line2} onChange={e => setFormData(prev => ({...prev, address_line2: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-indigo-500" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Landmark</label>
+                <label className="esms-label">Landmark</label>
                 <input value={formData.landmark} onChange={e => setFormData(prev => ({...prev, landmark: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-indigo-500" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">City / Village <span className="text-red-500">*</span></label>
+                <label className="esms-label">City / Village <span className="text-red-500">*</span></label>
                 <input required value={formData.city} onChange={e => setFormData(prev => ({...prev, city: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-indigo-500" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Mandal</label>
+                <label className="esms-label">Mandal</label>
                 <input value={formData.mandal} onChange={e => setFormData(prev => ({...prev, mandal: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-indigo-500" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">District</label>
+                <label className="esms-label">District</label>
                 <input value={formData.district} onChange={e => setFormData(prev => ({...prev, district: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-indigo-500" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">State <span className="text-red-500">*</span></label>
+                <label className="esms-label">State <span className="text-red-500">*</span></label>
                 <input required value={formData.state} onChange={e => setFormData(prev => ({...prev, state: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-indigo-500" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Pincode <span className="text-red-500">*</span></label>
+                <label className="esms-label">Pincode <span className="text-red-500">*</span></label>
                 <input required maxLength={6} value={formData.pincode} onChange={e => setFormData(prev => ({...prev, pincode: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-indigo-500" />
+                  className="esms-input" />
               </div>
             </div>
           </div>
@@ -610,19 +610,19 @@ export default function StudentForm({
               <h4 className="text-xs font-black text-amber-600 uppercase tracking-widest border-l-4 border-amber-500 pl-3">Previous School Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">School Name & Location</label>
+                  <label className="esms-label">School Name & Location</label>
                   <input value={formData.previous_school_name} onChange={e => setFormData(prev => ({...prev, previous_school_name: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-amber-500" />
+                    className="esms-input" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Standard / Class</label>
+                  <label className="esms-label">Standard / Class</label>
                   <input value={formData.previous_class} onChange={e => setFormData(prev => ({...prev, previous_class: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-amber-500" />
+                    className="esms-input" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Academic Year</label>
+                  <label className="esms-label">Academic Year</label>
                   <input placeholder="e.g. 2023-24" value={formData.previous_school_ay} onChange={e => setFormData(prev => ({...prev, previous_school_ay: e.target.value}))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-amber-500" />
+                    className="esms-input" />
                 </div>
               </div>
             </div>
@@ -651,9 +651,9 @@ export default function StudentForm({
             </div>
 
             <div className="space-y-1.5 pt-4">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Source of Information</label>
+              <label className="esms-label">Source of Information</label>
               <select value={formData.source} onChange={e => setFormData(prev => ({...prev, source: e.target.value}))}
-                className="w-full max-w-xs px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500">
+                className="esms-input max-w-xs">
                 <option value="WALK_IN">Walk-in</option>
                 <option value="REFERRAL">Referral</option>
                 <option value="SOCIAL_MEDIA">Social Media</option>
@@ -669,26 +669,26 @@ export default function StudentForm({
             <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-3xl border border-slate-100">
               {user?.role === 'SUPER_ADMIN' && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">School / Tenant</label>
+                  <label className="esms-label">School / Tenant</label>
                   <select required value={formData.tenant} onChange={e => setFormData(prev => ({...prev, tenant: e.target.value, branch: '', academic_year: ''}))}
-                    className="w-full px-4 py-2.5 border border-white bg-white rounded-xl text-sm focus:ring-2 focus:ring-slate-200 shadow-sm outline-none">
+                    className="esms-input">
                     <option value="">Select School</option>
                     {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
               )}
               <div className="space-y-1.5">
-                <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Branch <span className="text-red-500">*</span></label>
+                <label className="esms-label">Branch <span className="text-red-500">*</span></label>
                 <select required disabled={user?.role === 'BRANCH_ADMIN' || isEdit} value={formData.branch} onChange={e => setFormData(prev => ({...prev, branch: e.target.value, academic_year: ''}))}
-                  className="w-full px-4 py-2.5 border border-white bg-white rounded-xl text-sm focus:ring-2 focus:ring-slate-200 shadow-sm outline-none disabled:opacity-50">
+                  className="esms-input disabled:opacity-50">
                   <option value="">Select Branch</option>
                   {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Academic Year <span className="text-red-500">*</span></label>
+                <label className="esms-label">Academic Year <span className="text-red-500">*</span></label>
                 <select required disabled={isEdit} value={formData.academic_year} onChange={e => setFormData(prev => ({...prev, academic_year: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-white bg-white rounded-xl text-sm focus:ring-2 focus:ring-slate-200 shadow-sm outline-none disabled:opacity-50">
+                  className="esms-input disabled:opacity-50">
                   <option value="">Select Year</option>
                   {academicYears.map(ay => <option key={ay.id} value={ay.id}>{ay.name}</option>)}
                 </select>
@@ -696,9 +696,9 @@ export default function StudentForm({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Class / Section <span className="text-red-500">*</span></label>
+              <label className="esms-label">Class / Section <span className="text-red-500">*</span></label>
               <select required value={formData.class_section} onChange={e => setFormData(prev => ({...prev, class_section: e.target.value}))}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500 bg-white">
+                className="esms-input bg-white">
                 <option value="">Select Class</option>
                 {classes
                   .filter(c => {
@@ -721,32 +721,32 @@ export default function StudentForm({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Roll Number</label>
+              <label className="esms-label">Roll Number</label>
               <input 
                 placeholder="Auto-generated if empty"
                 type="number"
                 value={formData.roll_number} onChange={e => setFormData(prev => ({...prev, roll_number: e.target.value}))}
-                className="w-full px-4 py-2.5 border border-gray-100 bg-gray-50/50 rounded-xl text-sm font-bold focus:border-blue-500 outline-none" />
+                className="esms-input font-bold bg-slate-50" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Admission No.</label>
+              <label className="esms-label">Admission No.</label>
               <input 
                 placeholder={isEdit ? "" : "Auto-generated"} 
                 readOnly={true}
                 value={formData.admission_number} onChange={e => setFormData(prev => ({...prev, admission_number: e.target.value}))}
-                className="w-full px-4 py-2.5 border border-gray-100 bg-gray-50/50 rounded-xl text-sm font-mono focus:border-blue-500 outline-none" />
+                className="esms-input font-mono bg-slate-50" />
             </div>
 
             <div className="lg:col-span-3 pt-6 border-t border-gray-50 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Processed By (Staff Name)</label>
+                <label className="esms-label">Processed By (Staff Name)</label>
                 <input value={formData.admission_staff_name} onChange={e => setFormData(prev => ({...prev, admission_staff_name: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-slate-500" />
+                  className="esms-input" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-tight">Staff Contact</label>
+                <label className="esms-label">Staff Contact</label>
                 <input value={formData.admission_staff_phone} onChange={e => setFormData(prev => ({...prev, admission_staff_phone: e.target.value}))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-slate-500" />
+                  className="esms-input" />
               </div>
             </div>
           </div>
