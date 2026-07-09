@@ -137,8 +137,21 @@ class StudentSerializer(serializers.ModelSerializer):
             'requires_initial_payment', 'needs_promoted_class_fee_setup', 'carry_forwards',
         ]
         extra_kwargs = {
-            'admission_number': {'required': False, 'allow_blank': True}
+            'admission_number': {'required': False, 'allow_blank': True},
+            'grade': {'required': False}
         }
+
+    def validate(self, attrs):
+        # Automatically infer grade from class_section if not provided by frontend
+        # and class_section is being set/updated.
+        if 'grade' not in attrs and 'class_section' in attrs and attrs['class_section']:
+            attrs['grade'] = attrs['class_section'].grade
+            
+        # If this is a create request (no instance), grade must be present (either passed or inferred)
+        if not self.instance and not attrs.get('grade'):
+            raise serializers.ValidationError({"grade": ["This field is required."]})
+            
+        return attrs
 
     def get_proposed_fee(self, obj):
         from django.db.models import Sum
