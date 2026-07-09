@@ -64,11 +64,18 @@ class TransportFeeEnrollmentSerializer(serializers.ModelSerializer):
     def _get_invoice(self, obj):
         if not hasattr(obj, '_cached_invoice'):
             from fees.models import FeeInvoice
-            invoice = FeeInvoice.objects.filter(
+            # Look for any active transport invoice for this student and academic year.
+            # Prioritize 'TRN-ANN-' but gracefully fall back to older 'TRN-*' invoices
+            # if they contain the active payment data.
+            invoices = FeeInvoice.objects.filter(
                 student=obj.student,
                 academic_year=obj.academic_year,
-                invoice_number__startswith='TRN-ANN-'
-            ).first()
+                invoice_number__startswith='TRN-'
+            ).exclude(status='CANCELLED').order_by('-created_at')
+            
+            # Prefer TRN-ANN- if multiple exist
+            invoice = next((inv for inv in invoices if inv.invoice_number.startswith('TRN-ANN-')), invoices.first() if invoices else None)
+            
             obj._cached_invoice = invoice
         return obj._cached_invoice
 
