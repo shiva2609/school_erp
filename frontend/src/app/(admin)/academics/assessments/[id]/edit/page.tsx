@@ -50,7 +50,7 @@ export default function EditAssessmentPage() {
   const { data: existingSubjects } = useApi<ExistingSubject[]>(`academics/assessments/${id}/subjects/`);
 
   const csUrl = selectedBranch
-    ? `students/class-sections/?branch_id=${selectedBranch}`
+    ? `classes/?branch_id=${selectedBranch}`
     : null;
   const { data: classes } = useApi<ClassSection[]>(csUrl, [selectedBranch]);
 

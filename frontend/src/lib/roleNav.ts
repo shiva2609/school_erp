@@ -110,7 +110,6 @@ const masterNavigation: NavCategory[] = [
       {
         title: 'Examination',
         items: [
-          { href: '/exams', label: 'Exams Setup', icon: Award, allowedRoles: ['OWNER', 'SUPER_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
           { href: '/exam-marks', label: 'Exam Marks', icon: Award, allowedRoles: ['PRINCIPAL', 'TEACHER'] },
           { href: '/academics/subjects', label: 'Subjects', icon: BookMarked, allowedRoles: ['OWNER', 'SUPER_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
           { href: '/academics/assessments', label: 'Assessments', icon: ClipboardList, allowedRoles: ['OWNER', 'SUPER_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'] },

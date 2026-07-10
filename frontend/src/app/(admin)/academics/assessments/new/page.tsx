@@ -54,7 +54,7 @@ function NewAssessmentInner() {
 
   // Fetch class sections
   const csUrl = selectedBranch
-    ? `students/class-sections/?branch_id=${selectedBranch}${preYear ? `&academic_year_id=${preYear}` : ''}`
+    ? `classes/?branch_id=${selectedBranch}${preYear ? `&academic_year_id=${preYear}` : ''}`
     : null;
   const { data: classes } = useApi<ClassSection[]>(csUrl, [selectedBranch]);
 

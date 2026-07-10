@@ -60,7 +60,7 @@ export default function AssessmentsPage() {
 
   // Fetch class sections for selected year + branch
   const csUrl = selectedYear && selectedBranch
-    ? `students/class-sections/?academic_year_id=${selectedYear}&branch_id=${selectedBranch}`
+    ? `classes/?academic_year_id=${selectedYear}&branch_id=${selectedBranch}`
     : null;
   const { data: classes } = useApi<ClassSection[]>(csUrl, [selectedYear, selectedBranch]);
 
