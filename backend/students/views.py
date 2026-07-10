@@ -620,6 +620,39 @@ class StudentViewSet(viewsets.ModelViewSet):
         student.save()
         return Response({'success': True, 'message': 'Student deactivated successfully.'}, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['delete'], url_path='hard-delete')
+    @transaction.atomic
+    def hard_delete(self, request, pk=None):
+        """Permanently deletes an archived student and all their cascaded data. Super Admin only."""
+        if normalize_role(request.user.role) not in ['SUPER_ADMIN', 'OWNER']:
+            raise PermissionDenied("Only Super Admins or Owners can hard-delete records.")
+
+        student = self.get_object()
+        
+        if student.status != 'ARCHIVED':
+            return Response(
+                {'error': 'Student must be ARCHIVED before they can be hard-deleted.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        admission_number = student.admission_number
+        student_id = student.id
+        
+        # Log the destruction before the object is gone
+        log_audit_action(
+            user=request.user,
+            action='HARD_DELETE_STUDENT',
+            model_name='Student',
+            record_id=student_id,
+            details={'admission_number': admission_number, 'name': f"{student.first_name} {student.last_name}"},
+            tenant=student.tenant,
+        )
+        
+        # Trigger cascading delete
+        student.delete()
+        
+        return Response({'success': True, 'message': 'Student permanently deleted.'}, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['patch'], url_path='assign-section')
     def assign_section(self, request, pk=None):
         student = self.get_object()

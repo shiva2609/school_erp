@@ -513,6 +513,26 @@ export default function StudentsPage() {
               toast.error(err.response?.data?.error || err.response?.data?.detail || 'Archive failed.');
             }
           } },
+          ...(statusFilter === 'ARCHIVED' && ['SUPER_ADMIN', 'OWNER'].includes(user?.role?.replace(' ', '_')?.toUpperCase() || user?.role) ? [{
+            label: 'Permanently Delete', icon: AlertTriangle, variant: 'danger' as const, onClick: async () => {
+              if (selectedIds.length === 0) return;
+              if (!window.confirm(`Are you absolutely sure you want to PERMANENTLY DELETE ${selectedIds.length} archived student(s)? This will wipe all their fee and payment records forever.`)) return;
+              let success = 0;
+              for (const sid of selectedIds) {
+                try {
+                  await api.delete(`students/${sid}/hard-delete/`);
+                  success++;
+                } catch (err: any) {
+                  toast.error(`Failed to delete student: ${err.response?.data?.error || err.response?.data?.detail || 'Unknown error'}`);
+                }
+              }
+              if (success > 0) {
+                toast.success(`${success} student(s) permanently deleted.`);
+                setSelectedIds([]);
+                fetchStudents();
+              }
+            }
+          }] : []),
         ]}
       />
     </div>
