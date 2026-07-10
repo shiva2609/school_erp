@@ -92,7 +92,7 @@ export default function StudentsPage() {
     const params = new URLSearchParams();
     if (selectedBranch) params.set('branch_id', selectedBranch);
     if (activeAyId) params.set('academic_year_id', activeAyId);
-    api.get(`/students/classes/?${params.toString()}`)
+    api.get(`classes/?${params.toString()}`)
       .then(res => {
         const data = res.data?.data ?? res.data?.results ?? res.data ?? [];
         setClassSections(Array.isArray(data) ? data : []);
