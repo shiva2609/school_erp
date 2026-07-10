@@ -173,7 +173,7 @@ export default function AssessmentsPage() {
                 <BookOpen size={36} className="mx-auto text-slate-200 mb-3" />
                 <p className="text-slate-500 font-medium text-sm">No exams yet</p>
                 <Link
-                  href={`/academics/assessments/new?class_section_id=${selectedClass}&academic_year_id=${selectedYear}`}
+                  href={`/academics/assessments/new?grade=${selectedGrade}&academic_year_id=${selectedYear}`}
                   className="inline-flex items-center gap-1 text-brand-600 text-sm font-semibold mt-2 hover:underline"
                 >
                   Click here to add your first exam →
