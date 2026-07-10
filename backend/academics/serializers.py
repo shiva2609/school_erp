@@ -62,19 +62,19 @@ class AssessmentSubjectSerializer(serializers.ModelSerializer):
 
 class AssessmentSerializer(serializers.ModelSerializer):
     subject_count = serializers.SerializerMethodField()
-    class_section_display = serializers.CharField(source='class_section.display_name', read_only=True)
+    grade_display = serializers.CharField(source='get_grade_display', read_only=True)
     academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
 
     class Meta:
         model = Assessment
         fields = [
             'id', 'name', 'academic_year', 'academic_year_name',
-            'class_section', 'class_section_display',
+            'grade', 'grade_display',
             'start_date', 'end_date', 'is_active',
             'subject_count', 'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'id', 'class_section_display', 'academic_year_name',
+            'id', 'grade_display', 'academic_year_name',
             'subject_count', 'created_at', 'updated_at',
         ]
 

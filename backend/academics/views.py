@@ -602,30 +602,22 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         ay_id = self.request.query_params.get('academic_year_id')
         if ay_id:
             qs = qs.filter(academic_year_id=ay_id)
-        cs_id = self.request.query_params.get('class_section_id')
-        if cs_id:
-            qs = qs.filter(class_section_id=cs_id)
-        return qs.select_related('academic_year', 'class_section').prefetch_related('assessment_subjects')
+        grade = self.request.query_params.get('grade')
+        if grade:
+            qs = qs.filter(grade=grade)
+        return qs.select_related('academic_year').prefetch_related('assessment_subjects')
 
     def perform_create(self, serializer):
         user = self.request.user
         role = normalize_role(user.role)
-        branch_id = getattr(user, 'branch_id', None) or getattr(user, 'branch', None)
-        cs = serializer.validated_data.get('class_section')
-        ay = serializer.validated_data.get('academic_year')
+        branch_attr = getattr(user, 'branch_id', None) or getattr(user, 'branch', None)
+        branch_id = branch_attr.id if hasattr(branch_attr, 'id') else branch_attr
+        
+        req_branch = self.request.data.get('branch_id')
+        effective_branch_id = branch_id if branch_id else req_branch
 
-        # For branch-scoped roles, validate the class section belongs to their branch.
-        # Global roles (OWNER, SUPER_ADMIN, etc.) can create for any branch.
-        if role in ('PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT') and branch_id:
-            if cs and str(cs.branch_id) != str(branch_id):
-                raise ValidationError({'class_section': 'Class section must belong to your branch.'})
-
-        # Derive branch_id from the class section when the user is a global role
-        effective_branch_id = branch_id if branch_id else (str(cs.branch_id) if cs else None)
-
-        # Validate academic year matches the class section's academic year
-        if cs and ay and str(cs.academic_year_id) != str(ay.id):
-            raise ValidationError({'academic_year': 'Academic year must match the class section academic year.'})
+        if not effective_branch_id:
+            raise ValidationError({'branch_id': 'Branch is required for global roles.'})
 
         try:
             serializer.save(
@@ -634,7 +626,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 created_by=user,
             )
         except IntegrityError:
-            raise ValidationError({'name': 'An assessment with this name already exists for this class section.'})
+            raise ValidationError({'name': 'An assessment with this name already exists for this grade.'})
 
     @action(detail=True, methods=['get', 'post'], url_path='subjects')
     def subjects(self, request, pk=None):

@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from students.models import GRADE_CHOICES
 
 class ExamTerm(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -151,7 +152,7 @@ class AcademicSubject(models.Model):
 
 class Assessment(models.Model):
     """
-    Exam header created by an accountant for a specific class and academic year.
+    Exam header created by an accountant for a specific grade and academic year.
     Subjects are linked via AssessmentSubject.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -164,9 +165,7 @@ class Assessment(models.Model):
     academic_year = models.ForeignKey(
         'tenants.AcademicYear', on_delete=models.CASCADE, related_name='assessments'
     )
-    class_section = models.ForeignKey(
-        'students.ClassSection', on_delete=models.CASCADE, related_name='assessments'
-    )
+    grade = models.CharField(max_length=50, choices=GRADE_CHOICES, db_index=True)
     name = models.CharField(max_length=150)  # e.g. "Mid Term", "Annual Exam"
     start_date = models.DateField()
     end_date = models.DateField()
@@ -179,11 +178,11 @@ class Assessment(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('branch', 'academic_year', 'class_section', 'name')
+        unique_together = ('branch', 'academic_year', 'grade', 'name')
         ordering = ['start_date']
 
     def __str__(self):
-        return f"{self.name} — {self.class_section} ({self.academic_year})"
+        return f"{self.name} — {self.grade} ({self.academic_year})"
 
 
 class AssessmentSubject(models.Model):

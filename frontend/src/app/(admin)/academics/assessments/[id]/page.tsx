@@ -24,8 +24,8 @@ interface Assessment {
   name: string;
   academic_year: string;
   academic_year_name: string;
-  class_section: string;
-  class_section_display: string;
+  grade: string;
+  grade_display: string;
   start_date: string;
   end_date: string;
   is_active: boolean;
@@ -108,7 +108,7 @@ export default function AssessmentDetailPage() {
               {assessment.name}
             </h1>
             <div className="flex items-center gap-4 mt-2 text-sm text-slate-500 flex-wrap">
-              <span>{assessment.class_section_display}</span>
+              <span>{assessment.grade_display}</span>
               <span className="text-slate-300">|</span>
               <span>{assessment.academic_year_name}</span>
               <span className="text-slate-300">|</span>

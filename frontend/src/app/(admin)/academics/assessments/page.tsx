@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '@/lib/axios';
 import { useApi } from '@/lib/hooks';
 import { useBranch } from '@/components/common/BranchContext';
@@ -8,6 +8,7 @@ import { useAuth } from '@/components/common/AuthProvider';
 import { ClipboardList, Plus, Eye, Pencil, Trash2, CalendarDays, BookOpen } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
+import { GRADE_DISPLAY, GRADE_ORDER } from '@/lib/grades';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface AcademicYear {
@@ -27,9 +28,8 @@ interface Assessment {
   id: string;
   name: string;
   academic_year: string;
-  academic_year_name: string;
-  class_section: string;
-  class_section_display: string;
+  grade: string;
+  grade_display: string;
   start_date: string;
   end_date: string;
   is_active: boolean;
@@ -64,20 +64,24 @@ export default function AssessmentsPage() {
     : null;
   const { data: classes } = useApi<ClassSection[]>(csUrl, [selectedYear, selectedBranch]);
 
-  const [selectedClass, setSelectedClass] = useState('');
+  const uniqueGrades = useMemo(() => {
+    if (!classes) return [];
+    const gradeSet = new Set(classes.map(c => c.grade));
+    return GRADE_ORDER.filter(g => gradeSet.has(g));
+  }, [classes]);
 
-  // Fetch assessments when class is selected
-  const assessUrl = selectedClass
-    ? `academics/assessments/?class_section_id=${selectedClass}&academic_year_id=${selectedYear}`
+  const [selectedGrade, setSelectedGrade] = useState('');
+
+  // Fetch assessments when grade is selected
+  const assessUrl = selectedGrade
+    ? `academics/assessments/?grade=${selectedGrade}&academic_year_id=${selectedYear}`
     : null;
   const { data: assessments, loading: aLoading, refetch } = useApi<Assessment[]>(
-    assessUrl, [selectedClass, selectedYear]
+    assessUrl, [selectedGrade, selectedYear]
   );
 
-  // Reset class when branch/year changes
-  useEffect(() => { setSelectedClass(''); }, [selectedBranch, selectedYear]);
-
-  const selectedClassObj = classes?.find(c => c.id === selectedClass);
+  // Reset grade when branch/year changes
+  useEffect(() => { setSelectedGrade(''); }, [selectedBranch, selectedYear]);
 
   const handleDelete = useCallback(async (a: Assessment) => {
     if (!window.confirm(`Delete assessment "${a.name}"? This cannot be undone.`)) return;
@@ -119,36 +123,36 @@ export default function AssessmentsPage() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Class</label>
+          <label className="block text-xs font-semibold text-slate-500 mb-1">Grade</label>
           <select
-            value={selectedClass}
-            onChange={e => setSelectedClass(e.target.value)}
+            value={selectedGrade}
+            onChange={e => setSelectedGrade(e.target.value)}
             disabled={!selectedYear}
             className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white min-w-[200px] focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
           >
-            <option value="">Select Class</option>
-            {(classes ?? []).map(c => (
-              <option key={c.id} value={c.id}>{c.display_name}</option>
+            <option value="">Select Grade</option>
+            {uniqueGrades.map(g => (
+              <option key={g} value={g}>{GRADE_DISPLAY[g] || g}</option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* Class panel */}
-      {!selectedClass ? (
+      {/* Grade panel */}
+      {!selectedGrade ? (
         <div className="border-2 border-dashed border-slate-200 rounded-2xl p-16 text-center">
           <ClipboardList size={44} className="mx-auto text-slate-200 mb-4" />
-          <p className="text-slate-500 font-medium">Select an Academic Year and Class to view assessments</p>
+          <p className="text-slate-500 font-medium">Select an Academic Year and Grade to view assessments</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           {/* Panel header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/60">
             <h2 className="text-base font-bold text-slate-800">
-              {selectedClassObj?.display_name || 'Class'}
+              {GRADE_DISPLAY[selectedGrade] || 'Grade'}
             </h2>
             <Link
-              href={`/academics/assessments/new?class_section_id=${selectedClass}&academic_year_id=${selectedYear}`}
+              href={`/academics/assessments/new?grade=${selectedGrade}&academic_year_id=${selectedYear}`}
               className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors"
             >
               <Plus size={16} /> Add Exam

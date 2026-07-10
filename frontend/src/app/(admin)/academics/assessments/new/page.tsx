@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import api from '@/lib/axios';
 import { useApi } from '@/lib/hooks';
@@ -8,9 +8,10 @@ import { useBranch } from '@/components/common/BranchContext';
 import { ClipboardList, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
+import { GRADE_ORDER, GRADE_DISPLAY } from '@/lib/grades';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface ClassSection { id: string; display_name: string; academic_year: string; }
+interface ClassSection { id: string; display_name: string; academic_year: string; grade: string; }
 interface AcademicYear { id: string; name: string; is_active: boolean; }
 interface SubjectRow {
   id: string;
@@ -30,11 +31,11 @@ function NewAssessmentInner() {
   const { selectedBranch } = useBranch();
 
   // Pre-fill from query params (passed from list page)
-  const preClass = params.get('class_section_id') || '';
+  const preGrade = params.get('grade') || '';
   const preYear = params.get('academic_year_id') || '';
 
   // Header fields
-  const [classId, setClassId] = useState(preClass);
+  const [grade, setGrade] = useState(preGrade);
   const [examName, setExamName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -58,7 +59,13 @@ function NewAssessmentInner() {
     : null;
   const { data: classes } = useApi<ClassSection[]>(csUrl, [selectedBranch]);
 
-  // Load subjects whenever classId changes
+  const uniqueGrades = useMemo(() => {
+    if (!classes) return [];
+    const gradeSet = new Set(classes.map(c => c.grade));
+    return GRADE_ORDER.filter(g => gradeSet.has(g));
+  }, [classes]);
+
+  // Load subjects whenever branch changes
   const loadSubjects = useCallback(async (branchId: string) => {
     if (!branchId) return;
     setSubjectsLoading(true);
@@ -98,7 +105,7 @@ function NewAssessmentInner() {
   const checkedSubjects = subjects.filter(s => s.checked);
 
   const validate = () => {
-    if (!classId) { toast.error('Please select a class'); return false; }
+    if (!grade) { toast.error('Please select a grade'); return false; }
     if (!examName.trim()) { toast.error('Exam name is required'); return false; }
     if (!startDate || !endDate) { toast.error('Start and end dates are required'); return false; }
     if (endDate < startDate) { toast.error('End date must be on or after start date'); return false; }
@@ -124,7 +131,8 @@ function NewAssessmentInner() {
     try {
       // Step 1: Create assessment header
       const res = await api.post('academics/assessments/', {
-        class_section: classId,
+        grade: grade,
+        branch_id: selectedBranch,
         academic_year: activeYear?.id,
         name: examName.trim(),
         start_date: startDate,
@@ -197,20 +205,20 @@ function NewAssessmentInner() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6">
-        {/* Row 1: Class + Exam Name */}
+        {/* Row 1: Grade + Exam Name */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1.5">
-              Classes <span className="text-red-500">*</span>
+              Grade <span className="text-red-500">*</span>
             </label>
             <select
-              value={classId}
-              onChange={e => setClassId(e.target.value)}
+              value={grade}
+              onChange={e => setGrade(e.target.value)}
               className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="">Select Class</option>
-              {(classes ?? []).map(c => (
-                <option key={c.id} value={c.id}>{c.display_name}</option>
+              <option value="">Select Grade</option>
+              {uniqueGrades.map(g => (
+                <option key={g} value={g}>{GRADE_DISPLAY[g] || g}</option>
               ))}
             </select>
           </div>

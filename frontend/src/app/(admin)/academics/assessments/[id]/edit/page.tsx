@@ -35,8 +35,8 @@ interface Assessment {
   name: string;
   academic_year: string;
   academic_year_name: string;
-  class_section: string;
-  class_section_display: string;
+  grade: string;
+  grade_display: string;
   start_date: string;
   end_date: string;
 }
@@ -180,12 +180,12 @@ export default function EditAssessmentPage() {
       </h1>
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6">
-        {/* Class (read-only) + Exam Name */}
+        {/* Grade (read-only) + Exam Name */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1.5">Class</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1.5">Grade</label>
             <div className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50 text-slate-600">
-              {assessment?.class_section_display || '—'}
+              {assessment?.grade_display || '—'}
             </div>
           </div>
           <div>
