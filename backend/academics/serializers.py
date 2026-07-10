@@ -1,7 +1,7 @@
 from decimal import Decimal
 from rest_framework import serializers
 
-from academics.models import ExamTerm, ExamSubjectConfig
+from academics.models import ExamTerm, ExamSubjectConfig, AcademicSubject, Assessment, AssessmentSubject
 
 class ExamTermSerializer(serializers.ModelSerializer):
     class Meta:
@@ -30,3 +30,53 @@ class BulkExamMarksSerializer(serializers.Serializer):
         max_digits=7, decimal_places=2, required=False, default=Decimal('100')
     )
     rows = MarkRowSerializer(many=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NEW: Academic Subjects & Assessments serializers
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AcademicSubjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AcademicSubject
+        fields = [
+            'id', 'name', 'is_optional', 'is_first_language',
+            'is_second_language', 'is_third_language',
+            'display_order', 'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class AssessmentSubjectSerializer(serializers.ModelSerializer):
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    subject_is_optional = serializers.BooleanField(source='subject.is_optional', read_only=True)
+
+    class Meta:
+        model = AssessmentSubject
+        fields = [
+            'id', 'subject', 'subject_name', 'subject_is_optional',
+            'max_marks', 'min_marks', 'exam_date', 'exam_time',
+        ]
+        read_only_fields = ['id', 'subject_name', 'subject_is_optional']
+
+
+class AssessmentSerializer(serializers.ModelSerializer):
+    subject_count = serializers.SerializerMethodField()
+    class_section_display = serializers.CharField(source='class_section.display_name', read_only=True)
+    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
+
+    class Meta:
+        model = Assessment
+        fields = [
+            'id', 'name', 'academic_year', 'academic_year_name',
+            'class_section', 'class_section_display',
+            'start_date', 'end_date', 'is_active',
+            'subject_count', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'class_section_display', 'academic_year_name',
+            'subject_count', 'created_at', 'updated_at',
+        ]
+
+    def get_subject_count(self, obj):
+        return obj.assessment_subjects.count()

@@ -1,17 +1,22 @@
 import logging
 from decimal import Decimal
 
-from django.db import transaction
+from django.db import transaction, IntegrityError
+from django.db.models import ProtectedError
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.permissions import normalize_role, IsAccountantOrAbove
-from academics.models import ExamResult, ExamTerm, ExamSubjectConfig
+from academics.models import ExamResult, ExamTerm, ExamSubjectConfig, AcademicSubject, Assessment, AssessmentSubject
 from academics.marks_access import can_enter_exam_marks
 from academics.permissions import AcademicDomainPermission
-from academics.serializers import BulkExamMarksSerializer, ExamTermSerializer, ExamSubjectConfigSerializer
+from academics.serializers import (
+    BulkExamMarksSerializer, ExamTermSerializer, ExamSubjectConfigSerializer,
+    AcademicSubjectSerializer, AssessmentSerializer, AssessmentSubjectSerializer,
+)
 from students.models import ClassSection, Student
 from staff.models import TeacherProfile, TeacherAssignment
 from timetable.models import Subject, TimetableSlot
@@ -510,3 +515,221 @@ def report_card(request):
     }
     
     return Response({'success': True, 'data': data})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NEW: Academic Subjects & Assessments views
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AcademicSubjectViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for branch-specific AcademicSubject master.
+    Branch-scoped roles (ACCOUNTANT, PRINCIPAL, BRANCH_ADMIN) always operate on
+    their own branch. Global roles may pass ?branch_id= to filter.
+    """
+    serializer_class = AcademicSubjectSerializer
+    permission_classes = [IsAuthenticated, AcademicDomainPermission, IsAccountantOrAbove]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = AcademicSubject.objects.filter(tenant=user.tenant)
+        role = normalize_role(user.role)
+        if role in ('PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT') and user.branch_id:
+            qs = qs.filter(branch_id=user.branch_id)
+        else:
+            branch_id = self.request.query_params.get('branch_id')
+            if branch_id and branch_id not in ('undefined', 'null', ''):
+                qs = qs.filter(branch_id=branch_id)
+        is_active = self.request.query_params.get('is_active')
+        if is_active == 'true':
+            qs = qs.filter(is_active=True)
+        elif is_active == 'false':
+            qs = qs.filter(is_active=False)
+        return qs
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        branch_id = getattr(user, 'branch_id', None) or getattr(user, 'branch', None)
+        try:
+            serializer.save(tenant=user.tenant, branch_id=branch_id)
+        except IntegrityError:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'name': 'An academic subject with this name already exists in this branch.'})
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            instance.delete()
+            return Response({'success': True, 'message': 'Subject deleted.'}, status=status.HTTP_200_OK)
+        except ProtectedError:
+            return Response(
+                {
+                    'success': False,
+                    'error': f"'{instance.name}' is used in existing assessments. Deactivate it instead of deleting.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+    @action(detail=True, methods=['post'], url_path='toggle_status')
+    def toggle_status(self, request, pk=None):
+        subject = self.get_object()
+        subject.is_active = not subject.is_active
+        subject.save(update_fields=['is_active'])
+        return Response({
+            'success': True,
+            'data': {'id': str(subject.id), 'is_active': subject.is_active},
+        })
+
+
+class AssessmentViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for Assessments (exam header per class).
+    AssessmentSubjects are managed via the /subjects/ nested action.
+    """
+    serializer_class = AssessmentSerializer
+    permission_classes = [IsAuthenticated, AcademicDomainPermission, IsAccountantOrAbove]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Assessment.objects.filter(tenant=user.tenant)
+        role = normalize_role(user.role)
+        if role in ('PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT') and user.branch_id:
+            qs = qs.filter(branch_id=user.branch_id)
+        else:
+            branch_id = self.request.query_params.get('branch_id')
+            if branch_id and branch_id not in ('undefined', 'null', ''):
+                qs = qs.filter(branch_id=branch_id)
+        ay_id = self.request.query_params.get('academic_year_id')
+        if ay_id:
+            qs = qs.filter(academic_year_id=ay_id)
+        cs_id = self.request.query_params.get('class_section_id')
+        if cs_id:
+            qs = qs.filter(class_section_id=cs_id)
+        return qs.select_related('academic_year', 'class_section').prefetch_related('assessment_subjects')
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        role = normalize_role(user.role)
+        branch_id = getattr(user, 'branch_id', None) or getattr(user, 'branch', None)
+        cs = serializer.validated_data.get('class_section')
+        ay = serializer.validated_data.get('academic_year')
+
+        # For branch-scoped roles, validate the class section belongs to their branch.
+        # Global roles (OWNER, SUPER_ADMIN, etc.) can create for any branch.
+        if role in ('PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT') and branch_id:
+            if cs and str(cs.branch_id) != str(branch_id):
+                raise ValidationError({'class_section': 'Class section must belong to your branch.'})
+
+        # Derive branch_id from the class section when the user is a global role
+        effective_branch_id = branch_id if branch_id else (str(cs.branch_id) if cs else None)
+
+        # Validate academic year matches the class section's academic year
+        if cs and ay and str(cs.academic_year_id) != str(ay.id):
+            raise ValidationError({'academic_year': 'Academic year must match the class section academic year.'})
+
+        try:
+            serializer.save(
+                tenant=user.tenant,
+                branch_id=effective_branch_id,
+                created_by=user,
+            )
+        except IntegrityError:
+            raise ValidationError({'name': 'An assessment with this name already exists for this class section.'})
+
+    @action(detail=True, methods=['get', 'post'], url_path='subjects')
+    def subjects(self, request, pk=None):
+        """GET: list selected subjects. POST: bulk save subjects for this assessment."""
+        assessment = self.get_object()
+
+        if request.method == 'GET':
+            subs = assessment.assessment_subjects.select_related('subject').all()
+            return Response({'success': True, 'data': AssessmentSubjectSerializer(subs, many=True).data})
+
+        # POST — bulk save subject configurations
+        subjects_data = request.data.get('subjects', [])
+        if not subjects_data:
+            return Response(
+                {'success': False, 'error': 'At least one subject must be provided.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        errors = []
+        saved = 0
+        valid_subject_ids = []
+        with transaction.atomic():
+            for item in subjects_data:
+                subject_id = item.get('subject')
+                max_marks = item.get('max_marks')
+                min_marks = item.get('min_marks')
+                exam_date = item.get('exam_date') or None
+                exam_time = item.get('exam_time') or None
+                if not subject_id or max_marks is None or min_marks is None:
+                    errors.append({'subject': subject_id, 'error': 'subject, max_marks, and min_marks are required.'})
+                    continue
+                # Verify subject belongs to same branch and is active
+                sub = AcademicSubject.objects.filter(
+                    id=subject_id, tenant=request.user.tenant, branch=assessment.branch
+                ).first()
+                if not sub:
+                    errors.append({'subject': subject_id, 'error': 'Subject not found in this branch.'})
+                    continue
+                
+                AssessmentSubject.objects.update_or_create(
+                    assessment=assessment,
+                    subject=sub,
+                    defaults={
+                        'max_marks': max_marks,
+                        'min_marks': min_marks,
+                        'exam_date': exam_date,
+                        'exam_time': exam_time,
+                    }
+                )
+                valid_subject_ids.append(sub.id)
+                saved += 1
+                
+            # Remove any subjects that were unchecked/removed
+            AssessmentSubject.objects.filter(assessment=assessment).exclude(subject_id__in=valid_subject_ids).delete()
+            
+        return Response({'success': True, 'data': {'saved': saved, 'errors': errors}})
+
+    @action(detail=True, methods=['delete'], url_path='subjects/(?P<subject_pk>[^/.]+)')
+    def remove_subject(self, request, pk=None, subject_pk=None):
+        """Remove a single subject from this assessment."""
+        assessment = self.get_object()
+        deleted, _ = AssessmentSubject.objects.filter(
+            assessment=assessment, id=subject_pk
+        ).delete()
+        if deleted:
+            return Response({'success': True, 'message': 'Subject removed from assessment.'})
+        return Response(
+            {'success': False, 'error': 'Assessment subject not found.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, AcademicDomainPermission, IsAccountantOrAbove])
+def subjects_for_class(request):
+    """
+    Returns active AcademicSubjects for the branch, split into:
+      - subjects: is_optional=False
+      - optional_subjects: is_optional=True
+    Used by the Add Exam form to auto-load the subject table.
+    """
+    user = request.user
+    branch_id = request.query_params.get('branch_id') or getattr(user, 'branch_id', None)
+    if not branch_id:
+        return Response(
+            {'success': False, 'error': 'branch_id is required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    qs = AcademicSubject.objects.filter(
+        tenant=user.tenant, branch_id=branch_id, is_active=True
+    ).order_by('display_order', 'name')
+    all_subjects = AcademicSubjectSerializer(qs, many=True).data
+    return Response({
+        'success': True,
+        'data': {
+            'subjects': [s for s in all_subjects if not s['is_optional']],
+            'optional_subjects': [s for s in all_subjects if s['is_optional']],
+        },
+    })

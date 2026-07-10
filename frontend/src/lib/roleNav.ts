@@ -19,6 +19,8 @@ import {
   Eye,
   Building,
   Banknote,
+  BookMarked,
+  ClipboardList,
 } from 'lucide-react';
 import { toMobilePath } from '@/lib/mobilePath';
 
@@ -110,6 +112,8 @@ const masterNavigation: NavCategory[] = [
         items: [
           { href: '/exams', label: 'Exams Setup', icon: Award, allowedRoles: ['OWNER', 'SUPER_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
           { href: '/exam-marks', label: 'Exam Marks', icon: Award, allowedRoles: ['PRINCIPAL', 'TEACHER'] },
+          { href: '/academics/subjects', label: 'Subjects', icon: BookMarked, allowedRoles: ['OWNER', 'SUPER_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
+          { href: '/academics/assessments', label: 'Assessments', icon: ClipboardList, allowedRoles: ['OWNER', 'SUPER_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
         ]
       },
       {
