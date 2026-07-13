@@ -500,6 +500,8 @@ class AcademicsService:
         """
         tenant = student.tenant
         branch = student.branch
+        subj_list = subjects or []
+        half = (len(subj_list) + 1) // 2
         return {
             'tenant_name': tenant.name,
             'tenant_logo': tenant.logo_url or '',
@@ -509,7 +511,10 @@ class AcademicsService:
             'branch_name': branch.name if branch else '',
             'exam': AcademicsService._exam_dict(exam_term),
             'student': AcademicsService._student_card_dict(student),
-            'subjects': subjects or [],
+            'subjects': subj_list,
+            # Pre-split for Django templates (no index access in Django template engine)
+            'subjects_left': subj_list[:half],
+            'subjects_right': subj_list[half:],
         }
 
     @staticmethod
