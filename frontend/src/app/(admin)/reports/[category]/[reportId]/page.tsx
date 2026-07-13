@@ -161,11 +161,17 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
     fetchReport(1, newFilters);
   }, [fetchReport]);
 
-  const handlePdfDownload = useCallback(async () => {
-    const activeFilters = filters || {};
+  const handlePdfDownload = useCallback(async (filterOverride?: any) => {
+    // If filterOverride is provided (from direct button click), use it. Otherwise use state.
+    const activeFilters = filterOverride || filters || {};
+    // Ensure table updates if triggered from the filter button
+    if (filterOverride) {
+      setFilters(activeFilters);
+      fetchReport(1, activeFilters);
+    }
     const needsExam = Boolean(config.filters?.showExam);
     if (needsExam && !activeFilters.exam_id) {
-      alert('Select an exam term, click Generate Report, then download the PDF.');
+      alert('Select an exam term first.');
       return;
     }
     setPdfLoading(true);
@@ -173,7 +179,7 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
       const res = await api.get(config.apiEndpoint, {
         params: { ...activeFilters, file: 'pdf' },
         responseType: 'blob',
-        headers: { Accept: 'application/pdf' },
+        headers: { Accept: 'application/pdf, application/json' },
       });
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
@@ -218,10 +224,10 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
           <p className="text-sm text-slate-400 mt-1">{config.description}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {config.offerPdfDownload && (
+          {config.offerPdfDownload && config.id !== 'hall-tickets' && (
             <button
               type="button"
-              onClick={handlePdfDownload}
+              onClick={() => handlePdfDownload()}
               disabled={pdfLoading}
               className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
             >
@@ -237,6 +243,8 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
         <ReportFilters
           key={`${category}-${reportId}`}
           onFilterChange={handleFilterSubmit}
+          customButtonLabel={config.id === 'hall-tickets' ? 'Download Hall Ticket' : undefined}
+          onCustomSubmit={config.id === 'hall-tickets' ? (f) => handlePdfDownload(f) : undefined}
           {...config.filters}
         />
       </div>

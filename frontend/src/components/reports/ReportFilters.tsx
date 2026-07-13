@@ -23,6 +23,8 @@ interface ReportFiltersProps {
   showAdmissionPaymentFilter?: boolean;
   showFixedDepositPaymentFilter?: boolean;
   showSpecialFeePaymentFilter?: boolean;
+  customButtonLabel?: string;
+  onCustomSubmit?: (filters: any) => void;
 }
 
 export default function ReportFilters({
@@ -42,6 +44,8 @@ export default function ReportFilters({
   showAdmissionPaymentFilter = false,
   showFixedDepositPaymentFilter = false,
   showSpecialFeePaymentFilter = false,
+  customButtonLabel,
+  onCustomSubmit,
 }: ReportFiltersProps) {
   const { user } = useAuth();
   const { selectedBranch } = useBranch();
@@ -182,12 +186,16 @@ export default function ReportFilters({
   };
 
   const handleSubmit = () => {
-    // Only pass non-empty values
-    const cleanFilters: any = {};
-    Object.entries(filters).forEach(([k, v]) => {
-      if (v) cleanFilters[k] = v;
-    });
-    onFilterChange(cleanFilters);
+    if (onCustomSubmit) {
+      onCustomSubmit(filters);
+    } else {
+      // Only pass non-empty values
+      const cleanFilters: any = {};
+      Object.entries(filters).forEach(([k, v]) => {
+        if (v) cleanFilters[k] = v;
+      });
+      onFilterChange(cleanFilters);
+    }
   };
 
   // Derive unique grades from class sections for the grade dropdown
@@ -486,7 +494,7 @@ export default function ReportFilters({
           className="bg-blue-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center gap-2"
         >
           <Search size={16} />
-          Generate Report
+          {customButtonLabel || 'Generate Report'}
         </button>
       </div>
     </div>
