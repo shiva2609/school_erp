@@ -230,45 +230,6 @@ export default function ReportFilters({
           </div>
         )}
 
-        {showExam && (
-          <div className="flex flex-col gap-1.5 min-w-[180px]">
-            <label className="text-xs font-semibold text-slate-500 uppercase">Exam term</label>
-            <select
-              className={selectClass}
-              value={filters.exam_id}
-              onChange={(e) => handleChange('exam_id', e.target.value)}
-            >
-              <option value="">Select exam…</option>
-              {examTerms.map((ex: any) => (
-                <option key={ex.id} value={ex.id}>{ex.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {showDateRange && (
-          <div className="flex gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-500 uppercase">Start Date</label>
-              <input
-                type="date"
-                className={selectClass}
-                value={filters.startDate}
-                onChange={(e) => handleChange('startDate', e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-500 uppercase">End Date</label>
-              <input
-                type="date"
-                className={selectClass}
-                value={filters.endDate}
-                onChange={(e) => handleChange('endDate', e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-
         {showClassSection && (
           <div className="flex flex-col gap-1.5 min-w-[150px]">
             <label className="text-xs font-semibold text-slate-500 uppercase">Class</label>
@@ -308,6 +269,45 @@ export default function ReportFilters({
                   </option>
                 ))}
             </select>
+          </div>
+        )}
+
+        {showExam && (
+          <div className="flex flex-col gap-1.5 min-w-[180px]">
+            <label className="text-xs font-semibold text-slate-500 uppercase">Exam term</label>
+            <select
+              className={selectClass}
+              value={filters.exam_id}
+              onChange={(e) => handleChange('exam_id', e.target.value)}
+            >
+              <option value="">Select exam…</option>
+              {examTerms.map((ex: any) => (
+                <option key={ex.id} value={ex.id}>{ex.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {showDateRange && (
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-500 uppercase">Start Date</label>
+              <input
+                type="date"
+                className={selectClass}
+                value={filters.startDate}
+                onChange={(e) => handleChange('startDate', e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-500 uppercase">End Date</label>
+              <input
+                type="date"
+                className={selectClass}
+                value={filters.endDate}
+                onChange={(e) => handleChange('endDate', e.target.value)}
+              />
+            </div>
           </div>
         )}
 

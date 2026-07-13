@@ -461,17 +461,8 @@ class AcademicsService:
             cls_label = f'{cs.get_grade_display()} - Section {cs.section}'
         else:
             cls_label = ''
-        # Fetch father name from ParentStudentRelation if available
-        father_name = ''
-        try:
-            relation = student.parent_relations.filter(
-                relation_type='FATHER'
-            ).select_related('parent').first()
-            if relation and relation.parent:
-                last = relation.parent.last_name or ''
-                father_name = f'{relation.parent.first_name} {last}'.strip()
-        except Exception:
-            pass
+        # father_name is a direct field on Student — no extra query needed
+        father_name = student.father_name or ''
         return {
             'first_name': student.first_name,
             'last_name': student.last_name or '',
