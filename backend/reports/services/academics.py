@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.db.models import Count, DecimalField, Exists, OuterRef, Q, Subquery, Sum, Value, UUIDField
 from django.db.models.functions import Coalesce
 
-from academics.models import ExamResult, ExamTerm
+from academics.models import ExamResult, ExamTerm, Assessment, AssessmentSubject
 from attendance.models import AttendanceRecord
 from fees.models import FeeInvoice, Payment
 from reports.services.base import BaseReportService
@@ -389,6 +389,50 @@ class AcademicsService:
         ).first()
 
     @staticmethod
+    def get_assessment_for_print(filters):
+        """Resolve an Assessment (new module) by exam_id for Hall Ticket generation."""
+        eid = getattr(filters, 'exam_id', None)
+        if not eid:
+            return None
+        return Assessment.objects.filter(pk=eid, tenant=filters.user.tenant).select_related(
+            'academic_year', 'branch',
+        ).first()
+
+    @staticmethod
+    def _build_subjects_schedule(assessment):
+        """
+        Fetch AssessmentSubject records for the assessment, sorted by exam_date then exam_time.
+        Returns a list of dicts ready for template rendering.
+        """
+        subjects_qs = (
+            AssessmentSubject.objects
+            .filter(assessment=assessment)
+            .select_related('subject')
+            .order_by('exam_date', 'exam_time', 'subject__display_order', 'subject__name')
+        )
+        rows = []
+        for as_subj in subjects_qs:
+            subj = as_subj.subject
+            # Build display name with optional language indicator
+            name = subj.name
+            if subj.is_first_language:
+                name = f'{name} (First Language)'
+            elif subj.is_second_language:
+                name = f'{name} (Second Language)'
+            elif subj.is_third_language:
+                name = f'{name} (Third Language)'
+
+            rows.append({
+                'subject_name': name,
+                'exam_date': str(as_subj.exam_date) if as_subj.exam_date else '',
+                'exam_time': str(as_subj.exam_time) if as_subj.exam_time else '',
+                'max_marks': str(as_subj.max_marks),
+                'min_marks': str(as_subj.min_marks),
+                'is_optional': subj.is_optional,
+            })
+        return rows
+
+    @staticmethod
     def get_students_for_exam_print(filters):
         """Active students in scope; when an exam is selected, align to that exam's academic year."""
         qs = Student.objects.filter(status='ACTIVE').select_related(
@@ -400,10 +444,15 @@ class AcademicsService:
             qs = qs.filter(class_section__grade=filters.class_id)
         if filters.section_id:
             qs = qs.filter(class_section_id=filters.section_id)
-        term = AcademicsService.get_exam_term_for_print(filters)
-        if term and term.academic_year_id:
-            qs = qs.filter(academic_year_id=term.academic_year_id)
-        return qs.order_by('class_section__grade', 'class_section__section', 'first_name')
+        # Try Assessment first (new module), fall back to legacy ExamTerm
+        assessment = AcademicsService.get_assessment_for_print(filters)
+        if assessment and assessment.academic_year_id:
+            qs = qs.filter(academic_year_id=assessment.academic_year_id)
+        else:
+            term = AcademicsService.get_exam_term_for_print(filters)
+            if term and term.academic_year_id:
+                qs = qs.filter(academic_year_id=term.academic_year_id)
+        return qs.order_by('class_section__grade', 'class_section__section', 'roll_number', 'first_name')
 
     @staticmethod
     def _student_card_dict(student):
@@ -412,9 +461,22 @@ class AcademicsService:
             cls_label = f'{cs.get_grade_display()} - Section {cs.section}'
         else:
             cls_label = ''
+        # Fetch father name from ParentStudentRelation if available
+        father_name = ''
+        try:
+            relation = student.parent_relations.filter(
+                relation_type='FATHER'
+            ).select_related('parent').first()
+            if relation and relation.parent:
+                last = relation.parent.last_name or ''
+                father_name = f'{relation.parent.first_name} {last}'.strip()
+        except Exception:
+            pass
         return {
             'first_name': student.first_name,
             'last_name': student.last_name or '',
+            'full_name': f'{student.first_name} {student.last_name or ""}'.strip(),
+            'father_name': father_name,
             'admission_number': student.admission_number or '',
             'class_section': cls_label,
             'class_grade': cs.grade if cs else '',
@@ -427,6 +489,10 @@ class AcademicsService:
 
     @staticmethod
     def _exam_dict(exam_term):
+        """
+        Build the exam context dict. Works for both Assessment and legacy ExamTerm
+        since both have .name, .start_date, .end_date, .academic_year.
+        """
         return {
             'name': exam_term.name,
             'start_date': str(exam_term.start_date),
@@ -435,7 +501,12 @@ class AcademicsService:
         }
 
     @staticmethod
-    def build_hall_ticket_context(student, exam_term):
+    def build_hall_ticket_context(student, exam_term, subjects=None):
+        """
+        Build hall ticket context for a student.
+        `exam_term` may be an Assessment (new) or ExamTerm (legacy).
+        `subjects` is a pre-computed list from _build_subjects_schedule().
+        """
         tenant = student.tenant
         branch = student.branch
         return {
@@ -447,6 +518,7 @@ class AcademicsService:
             'branch_name': branch.name if branch else '',
             'exam': AcademicsService._exam_dict(exam_term),
             'student': AcademicsService._student_card_dict(student),
+            'subjects': subjects or [],
         }
 
     @staticmethod

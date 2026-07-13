@@ -91,6 +91,8 @@ export default function ReportFilters({
         const params: Record<string, string> = {};
         if (filters.branch_id) params.branch_id = filters.branch_id;
         if (filters.academic_year_id) params.academic_year_id = filters.academic_year_id;
+        // Pass class_id so the backend returns only assessments for the selected grade
+        if (filters.class_id) params.class_id = filters.class_id;
         const res = await api.get('reports/academics/exam-terms/', { params });
         const raw = res.data?.data ?? res.data;
         setExamTerms(Array.isArray(raw) ? raw : []);
@@ -100,7 +102,7 @@ export default function ReportFilters({
       }
     };
     loadExams();
-  }, [showExam, filters.branch_id, filters.academic_year_id]);
+  }, [showExam, filters.branch_id, filters.academic_year_id, filters.class_id]);
 
   useEffect(() => {
     const needCategories = showExpenseCategory || showExpenseTypeSearch;
@@ -275,7 +277,8 @@ export default function ReportFilters({
               value={filters.class_id}
               onChange={(e) => {
                 const v = e.target.value;
-                setFilters((prev: any) => ({ ...prev, class_id: v, section_id: '' }));
+                // Reset exam selection when class changes
+                setFilters((prev: any) => ({ ...prev, class_id: v, section_id: '', exam_id: '' }));
               }}
             >
               <option value="">All Classes</option>

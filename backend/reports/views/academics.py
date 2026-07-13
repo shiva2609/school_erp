@@ -1,7 +1,7 @@
 import logging
 import re
 
-from academics.models import ExamTerm
+from academics.models import ExamTerm, Assessment
 from django.http import HttpResponse
 from document_templates.models import DocumentTemplate
 from document_templates.services import generate_bulk_pdf_from_template, generate_pdf_from_template
@@ -39,13 +39,36 @@ class AcademicsReportViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path='exam-terms')
     def exam_terms(self, request):
+        """
+        Returns Assessment records for the Hall Ticket exam-term dropdown.
+        Filters by:
+          - branch_id (branch scoping)
+          - academic_year_id (optional)
+          - class_id (grade — required for Hall Tickets to show only relevant exams)
+        Falls back to legacy ExamTerm if no Assessments found, for backward compat.
+        """
         filters = BaseReportFilter(request, request.user)
-        qs = ExamTerm.objects.filter(tenant=filters.user.tenant)
+        class_id = request.query_params.get('class_id') or filters.class_id
+
+        qs = Assessment.objects.filter(tenant=filters.user.tenant)
         if filters.branch_id:
             qs = qs.filter(branch_id=filters.branch_id)
         if filters.academic_year_id:
             qs = qs.filter(academic_year_id=filters.academic_year_id)
-        data = list(qs.order_by('start_date').values('id', 'name', 'start_date', 'end_date'))
+        if class_id:
+            qs = qs.filter(grade=class_id)
+
+        data = list(qs.order_by('start_date', 'name').values('id', 'name', 'start_date', 'end_date', 'grade'))
+
+        # Fallback: if no Assessments exist (legacy branches), serve ExamTerms
+        if not data:
+            legacy_qs = ExamTerm.objects.filter(tenant=filters.user.tenant)
+            if filters.branch_id:
+                legacy_qs = legacy_qs.filter(branch_id=filters.branch_id)
+            if filters.academic_year_id:
+                legacy_qs = legacy_qs.filter(academic_year_id=filters.academic_year_id)
+            data = list(legacy_qs.order_by('start_date').values('id', 'name', 'start_date', 'end_date'))
+
         return Response({'success': True, 'data': data})
 
     @action(detail=False, methods=['get'], url_path='students-list')
@@ -116,12 +139,18 @@ class AcademicsReportViewSet(viewsets.ViewSet):
             return self._hall_tickets_pdf(filters)
         if not filters.exam_id:
             return Response(
-                {'success': False, 'error': 'exam_id is required. Choose an exam term and generate the report.'},
+                {'success': False, 'error': 'exam_id is required. Choose an exam and generate the report.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        term = AcademicsService.get_exam_term_for_print(filters)
-        if not term:
-            return Response({'success': False, 'error': 'Exam not found for this school.'}, status=404)
+        # Try Assessment first, fall back to legacy ExamTerm
+        assessment = AcademicsService.get_assessment_for_print(filters)
+        if assessment:
+            exam_name = assessment.name
+        else:
+            term = AcademicsService.get_exam_term_for_print(filters)
+            if not term:
+                return Response({'success': False, 'error': 'Exam not found for this school.'}, status=404)
+            exam_name = term.name
         qs = AcademicsService.get_students_for_exam_print(filters)
         summary = simple_count_summary(qs)
         data = qs.values(
@@ -130,7 +159,7 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         )
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
-        enriched = [{**row, 'exam_term__name': term.name} for row in page]
+        enriched = [{**row, 'exam_term__name': exam_name} for row in page]
         return paginator.get_paginated_response(enriched, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='consolidated-marks')
@@ -193,9 +222,16 @@ class AcademicsReportViewSet(viewsets.ViewSet):
     def _hall_tickets_pdf(self, filters):
         if not filters.exam_id:
             return Response({'error': 'exam_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
-        term = AcademicsService.get_exam_term_for_print(filters)
-        if not term:
+
+        # Resolve Assessment (new module) or fall back to legacy ExamTerm
+        assessment = AcademicsService.get_assessment_for_print(filters)
+        exam_obj = assessment  # assessment or None; if None we try legacy below
+
+        if not exam_obj:
+            exam_obj = AcademicsService.get_exam_term_for_print(filters)
+        if not exam_obj:
             return Response({'error': 'Exam not found.'}, status=404)
+
         template = _pick_document_template(filters.user.tenant, 'HALL_TICKET', filters.branch_id)
         if not template:
             return Response(
@@ -205,16 +241,32 @@ class AcademicsReportViewSet(viewsets.ViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
         students = list(AcademicsService.get_students_for_exam_print(filters))
         if not students:
             return Response({'error': 'No students match the selected filters.'}, status=404)
-        contexts = [AcademicsService.build_hall_ticket_context(s, term) for s in students]
+
+        # Pre-compute the subjects schedule once for efficiency
+        if assessment:
+            subjects_schedule = AcademicsService._build_subjects_schedule(assessment)
+            if not subjects_schedule:
+                return Response(
+                    {'error': 'The selected assessment has no subjects configured. Add subjects to the assessment first.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            subjects_schedule = []
+
+        contexts = [
+            AcademicsService.build_hall_ticket_context(s, exam_obj, subjects=subjects_schedule)
+            for s in students
+        ]
         try:
             pdf = generate_bulk_pdf_from_template(template, contexts)
         except Exception as exc:
             logger.exception('Hall ticket PDF failed')
             return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        safe = re.sub(r'[^a-zA-Z0-9_-]+', '_', term.name)[:80] or 'hall_tickets'
+        safe = re.sub(r'[^a-zA-Z0-9_-]+', '_', exam_obj.name)[:80] or 'hall_tickets'
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'attachment; filename="Hall_Tickets_{safe}.pdf"'
         return resp
