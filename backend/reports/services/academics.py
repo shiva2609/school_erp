@@ -469,6 +469,9 @@ class AcademicsService:
             'full_name': f'{student.first_name} {student.last_name or ""}'.strip(),
             'father_name': father_name,
             'admission_number': student.admission_number or '',
+            # enrollment_number = the school's own number (e.g. 2528, KGS-KZP-229)
+            # falls back to admission_number if legacy is not set
+            'enrollment_number': student.legacy_admission_number or student.admission_number or '',
             'class_section': cls_label,
             'class_grade': cs.grade if cs else '',
             'class_section_code': cs.section if cs else '',
