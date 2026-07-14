@@ -41,6 +41,9 @@ export default function StudentProfilePage() {
   const [dropoutData, setDropoutData] = useState({ reason: '', stop_future_fees: true });
   const [droppingOut, setDroppingOut] = useState(false);
   const [reinstating, setReinstating] = useState(false);
+  const [showInactiveReasonModal, setShowInactiveReasonModal] = useState(false);
+  const [inactiveReason, setInactiveReason] = useState('');
+  const [markingInactive, setMarkingInactive] = useState(false);
   const [showEditClassFees, setShowEditClassFees] = useState(false);
   const [markingInitialStatus, setMarkingInitialStatus] = useState<'ADMISSION_FEE' | 'FIXED_DEPOSIT' | null>(null);
   const [confirmInitialStatusChange, setConfirmInitialStatusChange] = useState<{
@@ -392,14 +395,36 @@ export default function StudentProfilePage() {
     } finally { setReinstating(false); }
   };
 
-  const handleToggleActiveStatus = async (newStatus: 'ACTIVE' | 'INACTIVE') => {
-    if (!confirm(`Are you sure you want to mark this student as ${newStatus}?`)) return;
+  const handleToggleActiveStatus = (newStatus: 'ACTIVE' | 'INACTIVE') => {
+    if (newStatus === 'INACTIVE') {
+      // Open the reason-capture modal instead of a bare confirm
+      setInactiveReason('');
+      setShowInactiveReasonModal(true);
+    } else {
+      // ACTIVE — just confirm and submit
+      if (!confirm('Are you sure you want to re-activate this student?')) return;
+      api.patch(`/students/${id}/status/`, { status: 'ACTIVE' })
+        .then(() => { toast.success('Student re-activated successfully.'); refetch(); })
+        .catch((err: any) => toast.error(err.response?.data?.detail || 'Failed to re-activate student.'));
+    }
+  };
+
+  const handleConfirmInactive = async () => {
+    if (!inactiveReason.trim()) {
+      toast.error('Please enter a reason for marking the student inactive.');
+      return;
+    }
+    setMarkingInactive(true);
     try {
-      await api.patch(`/students/${id}/status/`, { status: newStatus });
-      toast.success(`Student marked as ${newStatus} successfully.`);
+      await api.patch(`/students/${id}/status/`, { status: 'INACTIVE', leaving_reason: inactiveReason.trim() });
+      toast.success('Student marked as INACTIVE successfully.');
+      setShowInactiveReasonModal(false);
+      setInactiveReason('');
       refetch();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || `Failed to mark student as ${newStatus}.`);
+      toast.error(err.response?.data?.detail || 'Failed to mark student as INACTIVE.');
+    } finally {
+      setMarkingInactive(false);
     }
   };
 
@@ -1770,6 +1795,65 @@ export default function StudentProfilePage() {
           }}
         />
       )}
+
+      {/* Inactive Reason Modal */}
+      <Modal
+        isOpen={showInactiveReasonModal}
+        onClose={() => !markingInactive && setShowInactiveReasonModal(false)}
+        title="Mark Student as Inactive"
+        maxWidth="md"
+      >
+        <div className="p-8">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center text-red-500">
+              <UserMinus size={28} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">Mark as Inactive</h3>
+              {student && (
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  {student.first_name} {student.last_name} — {student.admission_number}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4 mb-8">
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-slate-700">
+                Reason for Inactivation <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-400 text-sm transition-all resize-none outline-none"
+                placeholder="e.g. Student has left the school, family relocated..."
+                value={inactiveReason}
+                onChange={e => setInactiveReason(e.target.value)}
+                disabled={markingInactive}
+              />
+              <p className="text-xs text-slate-400">This reason will be recorded and visible in the fee balance report.</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => setShowInactiveReasonModal(false)}
+              disabled={markingInactive}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-all disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmInactive}
+              disabled={markingInactive || !inactiveReason.trim()}
+              className="px-6 py-2.5 rounded-xl text-sm font-bold bg-red-600 hover:bg-red-700 text-white shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
+            >
+              {markingInactive ? <Loader2 size={15} className="animate-spin" /> : <UserMinus size={15} />}
+              {markingInactive ? 'Marking...' : 'Mark Inactive'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Dropout Modal */}
       <Modal

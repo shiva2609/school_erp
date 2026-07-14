@@ -30,19 +30,128 @@ class PaymentsReportViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'], url_path='fee-balances')
     def fee_balances(self, request):
         filters = BaseReportFilter(request, request.user)
-        qs = PaymentsService.get_fee_balances(filters)
-        summary = fee_invoice_totals(qs)
-        data = qs.values(
-            'invoice_number', 'student__admission_number', 'student__first_name', 'student__last_name',
-            'student__class_section__grade', 'student__class_section__section',
-            'gross_amount', 'net_amount', 'paid_amount', 'outstanding_amount',
-            'due_date', 'status'
+
+        # ── New grouped-report params ──────────────────────────────────────────
+        report_type = (request.query_params.get('report_type') or 'student').lower()
+        fee_cat_param = request.query_params.get('fee_categories', '')
+        fee_category_ids = [c.strip() for c in fee_cat_param.split(',') if c.strip()] or None
+        min_amount_str = request.query_params.get('min_amount', '')
+        max_amount_str = request.query_params.get('max_amount', '')
+        by_percentage = request.query_params.get('by_percentage', 'false').lower() == 'true'
+        status_filter = request.query_params.get('status_filter', 'ALL').upper()
+
+        min_amount = float(min_amount_str) if min_amount_str else None
+        max_amount = float(max_amount_str) if max_amount_str else None
+
+        rows, cat_ids, categories = PaymentsService.get_grouped_fee_balances(
+            filters,
+            report_type=report_type,
+            fee_category_ids=fee_category_ids,
+            min_amount=min_amount,
+            max_amount=max_amount,
+            by_percentage=by_percentage,
+            status_filter=status_filter,
         )
-        paginator = ReportPagination()
-        page = paginator.paginate_queryset(data, request, view=self)
-        return paginator.get_paginated_response(
-            page, summary=summary, footer_totals=footer_fee_balance_amount_columns(qs)
-        )
+
+        # ── Build summary ──────────────────────────────────────────────────────
+        from decimal import Decimal
+        total_net = sum(Decimal(str(r.get('net_amount') or 0)) for r in rows)
+        total_paid = sum(Decimal(str(r.get('paid_amount') or 0)) for r in rows)
+        total_outstanding = sum(Decimal(str(r.get('outstanding_amount') or 0)) for r in rows)
+        pct_outstanding = (total_outstanding / total_net * 100) if total_net else Decimal('0')
+        if report_type == 'student':
+            student_ids = {r.get('student__admission_number') for r in rows}
+        else:
+            student_ids = set()
+            for r in rows:
+                student_ids.add(r.get('class_section__grade', '') + '|' + r.get('class_section__section', ''))
+
+        summary = {
+            'total_net': str(total_net),
+            'total_paid': str(total_paid),
+            'total_outstanding': str(total_outstanding),
+            'outstanding_pct': f'{round(float(pct_outstanding), 2)}',
+            'student_count': str(sum(r.get('total_students', 1) for r in rows) if report_type != 'student' else len(rows)),
+            'report_type': report_type,
+            # Pass category metadata back so frontend can build column headers
+            'categories': [{'id': str(c.id), 'name': c.name, 'code': c.code} for c in categories],
+        }
+
+        # ── Paginate ───────────────────────────────────────────────────────────
+        # For grouped (class/section) the row count is small — serve unpaginated.
+        # For student rows use standard pagination.
+        if report_type in ('class', 'section'):
+            return ReportPagination.get_unpaginated_response(
+                [self._serialize_row(r, report_type, categories) for r in rows],
+                summary=summary,
+                footer_totals=self._footer(rows, categories),
+            )
+        else:
+            paginator = ReportPagination()
+            serialized = [self._serialize_row(r, report_type, categories) for r in rows]
+            page = paginator.paginate_queryset(serialized, request, view=self)
+            return paginator.get_paginated_response(
+                page,
+                summary=summary,
+                footer_totals=self._footer(rows, categories),
+            )
+
+    def _serialize_row(self, row, report_type, categories):
+        """Convert a raw dict row into a clean JSON-safe dict."""
+        from decimal import Decimal
+
+        def fmt(v):
+            if v is None:
+                return '0.00'
+            return str(round(Decimal(str(v)), 2))
+
+        base = {
+            'net_amount': fmt(row.get('net_amount')),
+            'paid_amount': fmt(row.get('paid_amount')),
+            'outstanding_amount': fmt(row.get('outstanding_amount')),
+            'concession_amount': fmt(row.get('concession_amount')),
+            'gross_amount': fmt(row.get('gross_amount')),
+        }
+
+        if report_type == 'class':
+            base['class'] = row.get('class_section__grade', '')
+            base['total_students'] = row.get('total_students', 0)
+        elif report_type == 'section':
+            base['class'] = row.get('class_section__grade', '')
+            base['section'] = row.get('class_section__section', '')
+            base['total_students'] = row.get('total_students', 0)
+        else:
+            base['admission_number'] = row.get('student__admission_number', '')
+            base['student_name'] = f"{row.get('student__first_name', '')} {row.get('student__last_name', '')}".strip()
+            base['class'] = row.get('student__class_section__grade', '')
+            base['section'] = row.get('student__class_section__section', '')
+            base['category'] = row.get('student__category', '')
+            base['parent_name'] = row.get('student__father_name', '')
+            base['parent_mobile'] = row.get('student__father_phone', '')
+            base['status'] = row.get('status', '')
+            base['inactive_reason'] = row.get('student__leaving_reason', '')
+            base['student_status'] = row.get('student__status', '')
+            base['due_date'] = str(row.get('due_date', '') or '')
+
+        for cat in categories:
+            safe_key = f'cat_{str(cat.id).replace("-", "_")}'
+            base[safe_key] = fmt(row.get(safe_key))
+
+        return base
+
+    def _footer(self, rows, categories):
+        """Compute footer totals across all rows (not just current page)."""
+        from decimal import Decimal
+        result = {
+            'net_amount': str(sum(Decimal(str(r.get('net_amount') or 0)) for r in rows)),
+            'paid_amount': str(sum(Decimal(str(r.get('paid_amount') or 0)) for r in rows)),
+            'outstanding_amount': str(sum(Decimal(str(r.get('outstanding_amount') or 0)) for r in rows)),
+            'concession_amount': str(sum(Decimal(str(r.get('concession_amount') or 0)) for r in rows)),
+        }
+        for cat in categories:
+            safe_key = f'cat_{str(cat.id).replace("-", "_")}'
+            result[safe_key] = str(sum(Decimal(str(r.get(safe_key) or 0)) for r in rows))
+        return result
 
     @action(detail=False, methods=['get'], url_path='uncommitted-fee-students')
     def uncommitted_fee_students(self, request):

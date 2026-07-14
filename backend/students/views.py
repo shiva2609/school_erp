@@ -617,6 +617,9 @@ class StudentViewSet(viewsets.ModelViewSet):
         """Soft-delete student by setting status to INACTIVE."""
         student = self.get_object()
         student.status = 'INACTIVE'
+        leaving_reason = request.data.get('leaving_reason', '')
+        if leaving_reason:
+            student.leaving_reason = leaving_reason
         student.save()
         return Response({'success': True, 'message': 'Student deactivated successfully.'}, status=status.HTTP_200_OK)
 
@@ -794,7 +797,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                 )
             else:
                 student.status = new_status
-                if new_status == 'TRANSFERRED':
+                if new_status in ('TRANSFERRED', 'INACTIVE', 'DROPOUT'):
                     student.leaving_date = request.data.get('leaving_date', timezone.now().date())
                     student.leaving_reason = request.data.get('leaving_reason', '')
                 student.save()

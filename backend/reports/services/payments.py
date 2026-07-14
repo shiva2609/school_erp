@@ -22,6 +22,195 @@ class PaymentsService:
         return qs.order_by('-due_date')
 
     @staticmethod
+    def get_grouped_fee_balances(filters, report_type='student', fee_category_ids=None,
+                                 min_amount=None, max_amount=None, by_percentage=False,
+                                 status_filter=None):
+        """
+        Returns aggregated fee balance data grouped by class / section / student.
+
+        report_type: 'class' | 'section' | 'student'
+        fee_category_ids: list of FeeCategory ids whose sums should be broken out as columns
+        min_amount / max_amount: filter on paid_amount (absolute ₹ or % of net_amount)
+        by_percentage: if True, min/max are % of net_amount; else absolute ₹
+        status_filter: 'ALL' | 'PAID' | 'PARTIALLY_PAID' | 'OVERDUE' etc.
+        """
+        from fees.models import FeeCategory, FeeInvoiceItem
+        from students.models import Student as StudentModel
+
+        # ── Base queryset ──────────────────────────────────────────────────────
+        if report_type in ('class', 'section'):
+            qs = FeeInvoice.objects.select_related('student__class_section').exclude(status='CANCELLED')
+            qs = BaseReportService.apply_branch_scope(qs, filters)
+            if hasattr(filters, 'academic_year_id') and filters.academic_year_id:
+                qs = BaseReportService.apply_academic_year(qs, filters.academic_year_id)
+            if filters.class_id:
+                qs = qs.filter(student__class_section__grade=filters.class_id)
+            if filters.section_id:
+                qs = qs.filter(student__class_section_id=filters.section_id)
+            if status_filter and status_filter != 'ALL':
+                qs = qs.filter(status=status_filter)
+
+            # ── Group-by fields ────────────────────────────────────────────────
+            if report_type == 'class':
+                group_fields = ['student__class_section__grade']
+                order_fields = ['student__class_section__grade']
+            else:  # section
+                group_fields = ['student__class_section__grade', 'student__class_section__section']
+                order_fields = ['student__class_section__grade', 'student__class_section__section']
+
+            # ── 1. Aggregate invoice-level totals ──────────────────────────────
+            invoice_ann = {
+                'total_students': models.Count('student_id', distinct=True),
+                'gross_amount': Coalesce(Sum('gross_amount'), Value(Decimal('0')), output_field=DecimalField()),
+                'net_amount': Coalesce(Sum('net_amount'), Value(Decimal('0')), output_field=DecimalField()),
+                'concession_amount': Coalesce(Sum('concession_amount'), Value(Decimal('0')), output_field=DecimalField()),
+                'paid_amount': Coalesce(Sum('paid_amount'), Value(Decimal('0')), output_field=DecimalField()),
+                'outstanding_amount': Coalesce(Sum('outstanding_amount'), Value(Decimal('0')), output_field=DecimalField()),
+            }
+            invoice_totals = list(qs.values(*group_fields).annotate(**invoice_ann).order_by(*order_fields))
+
+            # Normalize keys to remove 'student__' prefix so they match the rest of the app's expectations
+            rows = []
+            for row in invoice_totals:
+                new_row = {
+                    'class_section__grade': row.get('student__class_section__grade'),
+                    'class_section__section': row.get('student__class_section__section'),
+                    'total_students': row.get('total_students', 0),
+                    'gross_amount': row.get('gross_amount', Decimal('0')),
+                    'net_amount': row.get('net_amount', Decimal('0')),
+                    'concession_amount': row.get('concession_amount', Decimal('0')),
+                    'paid_amount': row.get('paid_amount', Decimal('0')),
+                    'outstanding_amount': row.get('outstanding_amount', Decimal('0')),
+                }
+                rows.append(new_row)
+
+            # ── 2. Aggregate item-level totals (per category) ──────────────────
+            categories = []
+            if fee_category_ids:
+                categories = list(FeeCategory.objects.filter(id__in=fee_category_ids))
+                item_qs = FeeInvoiceItem.objects.filter(invoice__in=qs, category_id__in=fee_category_ids)
+                item_group_fields = [f"invoice__{f}" for f in group_fields] + ['category_id']
+                item_ann = {
+                    'cat_sum': Coalesce(Sum('final_amount'), Value(Decimal('0')), output_field=DecimalField())
+                }
+                item_totals = list(item_qs.values(*item_group_fields).annotate(**item_ann))
+
+                # Merge item totals into rows
+                for row in rows:
+                    grade = row['class_section__grade']
+                    section = row.get('class_section__section')
+                    
+                    for cat in categories:
+                        safe_key = f'cat_{str(cat.id).replace("-", "_")}'
+                        # Find matching item total
+                        cat_total = Decimal('0')
+                        for it in item_totals:
+                            if it['category_id'] == cat.id and it['invoice__student__class_section__grade'] == grade:
+                                if report_type == 'section' and it.get('invoice__student__class_section__section') != section:
+                                    continue
+                                cat_total = it['cat_sum']
+                                break
+                        row[safe_key] = cat_total
+
+            # Apply min/max amount filter on paid_amount
+            if min_amount is not None or max_amount is not None:
+                filtered_rows = []
+                for row in rows:
+                    if by_percentage:
+                        net = row.get('net_amount') or Decimal('0')
+                        paid = row.get('paid_amount') or Decimal('0')
+                        pct = (paid / net * 100) if net else Decimal('0')
+                        val = pct
+                    else:
+                        val = row.get('paid_amount') or Decimal('0')
+                    if min_amount is not None and val < Decimal(str(min_amount)):
+                        continue
+                    if max_amount is not None and val > Decimal(str(max_amount)):
+                        continue
+                    filtered_rows.append(row)
+                rows = filtered_rows
+
+            return rows, fee_category_ids, categories
+
+        else:
+            # ── Student-level report: one row per invoice ──────────────────────
+            qs = FeeInvoice.objects.select_related(
+                'student', 'student__class_section'
+            ).exclude(status='CANCELLED')
+
+            qs = BaseReportService.apply_branch_scope(qs, filters)
+            if hasattr(filters, 'academic_year_id') and filters.academic_year_id:
+                qs = BaseReportService.apply_academic_year(qs, filters.academic_year_id)
+            if filters.class_id:
+                qs = qs.filter(student__class_section__grade=filters.class_id)
+            if filters.section_id:
+                qs = qs.filter(student__class_section_id=filters.section_id)
+            if status_filter and status_filter != 'ALL':
+                qs = qs.filter(status=status_filter)
+
+            # Per-category sums via FeeInvoiceItem annotation
+            categories = []
+            if fee_category_ids:
+                categories = list(FeeCategory.objects.filter(id__in=fee_category_ids))
+                for cat in categories:
+                    safe_key = f'cat_{str(cat.id).replace("-", "_")}'
+                    qs = qs.annotate(**{
+                        safe_key: Coalesce(
+                            Sum(
+                                Case(
+                                    When(items__category_id=cat.id, then=F('items__final_amount')),
+                                    default=Value(Decimal('0')),
+                                    output_field=DecimalField(),
+                                )
+                            ),
+                            Value(Decimal('0')),
+                            output_field=DecimalField(),
+                        )
+                    })
+
+            # Apply min/max paid_amount filter
+            if min_amount is not None and not by_percentage:
+                qs = qs.filter(paid_amount__gte=Decimal(str(min_amount)))
+            if max_amount is not None and not by_percentage:
+                qs = qs.filter(paid_amount__lte=Decimal(str(max_amount)))
+
+            qs = qs.order_by('student__class_section__grade', 'student__class_section__section', 'student__first_name')
+
+            if by_percentage and (min_amount is not None or max_amount is not None):
+                # Post-filter for percentage
+                raw = list(qs.values(
+                    'id', 'invoice_number', 'status',
+                    'student__admission_number', 'student__first_name', 'student__last_name',
+                    'student__class_section__grade', 'student__class_section__section',
+                    'student__category', 'student__father_name', 'student__father_phone',
+                    'student__leaving_reason', 'student__status',
+                    'gross_amount', 'net_amount', 'concession_amount', 'paid_amount', 'outstanding_amount', 'due_date',
+                    *([f'cat_{str(c.id).replace("-", "_")}' for c in categories] if categories else []),
+                ))
+                filtered_rows = []
+                for row in raw:
+                    net = row.get('net_amount') or Decimal('0')
+                    paid = row.get('paid_amount') or Decimal('0')
+                    pct = (paid / net * 100) if net else Decimal('0')
+                    if min_amount is not None and pct < Decimal(str(min_amount)):
+                        continue
+                    if max_amount is not None and pct > Decimal(str(max_amount)):
+                        continue
+                    filtered_rows.append(row)
+                return filtered_rows, fee_category_ids, categories
+            else:
+                rows = list(qs.values(
+                    'id', 'invoice_number', 'status',
+                    'student__admission_number', 'student__first_name', 'student__last_name',
+                    'student__class_section__grade', 'student__class_section__section',
+                    'student__category', 'student__father_name', 'student__father_phone',
+                    'student__leaving_reason', 'student__status',
+                    'gross_amount', 'net_amount', 'concession_amount', 'paid_amount', 'outstanding_amount', 'due_date',
+                    *([f'cat_{str(c.id).replace("-", "_")}' for c in categories] if categories else []),
+                ))
+                return rows, fee_category_ids, categories
+
+    @staticmethod
     def get_uncommitted_fee_students(filters):
         qs = Student.objects.select_related('class_section').filter(status='ACTIVE')
         qs = BaseReportService.apply_branch_scope(qs, filters)
