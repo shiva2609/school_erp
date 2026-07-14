@@ -122,7 +122,6 @@ function MultiSelectDropdown({ options, selected, onChange }: MultiSelectProps) 
 /* ─── Main Page ──────────────────────────────────────────────────────────────── */
 
 export default function FeeBalancesReportPage() {
-  const router = useRouter();
   const { selectedBranch } = useBranch();
 
   const [reportType, setReportType] = useState<ReportType>('class');
