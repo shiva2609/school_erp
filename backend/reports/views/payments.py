@@ -125,7 +125,7 @@ class PaymentsReportViewSet(viewsets.ViewSet):
             base['student_name'] = f"{row.get('student__first_name', '')} {row.get('student__last_name', '')}".strip()
             base['class'] = row.get('student__class_section__grade', '')
             base['section'] = row.get('student__class_section__section', '')
-            base['category'] = row.get('student__category', '')
+            base['category'] = row.get('student__caste_category', '')
             base['parent_name'] = row.get('student__father_name', '')
             base['parent_mobile'] = row.get('student__father_phone', '')
             base['status'] = row.get('status', '')
