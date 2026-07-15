@@ -90,6 +90,7 @@ class PaymentsService:
                     'concession_amount': row.get('concession_amount', Decimal('0')),
                     'paid_amount': row.get('paid_amount', Decimal('0')),
                     'outstanding_amount': row.get('outstanding_amount', Decimal('0')),
+                }
                 new_row['old_dues'] = Decimal('0')
                 rows.append(new_row)
 
