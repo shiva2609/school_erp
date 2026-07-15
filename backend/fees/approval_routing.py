@@ -29,7 +29,8 @@ def compute_fee_approval_routing(branch, standard_total, offered_total):
 
 def user_can_access_fee_approval_api(user):
     role = normalize_role(getattr(user, 'role', None))
-    if role not in ('SUPER_ADMIN', 'ZONAL_ADMIN'):
+    allowed_roles = ('SUPER_ADMIN', 'ZONAL_ADMIN', 'OWNER', 'CHIEF_ACCOUNTANT', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT')
+    if role not in allowed_roles:
         return False
     if not getattr(user, 'tenant_id', None):
         return False
@@ -39,11 +40,19 @@ def user_can_access_fee_approval_api(user):
 def fee_approval_queryset_for_user(user, queryset):
     qs = filter_queryset_for_user_tenant(queryset, user, 'tenant')
     role = normalize_role(getattr(user, 'role', None))
-    if role == 'SUPER_ADMIN':
+    if role in ('SUPER_ADMIN', 'OWNER', 'CHIEF_ACCOUNTANT'):
         return qs
     if role == 'ZONAL_ADMIN':
         return apply_scope_filter(
             qs.filter(routing='ZONAL'),
+            user,
+            tenant_lookup='tenant_id',
+            branch_lookup='branch_id',
+            zone_lookup='branch__zone_id',
+        )
+    if role in ('PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'):
+        return apply_scope_filter(
+            qs,
             user,
             tenant_lookup='tenant_id',
             branch_lookup='branch_id',

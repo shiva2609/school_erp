@@ -158,6 +158,11 @@ class FeeApprovalRequestViewSet(viewsets.ModelViewSet):
         branch_id = get_validated_branch_id(user, self.request.query_params.get('branch_id'))
         if branch_id:
             qs = qs.filter(branch_id=branch_id)
+        
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+            
         stat = self.request.query_params.get('status')
         if stat:
             qs = qs.filter(status=stat)
