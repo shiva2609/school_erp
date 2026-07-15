@@ -106,7 +106,9 @@ export default function StudentsPage() {
     setError(null);
     try {
       const params = new URLSearchParams();
-      params.set('status', statusFilter);
+      if (statusFilter !== 'ALL') {
+        params.set('status', statusFilter);
+      }
       params.set('page', String(page));
       if (search) params.set('search', search);
       if (selectedBranch) params.set('branch_id', selectedBranch);
@@ -277,7 +279,7 @@ export default function StudentsPage() {
         
         {/* Status Filter */}
         <div className="flex gap-1 bg-slate-100/50 p-1 rounded-lg border border-slate-200 overflow-x-auto scrollbar-hide">
-           {['ACTIVE', 'PENDING_APPROVAL', 'DROPOUT', 'ARCHIVED'].map(s => (
+           {['ALL', 'ACTIVE', 'PENDING_APPROVAL', 'INACTIVE', 'DROPOUT', 'ARCHIVED'].map(s => (
              <button key={s} onClick={() => setStatusFilter(s)}
                className={`px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all ${
                  statusFilter === s ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700 border border-transparent'

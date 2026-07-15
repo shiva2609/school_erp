@@ -253,17 +253,15 @@ def _notify_fee_approval_reviewers(approval, routing, branch, tenant):
         ),
         'link': '/approvals',
     }
-    for user in reviewers:
-        dispatch_notification(
-            tenant=tenant,
-            branch=branch,
-            event_type='CUSTOM_ANNOUNCEMENT',
-            recipient_user=user,
-            payload=payload,
-            send_sms=False,
-            send_email=False,
-            send_push=True,
-        )
+    
+    from notifications.dispatcher import dispatch_bulk_notifications
+    dispatch_bulk_notifications(
+        tenant=tenant,
+        branch=branch,
+        recipient_users=list(reviewers),
+        event_type='FEE_APPROVAL_REQUIRED',
+        payload=payload,
+    )
 
 
 def _normalize_parent_phone(phone: str) -> str:

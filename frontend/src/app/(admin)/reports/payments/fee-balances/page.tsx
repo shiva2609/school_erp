@@ -215,7 +215,7 @@ export default function FeeBalancesReportPage() {
     cols.push({ key: 'paid_amount', label: 'Amount Paid', numeric: true });
     cols.push({ key: 'outstanding_amount', label: 'Balance', numeric: true });
     if (rt === 'student') {
-      cols.push({ key: 'status', label: 'Status' });
+      cols.push({ key: 'student_status', label: 'Status' });
       cols.push({ key: 'inactive_reason', label: 'Inactive Reason' });
     }
     return cols;

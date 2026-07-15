@@ -59,12 +59,6 @@ class PaymentsReportViewSet(viewsets.ViewSet):
         total_paid = sum(Decimal(str(r.get('paid_amount') or 0)) for r in rows)
         total_outstanding = sum(Decimal(str(r.get('outstanding_amount') or 0)) for r in rows)
         pct_outstanding = (total_outstanding / total_net * 100) if total_net else Decimal('0')
-        if report_type == 'student':
-            student_ids = {r.get('student__admission_number') for r in rows}
-        else:
-            student_ids = set()
-            for r in rows:
-                student_ids.add(r.get('class_section__grade', '') + '|' + r.get('class_section__section', ''))
 
         summary = {
             'total_net': str(total_net),
