@@ -57,6 +57,8 @@ class PaymentsService:
                 invoice_number__startswith='FDP-'
             ).exclude(
                 invoice_number__startswith='SPF-'
+            ).exclude(
+                invoice_number__startswith='TRN-'
             )
 
             # ── Group-by fields ────────────────────────────────────────────────
@@ -146,7 +148,7 @@ class PaymentsService:
                 item_qs = FeeInvoiceItem.objects.filter(invoice__in=qs, category_id__in=fee_category_ids)
                 item_group_fields = [f"invoice__{f}" for f in group_fields] + ['category_id']
                 item_ann = {
-                    'cat_sum': Coalesce(Sum('final_amount'), Value(Decimal('0')), output_field=DecimalField())
+                    'cat_sum': Coalesce(Sum('original_amount'), Value(Decimal('0')), output_field=DecimalField())
                 }
                 item_totals = list(item_qs.values(*item_group_fields).annotate(**item_ann))
 
@@ -210,6 +212,8 @@ class PaymentsService:
                 invoice_number__startswith='FDP-'
             ).exclude(
                 invoice_number__startswith='SPF-'
+            ).exclude(
+                invoice_number__startswith='TRN-'
             )
 
             # Per-category sums via FeeInvoiceItem annotation
@@ -222,7 +226,7 @@ class PaymentsService:
                         safe_key: Coalesce(
                             Sum(
                                 Case(
-                                    When(items__category_id=cat.id, then=F('items__final_amount')),
+                                    When(items__category_id=cat.id, then=F('items__original_amount')),
                                     default=Value(Decimal('0')),
                                     output_field=DecimalField(),
                                 )

@@ -99,13 +99,21 @@ class PaymentsReportViewSet(viewsets.ViewSet):
                 return '0.00'
             return str(round(Decimal(str(v)), 2))
 
+        cat_total = sum(Decimal(str(row.get(f'cat_{str(cat.id).replace("-", "_")}') or 0)) for cat in categories)
+        old_dues = Decimal(str(row.get('old_dues') or 0))
+        concession = Decimal(str(row.get('concession_amount') or 0))
+        paid = Decimal(str(row.get('paid_amount') or 0))
+        
+        computed_net = cat_total + old_dues - concession
+        computed_outstanding = computed_net - paid
+
         base = {
-            'net_amount': fmt(row.get('net_amount')),
-            'paid_amount': fmt(row.get('paid_amount')),
-            'outstanding_amount': fmt(row.get('outstanding_amount')),
-            'concession_amount': fmt(row.get('concession_amount')),
+            'net_amount': fmt(computed_net),
+            'paid_amount': fmt(paid),
+            'outstanding_amount': fmt(computed_outstanding),
+            'concession_amount': fmt(concession),
             'gross_amount': fmt(row.get('gross_amount')),
-            'old_dues': fmt(row.get('old_dues')),
+            'old_dues': fmt(old_dues),
         }
 
         if report_type == 'class':
@@ -138,9 +146,7 @@ class PaymentsReportViewSet(viewsets.ViewSet):
         """Compute footer totals across all rows (not just current page)."""
         from decimal import Decimal
         result = {
-            'net_amount': str(sum(Decimal(str(r.get('net_amount') or 0)) for r in rows)),
             'paid_amount': str(sum(Decimal(str(r.get('paid_amount') or 0)) for r in rows)),
-            'outstanding_amount': str(sum(Decimal(str(r.get('outstanding_amount') or 0)) for r in rows)),
             'concession_amount': str(sum(Decimal(str(r.get('concession_amount') or 0)) for r in rows)),
             'gross_amount': str(sum(Decimal(str(r.get('gross_amount') or 0)) for r in rows)),
             'old_dues': str(sum(Decimal(str(r.get('old_dues') or 0)) for r in rows)),
@@ -148,6 +154,11 @@ class PaymentsReportViewSet(viewsets.ViewSet):
         for cat in categories:
             safe_key = f'cat_{str(cat.id).replace("-", "_")}'
             result[safe_key] = str(sum(Decimal(str(r.get(safe_key) or 0)) for r in rows))
+
+        cat_total = sum(Decimal(result[f'cat_{str(cat.id).replace("-", "_")}']) for cat in categories)
+        result['net_amount'] = str(cat_total + Decimal(result['old_dues']) - Decimal(result['concession_amount']))
+        result['outstanding_amount'] = str(Decimal(result['net_amount']) - Decimal(result['paid_amount']))
+
         return result
 
     @action(detail=False, methods=['get'], url_path='uncommitted-fee-students')
