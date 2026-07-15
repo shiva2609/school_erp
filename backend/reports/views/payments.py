@@ -105,6 +105,7 @@ class PaymentsReportViewSet(viewsets.ViewSet):
             'outstanding_amount': fmt(row.get('outstanding_amount')),
             'concession_amount': fmt(row.get('concession_amount')),
             'gross_amount': fmt(row.get('gross_amount')),
+            'old_dues': fmt(row.get('old_dues')),
         }
 
         if report_type == 'class':
@@ -141,6 +142,8 @@ class PaymentsReportViewSet(viewsets.ViewSet):
             'paid_amount': str(sum(Decimal(str(r.get('paid_amount') or 0)) for r in rows)),
             'outstanding_amount': str(sum(Decimal(str(r.get('outstanding_amount') or 0)) for r in rows)),
             'concession_amount': str(sum(Decimal(str(r.get('concession_amount') or 0)) for r in rows)),
+            'gross_amount': str(sum(Decimal(str(r.get('gross_amount') or 0)) for r in rows)),
+            'old_dues': str(sum(Decimal(str(r.get('old_dues') or 0)) for r in rows)),
         }
         for cat in categories:
             safe_key = f'cat_{str(cat.id).replace("-", "_")}'
