@@ -67,12 +67,12 @@ class ReportingViewSet(viewsets.ViewSet):
         return qs
 
     def _billable_fee_invoices(self, qs):
-        """Exclude cancelled / inactive-student invoices from operational dashboards."""
-        return qs.filter(student__status='ACTIVE').exclude(status='CANCELLED')
+        """Exclude cancelled invoices from operational dashboards."""
+        return qs.exclude(status='CANCELLED')
 
     def _billable_payments(self, qs):
         """Payments that should affect branch revenue metrics."""
-        return qs.filter(invoice__student__status='ACTIVE').exclude(invoice__status='CANCELLED')
+        return qs.exclude(invoice__status='CANCELLED')
 
     # ─── Finance Summary (Charts) ──────────────────────────────
     @action(detail=False, methods=['get'], url_path='finance/summary')
@@ -244,8 +244,6 @@ class ReportingViewSet(viewsets.ViewSet):
             invoice__invoice_number__startswith='ADM-'
         ).exclude(
             invoice__invoice_number__startswith='TRN-'
-        ).exclude(
-            invoice__invoice_number__startswith='FDP-'
         ).exclude(
             invoice__invoice_number__startswith='SPF-'
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
