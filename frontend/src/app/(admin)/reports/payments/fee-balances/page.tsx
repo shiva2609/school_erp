@@ -160,7 +160,7 @@ export default function FeeBalancesReportPage() {
         const ay = ayRes.data?.data ?? ayRes.data?.results ?? ayRes.data;
         setAcademicYears(Array.isArray(ay) ? ay : []);
         const cats = catRes.data?.data ?? catRes.data?.results ?? catRes.data;
-        const catList: FeeCategory[] = Array.isArray(cats) ? cats : [];
+        const catList: FeeCategory[] = (Array.isArray(cats) ? cats : []).filter(c => !c.name.toUpperCase().includes('TRANSPORT'));
         setFeeCategories(catList);
         setSelectedCategoryIds(catList.map((c: FeeCategory) => c.id));
       } catch {
