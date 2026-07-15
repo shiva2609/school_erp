@@ -50,6 +50,15 @@ class PaymentsService:
             if status_filter and status_filter != 'ALL':
                 qs = qs.filter(status=status_filter)
 
+            # Exclude non-academic invoices per user requirement
+            qs = qs.exclude(
+                invoice_number__startswith='ADM-'
+            ).exclude(
+                invoice_number__startswith='FDP-'
+            ).exclude(
+                invoice_number__startswith='SPF-'
+            )
+
             # ── Group-by fields ────────────────────────────────────────────────
             if report_type == 'class':
                 group_fields = ['student__class_section__grade']
@@ -81,8 +90,53 @@ class PaymentsService:
                     'concession_amount': row.get('concession_amount', Decimal('0')),
                     'paid_amount': row.get('paid_amount', Decimal('0')),
                     'outstanding_amount': row.get('outstanding_amount', Decimal('0')),
-                }
+                new_row['old_dues'] = Decimal('0')
                 rows.append(new_row)
+
+            # ── 1.5 Aggregate FeeCarryForward ──────────────────────────────
+            from fees.models import FeeCarryForward
+            cf_qs = FeeCarryForward.objects.filter(target_academic_year_id=filters.academic_year_id)
+            cf_qs = BaseReportService.apply_branch_scope(cf_qs, filters)
+            if filters.class_id:
+                cf_qs = cf_qs.filter(student__class_section__grade=filters.class_id)
+            if filters.section_id:
+                cf_qs = cf_qs.filter(student__class_section_id=filters.section_id)
+            
+            cf_ann = {
+                'old_dues': Coalesce(Sum('carry_forward_amount'), Value(Decimal('0')), output_field=DecimalField()),
+                'cf_paid': Coalesce(Sum('paid_amount'), Value(Decimal('0')), output_field=DecimalField()),
+                'cf_written_off': Coalesce(Sum('written_off_amount'), Value(Decimal('0')), output_field=DecimalField()),
+            }
+            cf_totals = list(cf_qs.values(*group_fields).annotate(**cf_ann))
+
+            rows_dict = {}
+            for r in rows:
+                k = (r['class_section__grade'], r['class_section__section']) if report_type == 'section' else r['class_section__grade']
+                rows_dict[k] = r
+            
+            for row in cf_totals:
+                grade = row.get('student__class_section__grade')
+                section = row.get('student__class_section__section')
+                k = (grade, section) if report_type == 'section' else grade
+
+                if k not in rows_dict:
+                    new_r = {
+                        'class_section__grade': grade,
+                        'class_section__section': section,
+                        'total_students': 0,
+                        'gross_amount': Decimal('0'),
+                        'net_amount': Decimal('0'),
+                        'concession_amount': Decimal('0'),
+                        'paid_amount': Decimal('0'),
+                        'outstanding_amount': Decimal('0'),
+                        'old_dues': Decimal('0')
+                    }
+                    rows_dict[k] = new_r
+                    rows.append(new_r)
+                
+                rows_dict[k]['old_dues'] += row['old_dues']
+                rows_dict[k]['paid_amount'] += row['cf_paid']
+                rows_dict[k]['outstanding_amount'] += (row['old_dues'] - row['cf_paid'] - row['cf_written_off'])
 
             # ── 2. Aggregate item-level totals (per category) ──────────────────
             categories = []
@@ -148,6 +202,15 @@ class PaymentsService:
             if status_filter and status_filter != 'ALL':
                 qs = qs.filter(status=status_filter)
 
+            # Exclude non-academic invoices per user requirement
+            qs = qs.exclude(
+                invoice_number__startswith='ADM-'
+            ).exclude(
+                invoice_number__startswith='FDP-'
+            ).exclude(
+                invoice_number__startswith='SPF-'
+            )
+
             # Per-category sums via FeeInvoiceItem annotation
             categories = []
             if fee_category_ids:
@@ -179,7 +242,7 @@ class PaymentsService:
             if by_percentage and (min_amount is not None or max_amount is not None):
                 # Post-filter for percentage
                 raw = list(qs.values(
-                    'id', 'invoice_number', 'status',
+                    'id', 'invoice_number', 'status', 'student_id',
                     'student__admission_number', 'student__first_name', 'student__last_name',
                     'student__class_section__grade', 'student__class_section__section',
                     'student__caste_category', 'student__father_name', 'student__father_phone',
@@ -187,6 +250,77 @@ class PaymentsService:
                     'gross_amount', 'net_amount', 'concession_amount', 'paid_amount', 'outstanding_amount', 'due_date',
                     *([f'cat_{str(c.id).replace("-", "_")}' for c in categories] if categories else []),
                 ))
+            else:
+                raw = list(qs.values(
+                    'id', 'invoice_number', 'status', 'student_id',
+                    'student__admission_number', 'student__first_name', 'student__last_name',
+                    'student__class_section__grade', 'student__class_section__section',
+                    'student__caste_category', 'student__father_name', 'student__father_phone',
+                    'student__leaving_reason', 'student__status',
+                    'gross_amount', 'net_amount', 'concession_amount', 'paid_amount', 'outstanding_amount', 'due_date',
+                    *([f'cat_{str(c.id).replace("-", "_")}' for c in categories] if categories else []),
+                ))
+
+            # ── 2.5 Aggregate FeeCarryForward for Student Level ────────────────
+            from fees.models import FeeCarryForward
+            cf_qs = FeeCarryForward.objects.filter(target_academic_year_id=filters.academic_year_id)
+            cf_qs = BaseReportService.apply_branch_scope(cf_qs, filters)
+            if filters.class_id:
+                cf_qs = cf_qs.filter(student__class_section__grade=filters.class_id)
+            if filters.section_id:
+                cf_qs = cf_qs.filter(student__class_section_id=filters.section_id)
+            if status_filter and status_filter != 'ALL':
+                cf_qs = cf_qs.filter(student__status=status_filter)
+            
+            cf_ann = {
+                'old_dues': Coalesce(Sum('carry_forward_amount'), Value(Decimal('0')), output_field=DecimalField()),
+                'cf_paid': Coalesce(Sum('paid_amount'), Value(Decimal('0')), output_field=DecimalField()),
+                'cf_written_off': Coalesce(Sum('written_off_amount'), Value(Decimal('0')), output_field=DecimalField()),
+            }
+            cf_totals = list(cf_qs.values(
+                'student_id',
+                'student__admission_number', 'student__first_name', 'student__last_name',
+                'student__class_section__grade', 'student__class_section__section',
+                'student__caste_category', 'student__father_name', 'student__father_phone',
+                'student__leaving_reason', 'student__status',
+            ).annotate(**cf_ann))
+
+            raw_dict = {}
+            for r in raw:
+                r['old_dues'] = Decimal('0')
+                raw_dict[r['student_id']] = r
+            
+            for row in cf_totals:
+                sid = row['student_id']
+                if sid not in raw_dict:
+                    new_r = {
+                        'id': None, 'invoice_number': '', 'status': 'ACTIVE', 'student_id': sid,
+                        'student__admission_number': row['student__admission_number'],
+                        'student__first_name': row['student__first_name'],
+                        'student__last_name': row['student__last_name'],
+                        'student__class_section__grade': row['student__class_section__grade'],
+                        'student__class_section__section': row['student__class_section__section'],
+                        'student__caste_category': row['student__caste_category'],
+                        'student__father_name': row['student__father_name'],
+                        'student__father_phone': row['student__father_phone'],
+                        'student__leaving_reason': row['student__leaving_reason'],
+                        'student__status': row['student__status'],
+                        'gross_amount': Decimal('0'),
+                        'net_amount': Decimal('0'),
+                        'concession_amount': Decimal('0'),
+                        'paid_amount': Decimal('0'),
+                        'outstanding_amount': Decimal('0'),
+                        'old_dues': Decimal('0'),
+                        'due_date': None,
+                    }
+                    raw_dict[sid] = new_r
+                    raw.append(new_r)
+                
+                raw_dict[sid]['old_dues'] += row['old_dues']
+                raw_dict[sid]['paid_amount'] += row['cf_paid']
+                raw_dict[sid]['outstanding_amount'] += (row['old_dues'] - row['cf_paid'] - row['cf_written_off'])
+
+            if by_percentage and (min_amount is not None or max_amount is not None):
                 filtered_rows = []
                 for row in raw:
                     net = row.get('net_amount') or Decimal('0')
@@ -199,16 +333,7 @@ class PaymentsService:
                     filtered_rows.append(row)
                 return filtered_rows, fee_category_ids, categories
             else:
-                rows = list(qs.values(
-                    'id', 'invoice_number', 'status',
-                    'student__admission_number', 'student__first_name', 'student__last_name',
-                    'student__class_section__grade', 'student__class_section__section',
-                    'student__caste_category', 'student__father_name', 'student__father_phone',
-                    'student__leaving_reason', 'student__status',
-                    'gross_amount', 'net_amount', 'concession_amount', 'paid_amount', 'outstanding_amount', 'due_date',
-                    *([f'cat_{str(c.id).replace("-", "_")}' for c in categories] if categories else []),
-                ))
-                return rows, fee_category_ids, categories
+                return raw, fee_category_ids, categories
 
     @staticmethod
     def get_uncommitted_fee_students(filters):
