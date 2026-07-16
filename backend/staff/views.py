@@ -109,8 +109,8 @@ class StaffViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve', 'assignments'):
-            # Principals and above can VIEW staff records
-            return [IsAuthenticated(), IsPrincipalOrAbove()]
+            # Accountants (rank 60) and above (which includes Principals, Super Admins) can VIEW staff records
+            return [IsAuthenticated(), IsAccountantOrAbove()]
         # Only SUPER_ADMIN / ACCOUNTANT can CREATE / EDIT / DELETE
         # Principals are intentionally excluded (business rule)
         return [IsAuthenticated(), IsStaffWriter()]
