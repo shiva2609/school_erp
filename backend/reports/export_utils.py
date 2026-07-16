@@ -19,6 +19,22 @@ from common.pdf_render import html_to_pdf_bytes
 
 # ─── In-memory generators (primary API) ──────────────────────────────────────
 
+
+def generate_csv_bytes(report_type: str, headers: list, data_rows: list):
+    import csv
+    import io
+    import uuid
+    
+    string_buffer = io.StringIO()
+    writer = csv.writer(string_buffer)
+    writer.writerow(headers)
+    for row in data_rows:
+        writer.writerow(row)
+        
+    bytes_buffer = io.BytesIO(string_buffer.getvalue().encode('utf-8'))
+    file_name = f"{report_type}_{uuid.uuid4().hex[:8]}.csv"
+    return bytes_buffer, file_name, "text/csv"
+
 def generate_excel_bytes(report_type: str, headers: list, data_rows: list):
     """
     Build an Excel workbook in memory.
