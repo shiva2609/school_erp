@@ -68,21 +68,21 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
 
     branch = student.branch
     ay = student.academic_year
-    class_section = student.class_section
     tenant = student.tenant
 
-    if not class_section:
-        raise ValidationError('Class section is required for setting up fees.')
+    grade = student.grade or (student.class_section.grade if student.class_section else None)
+    if not grade:
+        raise ValidationError('Grade is required for setting up fees.')
 
     if not ay:
         raise ValidationError('Academic year is required for setting up fees.')
 
     structure = FeeStructure.objects.filter(
-        branch=branch, academic_year=ay, grade=class_section.grade, is_active=True
+        branch=branch, academic_year=ay, grade=grade, is_active=True
     ).first()
     if not structure:
         raise ValidationError(
-            f"No active fee structure found for grade '{class_section.grade}' in academic year '{ay.name}'."
+            f"No active fee structure found for grade '{grade}' in academic year '{ay.name}'."
         )
 
     # 1. Calculate REAL standard_total from FeeStructure
@@ -109,6 +109,10 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
         month='ANNUAL',
     ).exclude(invoice_number__startswith='ADM-').exclude(
         invoice_number__startswith='TRN-',
+    ).exclude(
+        invoice_number__startswith='FDP-',
+    ).exclude(
+        invoice_number__startswith='SPF-',
     ).exclude(
         status='CANCELLED',
     )
@@ -137,7 +141,22 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
         ratio = offered_total / actual_total if actual_total > 0 else 1
         
         # Generate Annual Academic Invoice
-        seq = FeeInvoice.objects.filter(branch=branch).count() + 1
+        prefix = f"INV-{ay.start_date.year}-"
+        invoices = FeeInvoice.objects.filter(
+            branch=branch,
+            invoice_number__startswith=prefix
+        ).values_list('invoice_number', flat=True)
+        
+        max_seq = 0
+        import re
+        for inv_num in invoices:
+            match = re.search(r'(\d+)$', inv_num)
+            if match:
+                seq = int(match.group(1))
+                if seq > max_seq:
+                    max_seq = seq
+        
+        seq = max_seq + 1
         invoice = FeeInvoice.objects.create(
             tenant=tenant,
             invoice_number=f"INV-{ay.start_date.year}-{seq:04d}",
