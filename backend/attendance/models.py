@@ -33,7 +33,7 @@ class AttendanceRecord(models.Model):
 class StaffAttendanceRecord(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='staff_attendance')
-    staff = models.ForeignKey('staff.TeacherProfile', on_delete=models.CASCADE, related_name='attendance_records')
+    staff = models.ForeignKey('staff.StaffProfile', on_delete=models.CASCADE, related_name='attendance_records')
     date = models.DateField()
     status = models.CharField(max_length=10, choices=ATTENDANCE_STATUS)
     marked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='marked_staff_attendance')

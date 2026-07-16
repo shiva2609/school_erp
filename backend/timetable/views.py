@@ -54,7 +54,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
         # Teachers should only see their assigned subjects if requested
         assigned_only = self.request.query_params.get('assigned_only')
         if assigned_only == 'true' and role == 'TEACHER':
-            qs = qs.filter(teacher_assignments__teacher__user=user)
+            qs = qs.filter(teacher_assignments__staff__user=user)
             cs = self.request.query_params.get('class_section_id')
             if cs and cs not in ('undefined', 'null', ''):
                 try:

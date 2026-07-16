@@ -173,7 +173,7 @@ const masterNavigation: NavCategory[] = [
         title: 'Staff Management',
         items: [
           { href: '/users', label: 'Global Staff', icon: Shield, allowedRoles: ['OWNER', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN'] },
-          { href: '/teachers', label: 'All Teachers', icon: Users, allowedRoles: ['SUPER_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
+          { href: '/staff', label: 'Staff Management', icon: Users, allowedRoles: ['SUPER_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
         ]
       },
       {

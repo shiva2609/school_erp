@@ -4,7 +4,7 @@ PLATFORM_OWNER_ROLES = {'OWNER'}
 TENANT_FULL_ACCESS_ROLES = {'SUPER_ADMIN'}
 TENANT_FINANCE_ROLES = {'CHIEF_ACCOUNTANT'}
 ZONE_SCOPED_ROLES = {'ZONAL_ADMIN'}
-BRANCH_SCOPED_ROLES = {'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT', 'TEACHER', 'STUDENT', 'PARENT'}
+BRANCH_SCOPED_ROLES = {'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT', 'TEACHER', 'STAFF', 'STUDENT', 'PARENT'}
 
 # Single source of truth for role hierarchy across the entire system.
 # Higher number = more privilege. Used by has_min_role() for permission checks.
@@ -17,6 +17,7 @@ ROLE_HIERARCHY = {
     'BRANCH_ADMIN': 65,
     'ACCOUNTANT': 60,
     'TEACHER': 40,
+    'STAFF': 30,
     'STUDENT': 20,
     'PARENT': 10,
 }
@@ -92,9 +93,29 @@ class IsAccountantOrAbove(permissions.BasePermission):
     def has_permission(self, request, view):
         return has_min_role(request.user, 'ACCOUNTANT')
 
+class IsStaffWriter(permissions.BasePermission):
+    """
+    Exact allowlist for staff create/edit/delete operations.
+    Business rule: ONLY Super Admin and Branch Accountant can mutate staff records.
+    Principals and Branch Admins are excluded despite having higher rank numbers.
+    """
+    ALLOWED = {'OWNER', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'ACCOUNTANT'}
+
+    def has_permission(self, request, view):
+        from accounts.permissions import normalize_role
+        return normalize_role(getattr(request.user, 'role', None)) in self.ALLOWED
+
 class IsTeacherOrAbove(permissions.BasePermission):
     def has_permission(self, request, view):
         return has_min_role(request.user, 'TEACHER')
+
+class IsPrincipalOrAbove(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return has_min_role(request.user, 'PRINCIPAL')
+
+class IsStaffOrAbove(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return has_min_role(request.user, 'STAFF')
 
 class IsParentOrAbove(permissions.BasePermission):
     def has_permission(self, request, view):

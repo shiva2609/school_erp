@@ -38,7 +38,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 class_section__branch=self.request.user.branch
             ).filter(
                 Q(class_section__class_teacher=self.request.user) |
-                Q(class_section__teacher_assignments__teacher__user=self.request.user, class_section__teacher_assignments__is_class_teacher=True)
+                Q(class_section__teacher_assignments__staff__user=self.request.user, class_section__teacher_assignments__is_class_teacher=True)
             ).distinct()
             
         return qs

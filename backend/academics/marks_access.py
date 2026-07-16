@@ -44,7 +44,7 @@ def can_enter_exam_marks(user, class_section, subject) -> bool:
     # often drifts after year setup fixes and would wrongly block legitimate teachers.
     tp = TeacherProfile.objects.filter(user=user).first()
     if tp and TeacherAssignment.objects.filter(
-        teacher=tp,
+        staff=tp,
         class_section=class_section,
         subject=subject,
     ).exists():

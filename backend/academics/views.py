@@ -30,7 +30,7 @@ def _collect_teaching_pairs(user):
     seen = set()
     tp = TeacherProfile.objects.filter(user=user).first()
     if tp:
-        qs = TeacherAssignment.objects.filter(teacher=tp).select_related(
+        qs = TeacherAssignment.objects.filter(staff=tp).select_related(
             'class_section', 'class_section__branch', 'subject'
         )
         for a in qs:

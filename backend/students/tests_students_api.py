@@ -34,7 +34,7 @@ class StudentAPIErrorTest(TestCase):
         )
         TeacherAssignment.objects.create(
             tenant=self.tenant,
-            teacher=self.teacher_profile,
+            staff=self.teacher_profile,
             class_section=self.class_section,
             academic_year=self.ay,
             subject=self.subject,

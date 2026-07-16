@@ -4,7 +4,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from academics.models import ExamResult, ExamTerm
+from academics.models import ExamResult, ExamTerm, ExamSubjectConfig
 from staff.models import TeacherProfile, TeacherAssignment
 from students.models import ClassSection, Student
 from tenants.models import Tenant, Branch, AcademicYear, Zone
@@ -42,6 +42,14 @@ class TeacherMarksApiTests(TestCase):
             start_date='2026-10-01',
             end_date='2026-10-15',
         )
+        self.exam_config = ExamSubjectConfig.objects.create(
+            tenant=self.tenant,
+            branch=self.branch,
+            exam_term=self.exam,
+            class_section=self.cs,
+            subject=self.subject,
+            max_marks=Decimal('50.00')
+        )
         self.teacher_user = User.objects.create_user(
             email='teacher@marks.edu',
             password='pass12345',
@@ -56,7 +64,7 @@ class TeacherMarksApiTests(TestCase):
         )
         TeacherAssignment.objects.create(
             tenant=self.tenant,
-            teacher=self.profile,
+            staff=self.profile,
             class_section=self.cs,
             subject=self.subject,
             academic_year=self.ay,

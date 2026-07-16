@@ -19,7 +19,7 @@ class HomeworkViewSet(viewsets.ModelViewSet):
             qs = qs.filter(class_section__branch=user.branch).filter(
                 models.Q(posted_by=user) |
                 models.Q(class_section__class_teacher=user) |
-                models.Q(class_section__teacher_assignments__teacher__user=user)
+                models.Q(class_section__teacher_assignments__staff__user=user)
             ).distinct()
         
         import uuid

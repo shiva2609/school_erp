@@ -144,7 +144,7 @@ class TeacherYearPromotionTests(TestCase):
         # Create teacher assignments for both active and inactive years
         self.ta_active = TeacherAssignment.objects.create(
             tenant=self.tenant,
-            teacher=self.teacher_profile,
+            staff=self.teacher_profile,
             class_section=self.cs_active,
             subject=self.subject,
             academic_year=self.ay_active,
@@ -152,7 +152,7 @@ class TeacherYearPromotionTests(TestCase):
         )
         self.ta_inactive = TeacherAssignment.objects.create(
             tenant=self.tenant,
-            teacher=self.teacher_profile,
+            staff=self.teacher_profile,
             class_section=self.cs_inactive,
             subject=self.subject,
             academic_year=self.ay_inactive,
