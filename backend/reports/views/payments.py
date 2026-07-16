@@ -81,13 +81,34 @@ class PaymentsReportViewSet(viewsets.ViewSet):
             cat_headers = [c.name.upper() for c in categories]
             cat_keys = [f'cat_{str(c.id).replace("-", "_")}' for c in categories]
             
+            def with_pct(val_str, net_str, is_net=False):
+                try:
+                    v = float(val_str or 0)
+                    n = float(net_str or 0)
+                    if is_net:
+                        return f"{v:.2f} (100%)"
+                    if n > 0:
+                        pct = (v / n) * 100
+                        pct_str = f"{pct:.1f}".replace('.0', '')
+                        return f"{v:.2f} ({pct_str}%)"
+                    return f"{v:.2f} (0%)"
+                except:
+                    return str(val_str)
+
             if report_type == 'class':
                 headers = ['CLASS', 'TOTAL STUDENTS'] + cat_headers + ['OLD DUES', 'CONCESSION', 'TOTAL AMOUNT', 'AMOUNT PAID', 'BALANCE']
                 data_rows = []
                 for r in serialized:
                     row = [r.get('class', ''), r.get('total_students', 0)]
                     row.extend([r.get(k, '0.00') for k in cat_keys])
-                    row.extend([r.get('old_dues', '0.00'), r.get('concession_amount', '0.00'), r.get('net_amount', '0.00'), r.get('paid_amount', '0.00'), r.get('outstanding_amount', '0.00')])
+                    net = r.get('net_amount', '0.00')
+                    row.extend([
+                        r.get('old_dues', '0.00'), 
+                        r.get('concession_amount', '0.00'), 
+                        with_pct(net, net, True), 
+                        with_pct(r.get('paid_amount', '0.00'), net), 
+                        with_pct(r.get('outstanding_amount', '0.00'), net)
+                    ])
                     data_rows.append(row)
             elif report_type == 'section':
                 headers = ['CLASS', 'SECTION', 'TOTAL STUDENTS'] + cat_headers + ['OLD DUES', 'CONCESSION', 'TOTAL AMOUNT', 'AMOUNT PAID', 'BALANCE']
@@ -95,7 +116,14 @@ class PaymentsReportViewSet(viewsets.ViewSet):
                 for r in serialized:
                     row = [r.get('class', ''), r.get('section', ''), r.get('total_students', 0)]
                     row.extend([r.get(k, '0.00') for k in cat_keys])
-                    row.extend([r.get('old_dues', '0.00'), r.get('concession_amount', '0.00'), r.get('net_amount', '0.00'), r.get('paid_amount', '0.00'), r.get('outstanding_amount', '0.00')])
+                    net = r.get('net_amount', '0.00')
+                    row.extend([
+                        r.get('old_dues', '0.00'), 
+                        r.get('concession_amount', '0.00'), 
+                        with_pct(net, net, True), 
+                        with_pct(r.get('paid_amount', '0.00'), net), 
+                        with_pct(r.get('outstanding_amount', '0.00'), net)
+                    ])
                     data_rows.append(row)
             else:
                 headers = ['ADMISSION NO.', 'STUDENT NAME', 'CLASS', 'SECTION', 'CATEGORY', 'PARENT NAME', 'PARENT MOBILE'] + cat_headers + ['OLD DUES', 'CONCESSION', 'TOTAL AMOUNT', 'AMOUNT PAID', 'BALANCE', 'STATUS', 'INACTIVE REASON']
@@ -103,7 +131,16 @@ class PaymentsReportViewSet(viewsets.ViewSet):
                 for r in serialized:
                     row = [r.get('admission_number', ''), r.get('student_name', ''), r.get('class', ''), r.get('section', ''), r.get('category', ''), r.get('parent_name', ''), r.get('parent_mobile', '')]
                     row.extend([r.get(k, '0.00') for k in cat_keys])
-                    row.extend([r.get('old_dues', '0.00'), r.get('concession_amount', '0.00'), r.get('net_amount', '0.00'), r.get('paid_amount', '0.00'), r.get('outstanding_amount', '0.00'), r.get('status', ''), r.get('inactive_reason', '')])
+                    net = r.get('net_amount', '0.00')
+                    row.extend([
+                        r.get('old_dues', '0.00'), 
+                        r.get('concession_amount', '0.00'), 
+                        with_pct(net, net, True), 
+                        with_pct(r.get('paid_amount', '0.00'), net), 
+                        with_pct(r.get('outstanding_amount', '0.00'), net), 
+                        r.get('status', ''), 
+                        r.get('inactive_reason', '')
+                    ])
                     data_rows.append(row)
 
             try:
