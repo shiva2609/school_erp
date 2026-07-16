@@ -1,3 +1,5 @@
+"use client";
+
 import MasterDataCRUD from '@/components/staff/MasterDataCRUD';
 
 export default function StaffQualificationsPage() {
