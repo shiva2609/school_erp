@@ -536,7 +536,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied("You can only assign students to branches within your school organization.")
                 
             # ENFORCE BRANCH ISOLATION
-            if role in ['PRINCIPAL', 'BRANCH_ADMIN'] and user.branch:
+            if role in ['PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT', 'TEACHER'] and user.branch:
                 branch = user.branch
 
         ay = serializer.validated_data.get('academic_year')
@@ -983,7 +983,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             raise ValidationError({'class_section_id': 'Selected class section does not exist.'})
 
         # Ensure same branch as the student, unless we are owner in multitenant
-        if new_class_section.branch_id != student.branch_id and role != 'OWNER':
+        if new_class_section.branch_id != student.branch_id and normalize_role(user.role) != 'OWNER':
             raise ValidationError({'class_section_id': 'New class section must belong to the same branch.'})
 
         # Try to parse offered_total
@@ -1047,7 +1047,8 @@ class StudentViewSet(viewsets.ModelViewSet):
         # Update student class
         old_class_name = student.class_section.display_name if student.class_section else 'None'
         student.class_section = new_class_section
-        student.save(update_fields=['class_section', 'updated_at'])
+        student.grade = new_class_section.grade
+        student.save(update_fields=['class_section', 'grade', 'updated_at'])
 
         # Call create_student_fees to recreate fees
         create_student_fees(student, offered_total_val, None, reason, user)
