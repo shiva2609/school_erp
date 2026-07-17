@@ -43,7 +43,10 @@ export default function VendorBillsPage() {
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   React.useEffect(() => {
-    const handleClickOutside = () => setOpenDropdownId(null);
+    const handleClickOutside = (e: MouseEvent) => {
+      if ((e.target as Element)?.closest('.actions-dropdown')) return;
+      setOpenDropdownId(null);
+    };
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
@@ -232,7 +235,7 @@ export default function VendorBillsPage() {
                         {statusStyle.label}
                       </span>
                     </td>
-                    <td className="p-4 pr-6 text-right relative">
+                    <td className="p-4 pr-6 text-right relative actions-dropdown">
                       <button 
                         onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === bill.id ? null : bill.id); }}
                         className="p-2 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
