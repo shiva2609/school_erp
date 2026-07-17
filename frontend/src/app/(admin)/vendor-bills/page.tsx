@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/axios';
 import { useResolvedPush } from '@/hooks/useResolvedNavigation';
-import { Plus, Search, FileText, Download, CheckCircle, Clock, XCircle, Check, X, Trash2, Printer } from 'lucide-react';
+import { Plus, Search, FileText, Download, CheckCircle, Clock, XCircle, Check, X, Trash2, Printer, MoreVertical } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useBranch } from '@/components/common/BranchContext';
 import Modal from '@/components/common/Modal';
@@ -40,6 +40,13 @@ export default function VendorBillsPage() {
   const branchParam = selectedBranch ? `branch_id=${selectedBranch}` : '';
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'GENERAL' | 'COMMUTE'>('GENERAL');
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = () => setOpenDropdownId(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
   
   const [rejectingBill, setRejectingBill] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -116,7 +123,7 @@ export default function VendorBillsPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 w-full space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-800">Vendor Bills</h1>
@@ -225,48 +232,58 @@ export default function VendorBillsPage() {
                         {statusStyle.label}
                       </span>
                     </td>
-                    <td className="p-4 pr-6 text-right space-x-2">
-                      {bill.status === 'SUBMITTED' && (
-                        <>
-                          {canUserApprove(bill.total_amount) && (
+                    <td className="p-4 pr-6 text-right relative">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === bill.id ? null : bill.id); }}
+                        className="p-2 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+                        title="Actions"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+
+                      {openDropdownId === bill.id && (
+                        <div 
+                          className="absolute right-6 top-12 w-48 bg-white border border-slate-200 shadow-xl rounded-xl py-1 z-[60] text-left overflow-hidden flex flex-col"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {bill.status === 'SUBMITTED' && canUserApprove(bill.total_amount) && (
                             <button 
-                              onClick={() => handleUpdateStatus(bill.id, 'APPROVED')}
-                              className="p-2 text-emerald-500 hover:text-white hover:bg-emerald-500 rounded-lg transition-colors"
-                              title="Approve Bill"
+                              onClick={() => { handleUpdateStatus(bill.id, 'APPROVED'); setOpenDropdownId(null); }}
+                              className="flex items-center gap-3 px-4 py-2.5 text-sm text-emerald-600 hover:bg-emerald-50 font-medium transition-colors w-full text-left"
                             >
-                              <Check size={16} />
+                              <Check size={16} /> Approve
                             </button>
                           )}
+                          {bill.status === 'SUBMITTED' && (
+                            <>
+                              <button 
+                                onClick={() => { setRejectingBill(bill.id); setOpenDropdownId(null); }}
+                                className="flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 hover:bg-amber-50 font-medium transition-colors w-full text-left"
+                              >
+                                <X size={16} /> Reject
+                              </button>
+                              <button 
+                                onClick={() => { handleDelete(bill.id, bill.bill_id); setOpenDropdownId(null); }}
+                                className="flex items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 font-medium transition-colors w-full text-left border-b border-slate-100"
+                              >
+                                <Trash2 size={16} /> Delete
+                              </button>
+                            </>
+                          )}
                           <button 
-                            onClick={() => setRejectingBill(bill.id)}
-                            className="p-2 text-amber-500 hover:text-white hover:bg-amber-500 rounded-lg transition-colors"
-                            title="Reject Bill"
+                            onClick={() => { printReceipt(bill.id); setOpenDropdownId(null); }}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 font-medium transition-colors w-full text-left"
                           >
-                            <X size={16} />
+                            <Printer size={16} className="text-indigo-500" /> Print Receipt
                           </button>
                           <button 
-                            onClick={() => handleDelete(bill.id, bill.bill_id)}
-                            className="p-2 text-rose-500 hover:text-white hover:bg-rose-500 rounded-lg transition-colors"
-                            title="Delete Bill"
+                            onClick={() => { downloadReceipt(bill.id); setOpenDropdownId(null); }}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 font-medium transition-colors w-full text-left"
                           >
-                            <Trash2 size={16} />
+                            <Download size={16} className="text-blue-500" /> Download PDF
                           </button>
-                        </>
+                        </div>
                       )}
-                      <button 
-                        onClick={() => printReceipt(bill.id)}
-                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        title="Print Receipt"
-                      >
-                        <Printer size={16} />
-                      </button>
-                      <button 
-                        onClick={() => downloadReceipt(bill.id)}
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Download Receipt PDF"
-                      >
-                        <Download size={16} />
-                      </button>
                     </td>
                   </tr>
                 );
