@@ -138,8 +138,8 @@ export default function VendorBillsPage() {
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-4 bg-slate-50/50">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm pb-24">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-4 bg-slate-50/50 rounded-t-2xl">
           <div className="flex bg-slate-200/50 p-1 rounded-xl w-fit">
             <button
               onClick={() => setActiveTab('GENERAL')}
@@ -166,7 +166,7 @@ export default function VendorBillsPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="w-full overflow-visible">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
@@ -192,7 +192,7 @@ export default function VendorBillsPage() {
                 const StatusIcon = statusStyle.icon;
                 
                 return (
-                  <tr key={bill.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={bill.id} className={`hover:bg-slate-50/50 transition-colors ${openDropdownId === bill.id ? 'relative z-50 shadow-[0_0_15px_rgba(0,0,0,0.05)] bg-slate-50' : ''}`}>
                     <td className="p-4 pl-6">
                       <p className="font-bold text-slate-700">{bill.vendor_display}</p>
                       <p className="text-xs text-slate-400 mt-0.5">{bill.bill_id}</p>
@@ -243,7 +243,7 @@ export default function VendorBillsPage() {
 
                       {openDropdownId === bill.id && (
                         <div 
-                          className="absolute right-6 top-12 w-48 bg-white border border-slate-200 shadow-xl rounded-xl py-1 z-[60] text-left overflow-hidden flex flex-col"
+                          className="absolute right-10 top-10 w-48 bg-white border border-slate-200 shadow-2xl rounded-xl py-1 z-[100] text-left overflow-hidden flex flex-col"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {bill.status === 'SUBMITTED' && canUserApprove(bill.total_amount) && (
