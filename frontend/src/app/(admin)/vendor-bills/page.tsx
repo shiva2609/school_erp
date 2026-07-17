@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/axios';
 import { useResolvedPush } from '@/hooks/useResolvedNavigation';
-import { Plus, Search, FileText, Download, CheckCircle, Clock, XCircle, Check, X, Trash2 } from 'lucide-react';
+import { Plus, Search, FileText, Download, CheckCircle, Clock, XCircle, Check, X, Trash2, Printer } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useBranch } from '@/components/common/BranchContext';
 import Modal from '@/components/common/Modal';
@@ -99,6 +99,19 @@ export default function VendorBillsPage() {
       link.remove();
     } catch (err) {
       toast.error('Failed to download receipt');
+    }
+  };
+
+  const printReceipt = async (billId: string) => {
+    try {
+      const response = await api.get(`/vendor-bills/${billId}/receipt/`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const printWindow = window.open(url, '_blank');
+      if (printWindow) {
+        printWindow.onload = () => { printWindow.print(); };
+      }
+    } catch (err) {
+      toast.error('Failed to print receipt');
     }
   };
 
@@ -240,6 +253,13 @@ export default function VendorBillsPage() {
                           </button>
                         </>
                       )}
+                      <button 
+                        onClick={() => printReceipt(bill.id)}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Print Receipt"
+                      >
+                        <Printer size={16} />
+                      </button>
                       <button 
                         onClick={() => downloadReceipt(bill.id)}
                         className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

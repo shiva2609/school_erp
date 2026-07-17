@@ -4,10 +4,11 @@ import React, { useState, useMemo } from 'react';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/axios';
 import { useResolvedPush } from '@/hooks/useResolvedNavigation';
-import { ArrowLeft, Save, Building2, User, Info, FileText, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Save, Building2, User, Info, FileText, CheckCircle2, Printer, Download } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useBranch } from '@/components/common/BranchContext';
 import { useConfirm } from '@/components/common/ConfirmProvider';
+import Modal from '@/components/common/Modal';
 
 export default function CreateVendorBillPage() {
   const { selectedBranch } = useBranch();
@@ -32,6 +33,7 @@ export default function CreateVendorBillPage() {
   const [applyTds, setApplyTds] = useState(false);
   const [tdsPercentage, setTdsPercentage] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [successBill, setSuccessBill] = useState<any>(null);
 
   const selectedVendor = useMemo(() => {
     return vendors.find(v => v.id === selectedVendorId) || null;
@@ -96,6 +98,19 @@ export default function CreateVendorBillPage() {
     }
   };
 
+  const printReceipt = async (billId: string) => {
+    try {
+      const response = await api.get(`/vendor-bills/${billId}/receipt/`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const printWindow = window.open(url, '_blank');
+      if (printWindow) {
+        printWindow.onload = () => { printWindow.print(); };
+      }
+    } catch (err) {
+      console.error('Failed to print receipt', err);
+    }
+  };
+
   const handleSave = async () => {
     if (!selectedVendorId) {
       toast.error('Please select a vendor.');
@@ -151,10 +166,8 @@ export default function CreateVendorBillPage() {
       const newBill = res.data;
       toast.success('Vendor Bill submitted for approval!');
       
-      // Auto download receipt
-      await downloadReceipt(newBill.id);
-      
-      push('/vendor-bills');
+      setSuccessBill(newBill);
+      setSaving(false);
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to save Vendor Bill.');
       setSaving(false);
@@ -162,7 +175,7 @@ export default function CreateVendorBillPage() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6 pb-32">
+    <div className="p-6 w-full space-y-6 pb-32">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button 
@@ -437,7 +450,7 @@ export default function CreateVendorBillPage() {
 
       {/* Floating Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-50">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <div className="w-full px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FileText size={24} className="text-blue-500" />
             <div>
@@ -463,6 +476,45 @@ export default function CreateVendorBillPage() {
           </button>
         </div>
       </div>
+
+      {/* Success Modal */}
+      <Modal isOpen={!!successBill} onClose={() => push('/vendor-bills')} title="Bill Created Successfully">
+        <div className="p-6 space-y-6 text-center">
+          <div className="mx-auto w-16 h-16 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mb-4">
+            <CheckCircle2 size={32} />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-slate-800">Vendor Bill Saved</h3>
+            <p className="text-sm text-slate-500 mt-2">
+              Bill <span className="font-bold text-slate-700">{successBill?.bill_id}</span> has been generated and sent for approval.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
+            <button 
+              onClick={() => printReceipt(successBill.id)}
+              className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all text-slate-700 font-bold"
+            >
+              <Printer size={24} className="text-indigo-500" />
+              <span>Print Receipt</span>
+            </button>
+            <button 
+              onClick={() => downloadReceipt(successBill.id)}
+              className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all text-slate-700 font-bold"
+            >
+              <Download size={24} className="text-blue-500" />
+              <span>Download PDF</span>
+            </button>
+          </div>
+          
+          <button 
+            onClick={() => push('/vendor-bills')}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-sm"
+          >
+            Done
+          </button>
+        </div>
+      </Modal>
 
     </div>
   );
