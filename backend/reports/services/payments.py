@@ -24,7 +24,7 @@ class PaymentsService:
     @staticmethod
     def get_grouped_fee_balances(filters, report_type='student', fee_category_ids=None,
                                  min_amount=None, max_amount=None, by_percentage=False,
-                                 status_filter=None):
+                                 status_filter=None, student_status='ACTIVE'):
         """
         Returns aggregated fee balance data grouped by class / section / student.
 
@@ -32,7 +32,8 @@ class PaymentsService:
         fee_category_ids: list of FeeCategory ids whose sums should be broken out as columns
         min_amount / max_amount: filter on paid_amount (absolute ₹ or % of net_amount)
         by_percentage: if True, min/max are % of net_amount; else absolute ₹
-        status_filter: 'ALL' | 'PAID' | 'PARTIALLY_PAID' | 'OVERDUE' etc.
+        status_filter: 'ALL' | 'PAID' | 'PARTIALLY_PAID' | 'OVERDUE' etc. (fee invoice status)
+        student_status: 'ALL' | 'ACTIVE' | 'INACTIVE'  (student record status)
         """
         from fees.models import FeeCategory, FeeInvoiceItem
         from students.models import Student as StudentModel
@@ -49,6 +50,9 @@ class PaymentsService:
                 qs = qs.filter(student__class_section_id=filters.section_id)
             if status_filter and status_filter != 'ALL':
                 qs = qs.filter(status=status_filter)
+            # Apply student status filter
+            if student_status and student_status != 'ALL':
+                qs = qs.filter(student__status=student_status)
 
             # Exclude non-academic invoices per user requirement
             qs = qs.exclude(
@@ -204,6 +208,9 @@ class PaymentsService:
                 qs = qs.filter(student__class_section_id=filters.section_id)
             if status_filter and status_filter != 'ALL':
                 qs = qs.filter(status=status_filter)
+            # Apply student status filter
+            if student_status and student_status != 'ALL':
+                qs = qs.filter(student__status=student_status)
 
             # Exclude non-academic invoices per user requirement
             qs = qs.exclude(

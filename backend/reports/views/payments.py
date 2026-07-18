@@ -39,6 +39,7 @@ class PaymentsReportViewSet(viewsets.ViewSet):
         max_amount_str = request.query_params.get('max_amount', '')
         by_percentage = request.query_params.get('by_percentage', 'false').lower() == 'true'
         status_filter = request.query_params.get('status_filter', 'ALL').upper()
+        student_status = request.query_params.get('student_status', 'ACTIVE').upper()
 
         min_amount = float(min_amount_str) if min_amount_str else None
         max_amount = float(max_amount_str) if max_amount_str else None
@@ -51,6 +52,7 @@ class PaymentsReportViewSet(viewsets.ViewSet):
             max_amount=max_amount,
             by_percentage=by_percentage,
             status_filter=status_filter,
+            student_status=student_status,
         )
 
         # ── Build summary ──────────────────────────────────────────────────────

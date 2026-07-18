@@ -880,6 +880,8 @@ class StudentViewSet(viewsets.ModelViewSet):
         reason = (request.data.get('reason') or '').strip() or 'Promoted class — confirmed academic fee'
         try:
             create_student_fees(student, offered_total, standard_total, reason, request.user)
+            student.needs_fee_setup = False
+            student.save(update_fields=['needs_fee_setup'])
         except ValidationError as exc:
             # Re-raise with a flattened string detail so frontend always gets {'detail': 'string'}
             detail = exc.detail
@@ -1157,6 +1159,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             # Update mutable fields (backward compat)
             student.academic_year = target_ay
             student.class_section = target_cs
+            student.needs_fee_setup = True
             student.save()
             promoted_count += 1
 

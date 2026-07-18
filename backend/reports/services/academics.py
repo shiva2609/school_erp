@@ -135,11 +135,83 @@ class AcademicsService:
 
     @staticmethod
     def get_student_strength(filters):
-        qs = Student.objects.filter(status='ACTIVE')
+        """
+        Returns student strength grouped by class & section.
+        - group_by=gender   → columns: male, female, other, total
+        - group_by=category → columns: general, bc, obc, sc, st, other, total
+
+        Extra filters accepted:
+          - status: ACTIVE | INACTIVE | ALL  (default: ACTIVE)
+          - class_id: grade string
+          - section_id: UUID of class section
+        """
+        group_by = getattr(filters, 'group_by', 'gender') or 'gender'
+        status_filter = getattr(filters, 'status', 'ACTIVE') or 'ACTIVE'
+
+        qs = Student.objects.all()
         qs = BaseReportService.apply_branch_scope(qs, filters)
         qs = BaseReportService.apply_academic_year(qs, filters.academic_year_id)
-        
-        return qs.values('gender', 'caste_category').annotate(count=Count('id')).order_by('gender', 'caste_category')
+
+        if status_filter == 'ALL':
+            pass
+        elif status_filter == 'INACTIVE':
+            qs = qs.filter(status='INACTIVE')
+        else:
+            qs = qs.filter(status='ACTIVE')
+
+        # Optional class/section filters
+        if getattr(filters, 'class_id', None):
+            qs = qs.filter(grade=filters.class_id)
+        if getattr(filters, 'section_id', None):
+            qs = qs.filter(class_section_id=filters.section_id)
+
+        qs = qs.select_related('class_section')
+
+        from collections import defaultdict
+
+        rows_by_section = defaultdict(lambda: defaultdict(int))
+        for s in qs.values('grade', 'class_section_id', 'class_section__section', 'gender', 'caste_category'):
+            grade = s['grade'] or ''
+            section = s['class_section__section'] or 'A'
+            key = (grade, section, str(s['class_section_id'] or ''))
+
+            if group_by == 'gender':
+                g = (s['gender'] or 'OTHER').upper()
+                rows_by_section[key][g] += 1
+                rows_by_section[key]['total'] += 1
+            else:
+                cat_raw = (s['caste_category'] or 'GENERAL').upper()
+                # Normalise category values
+                if cat_raw in ('', 'GENERAL', 'GEN'):
+                    cat = 'GENERAL'
+                else:
+                    cat = cat_raw
+                rows_by_section[key][cat] += 1
+                rows_by_section[key]['total'] += 1
+
+        results = []
+        for (grade, section, _section_id), counts in sorted(rows_by_section.items()):
+            row = {
+                'class': grade,
+                'section': section,
+            }
+            if group_by == 'gender':
+                row['male'] = counts.get('MALE', 0)
+                row['female'] = counts.get('FEMALE', 0)
+                row['other'] = counts.get('OTHER', 0)
+            else:
+                row['general'] = counts.get('GENERAL', 0)
+                row['bc'] = counts.get('BC', 0)
+                row['obc'] = counts.get('OBC', 0)
+                row['sc'] = counts.get('SC', 0)
+                row['st'] = counts.get('ST', 0)
+                row['oc'] = counts.get('OC', 0)
+                row['other'] = counts.get('OTHER', 0)
+            row['total'] = counts.get('total', 0)
+            results.append(row)
+
+        return results
+
 
     @staticmethod
     def get_year_transition_summary(filters):

@@ -23,6 +23,8 @@ interface ReportFiltersProps {
   showAdmissionPaymentFilter?: boolean;
   showFixedDepositPaymentFilter?: boolean;
   showSpecialFeePaymentFilter?: boolean;
+  showGroupBy?: boolean;
+  groupByOptions?: { value: string; label: string }[];
   customButtonLabel?: string;
   onCustomSubmit?: (filters: any) => void;
 }
@@ -44,6 +46,8 @@ export default function ReportFilters({
   showAdmissionPaymentFilter = false,
   showFixedDepositPaymentFilter = false,
   showSpecialFeePaymentFilter = false,
+  showGroupBy = false,
+  groupByOptions = [],
   customButtonLabel,
   onCustomSubmit,
 }: ReportFiltersProps) {
@@ -68,6 +72,7 @@ export default function ReportFilters({
     admission_payment: '',
     fixed_deposit_payment: '',
     special_fee_payment: '',
+    group_by: groupByOptions.length > 0 ? groupByOptions[0].value : '',
   });
 
   const [branches, setBranches] = useState<any[]>([]);
@@ -316,6 +321,21 @@ export default function ReportFilters({
                 onChange={(e) => handleChange('endDate', e.target.value)}
               />
             </div>
+          </div>
+        )}
+
+        {showGroupBy && (
+          <div className="flex flex-col gap-1.5 min-w-[150px]">
+            <label className="text-xs font-semibold text-slate-500 uppercase">Group By</label>
+            <select
+              className={selectClass}
+              value={filters.group_by}
+              onChange={(e) => handleChange('group_by', e.target.value)}
+            >
+              {groupByOptions.map(g => (
+                <option key={g.value} value={g.value}>{g.label}</option>
+              ))}
+            </select>
           </div>
         )}
 

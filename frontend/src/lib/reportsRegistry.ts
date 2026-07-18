@@ -24,6 +24,8 @@ export type ReportConfig = {
     showAdmissionPaymentFilter?: boolean;
     showFixedDepositPaymentFilter?: boolean;
     showSpecialFeePaymentFilter?: boolean;
+    showGroupBy?: boolean;
+    groupByOptions?: { value: string; label: string }[];
   };
   /** Offer “Download PDF” (uses tenant document template + `?file=pdf`). */
   offerPdfDownload?: boolean;
@@ -174,15 +176,34 @@ export const reportsRegistry: ReportCategory[] = [
         id: 'strength',
         categoryId: 'academics',
         title: 'Student Strength',
-        description: 'Counts of active students by gender and category',
+        description: 'Class & section wise student headcount, broken down by gender or caste category.',
         apiEndpoint: 'reports/academics/student-strength/',
         exportKey: 'ACADEMICS_STRENGTH',
-        filters: { showDateRange: false, showClassSection: true, showAcademicYear: true },
-        // Backend returns: .values('gender', 'caste_category').annotate(count=Count('id'))
+        filters: {
+          showDateRange: false,
+          showClassSection: true,
+          showAcademicYear: true,
+          showStatus: true,
+          statusOptions: [
+            { value: 'ACTIVE', label: 'Active' },
+            { value: 'INACTIVE', label: 'Inactive' },
+            { value: 'ALL', label: 'All' },
+          ],
+          showGroupBy: true,
+          groupByOptions: [
+            { value: 'gender', label: 'Gender' },
+            { value: 'category', label: 'Caste Category' },
+          ],
+        },
+        // Columns are dynamically resolved at runtime in the page based on group_by.
+        // We keep a minimal fallback set here; ReportTable renders only what it finds.
         columns: [
-          { key: 'gender', label: 'Gender' },
-          { key: 'caste_category', label: 'Category', render: (_v: any, row: any) => row.caste_category || 'General' },
-          { key: 'count', label: 'Count' }
+          { key: 'class', label: 'Class' },
+          { key: 'section', label: 'Section' },
+          { key: 'male', label: 'Male' },
+          { key: 'female', label: 'Female' },
+          { key: 'other', label: 'Other' },
+          { key: 'total', label: 'Total' },
         ]
       },
       {

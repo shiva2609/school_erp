@@ -21,6 +21,9 @@ def student_needs_promoted_year_fee_setup(student) -> bool:
     if not student.academic_year_id or not student.class_section_id:
         return False
         
+    if getattr(student, 'needs_fee_setup', False):
+        return True
+        
     promoted = StudentAcademicRecord.objects.filter(
         student=student,
         academic_year_id=student.academic_year_id,
@@ -120,19 +123,14 @@ def create_student_fees(student, offered_total, standard_total_input, reason, re
     old_manual_invoice = None
     if existing_invoices.exists():
         old_invoice = existing_invoices.first()
-        if old_invoice.generated_by == 'MANUAL':
-            if old_invoice.paid_amount > 0 and offered_total < old_invoice.paid_amount:
-                raise ValidationError(f"Cannot set fee to ₹{offered_total} because ₹{old_invoice.paid_amount} has already been paid against the existing imported invoice. Please enter a total equal to or higher than the paid amount.")
-            
-            old_manual_invoice = old_invoice
-            # Remove old StudentFeeItems tied to this invoice's categories
-            from fees.models import StudentFeeItem
-            old_categories = old_invoice.items.values_list('category', flat=True)
-            StudentFeeItem.objects.filter(student=student, academic_year=ay, category__in=old_categories).delete()
-        else:
-            raise ValidationError(
-                'Academic fee for this academic year is already set for this student.'
-            )
+        if old_invoice.paid_amount > 0 and offered_total < old_invoice.paid_amount:
+            raise ValidationError(f"Cannot set fee to ₹{offered_total} because ₹{old_invoice.paid_amount} has already been paid against the existing invoice. Please enter a total equal to or higher than the paid amount.")
+        
+        old_manual_invoice = old_invoice
+        # Remove old StudentFeeItems tied to this invoice's categories
+        from fees.models import StudentFeeItem
+        old_categories = old_invoice.items.values_list('category', flat=True)
+        StudentFeeItem.objects.filter(student=student, academic_year=ay, category__in=old_categories).delete()
 
     # 2. Create Locked Fee Items if a structure exists
     if structure:

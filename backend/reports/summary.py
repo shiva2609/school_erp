@@ -106,7 +106,8 @@ def mismatch_totals(rows):
 
 
 def strength_total_students(rows):
-    return {'total_students': str(sum(int(r.get('count') or 0) for r in rows))}
+    total = sum(int(r.get('total') or r.get('count') or 0) for r in rows)
+    return {'total_students': str(total)}
 
 
 def applicant_count_rollups(rows):

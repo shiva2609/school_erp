@@ -94,9 +94,19 @@ class AcademicsReportViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'], url_path='student-strength')
     def student_strength(self, request):
         filters = BaseReportFilter(request, request.user)
+        # Expose group_by and group-by alias from query params
+        filters.group_by = (request.query_params.get('group_by') or 'gender').lower()
+        # status already set by BaseReportFilter; keep as-is (default ACTIVE handled in service)
         data = list(AcademicsService.get_student_strength(filters))
         summary = strength_total_students(data)
-        return ReportPagination().get_unpaginated_response(data, summary=summary)
+
+        # Compute column totals for footer row
+        numeric_keys = [k for k in (data[0].keys() if data else []) if k not in ('class', 'section')]
+        footer_totals = {k: str(sum(int(row.get(k) or 0) for row in data)) for k in numeric_keys}
+        footer_totals['class'] = 'Total'
+        footer_totals['section'] = ''
+
+        return ReportPagination().get_unpaginated_response(data, summary=summary, footer_totals=footer_totals)
 
     @action(detail=False, methods=['get'], url_path='year-transition-summary')
     def year_transition_summary(self, request):

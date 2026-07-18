@@ -300,6 +300,7 @@ class Student(models.Model):
     enrollment_date = models.DateField(auto_now_add=True)
     leaving_date = models.DateField(null=True, blank=True)
     leaving_reason = models.TextField(blank=True, null=True)
+    needs_fee_setup = models.BooleanField(default=False)
     admission_fee_marked_paid_earlier = models.BooleanField(default=False)
     fixed_deposit_marked_paid_earlier = models.BooleanField(default=False)
     admission_fee_marked_paid_at = models.DateTimeField(null=True, blank=True)

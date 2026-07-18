@@ -506,6 +506,7 @@ def execute_promotion(tenant, source_year, target_year, branch, user, overrides=
             student = record.student
             student.academic_year = target_year
             student.class_section = target_cs
+            student.needs_fee_setup = True
             student.save()
 
             promoted += 1

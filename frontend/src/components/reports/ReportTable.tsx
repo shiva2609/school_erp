@@ -89,14 +89,19 @@ export default function ReportTable({ columns, data, loading, pagination, onPage
                 {columns.map((col, idx) => {
                   const raw = footerTotals![col.key];
                   const hasVal = raw !== undefined && raw !== null && String(raw).trim() !== '';
+                  // If backend provided a label for this cell (even non-numeric), use it as-is.
+                  // Fall back to 'Total' for the first column only when not provided.
+                  const isLabelCell = hasVal && isNaN(Number(raw));
                   const cell =
-                    idx === 0
-                      ? 'Total'
-                      : hasVal
-                        ? col.render
-                          ? col.render(footerRow[col.key] as never, footerRow as never)
-                          : raw
-                        : '—';
+                    isLabelCell
+                      ? raw
+                      : idx === 0
+                        ? 'Total'
+                        : hasVal
+                          ? col.render
+                            ? col.render(footerRow![col.key] as never, footerRow as never)
+                            : raw
+                          : '—';
                   return (
                     <td key={col.key} className="px-6 py-4 font-semibold whitespace-nowrap">
                       {cell}

@@ -129,6 +129,7 @@ export default function FeeBalancesReportPage() {
   const [classId, setClassId] = useState('');
   const [sectionId, setSectionId] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [studentStatus, setStudentStatus] = useState('ACTIVE');
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
@@ -264,6 +265,7 @@ export default function FeeBalancesReportPage() {
     ...(classId ? { class_id: classId } : {}),
     ...(sectionId ? { section_id: sectionId } : {}),
     ...(statusFilter !== 'ALL' ? { status_filter: statusFilter } : {}),
+    ...(studentStatus !== 'ALL' ? { student_status: studentStatus } : {}),
     ...(minAmount ? { min_amount: minAmount } : {}),
     ...(maxAmount ? { max_amount: maxAmount } : {}),
     ...(byPercentage ? { by_percentage: 'true' } : {}),
@@ -281,6 +283,7 @@ export default function FeeBalancesReportPage() {
     setClassId('');
     setSectionId('');
     setStatusFilter('ALL');
+    setStudentStatus('ACTIVE');
     setSelectedCategoryIds(feeCategories.map(c => c.id));
     setMinAmount('');
     setMaxAmount('');
@@ -394,13 +397,21 @@ export default function FeeBalancesReportPage() {
             </div>
           )}
           <div className="flex flex-col gap-1.5 min-w-[150px]">
-            <label className="text-xs font-semibold text-slate-500 uppercase">Status</label>
+            <label className="text-xs font-semibold text-slate-500 uppercase">Fee Status</label>
             <select className={sc} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
               <option value="ALL">All</option>
               <option value="PAID">Paid</option>
               <option value="PARTIALLY_PAID">Partially Paid</option>
               <option value="OVERDUE">Overdue</option>
               <option value="SENT">Sent (Unpaid)</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5 min-w-[160px]">
+            <label className="text-xs font-semibold text-slate-500 uppercase">Student Status</label>
+            <select className={sc} value={studentStatus} onChange={e => setStudentStatus(e.target.value)}>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+              <option value="ALL">All</option>
             </select>
           </div>
         </div>

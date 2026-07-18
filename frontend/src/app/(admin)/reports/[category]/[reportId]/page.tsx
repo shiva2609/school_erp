@@ -57,6 +57,7 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
   const [summary, setSummary] = useState<Record<string, string> | null>(null);
   const [footerTotals, setFooterTotals] = useState<Record<string, string> | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [appliedGroupBy, setAppliedGroupBy] = useState<string>('gender');
   const summaryCards = getSummaryCardsForExportKey(config.exportKey);
 
   const fetchReport = useCallback(async (page = 1, overrideFilters?: any) => {
@@ -158,6 +159,7 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
 
   const handleFilterSubmit = useCallback((newFilters: any) => {
     setFilters(newFilters);
+    if (newFilters.group_by) setAppliedGroupBy(newFilters.group_by);
     fetchReport(1, newFilters);
   }, [fetchReport]);
 
@@ -205,6 +207,37 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
   }, [config.apiEndpoint, config.filters?.showExam, filters]);
 
   const categoryTitle = reportsRegistry.find(c => c.id === category)?.title || category;
+
+  // For the student strength report, resolve columns dynamically based on the applied group_by
+  const resolvedColumns = config.id === 'strength'
+    ? (() => {
+        const base = [
+          { key: 'class', label: 'CLASS' },
+          { key: 'section', label: 'SECTION' },
+        ];
+        if (appliedGroupBy === 'category') {
+          return [
+            ...base,
+            { key: 'general', label: 'GENERAL' },
+            { key: 'bc', label: 'BC' },
+            { key: 'obc', label: 'OBC' },
+            { key: 'oc', label: 'OC' },
+            { key: 'sc', label: 'SC' },
+            { key: 'st', label: 'ST' },
+            { key: 'other', label: 'OTHER' },
+            { key: 'total', label: 'TOTAL' },
+          ];
+        }
+        // default: gender
+        return [
+          ...base,
+          { key: 'male', label: 'MALE' },
+          { key: 'female', label: 'FEMALE' },
+          { key: 'other', label: 'OTHER' },
+          { key: 'total', label: 'TOTAL' },
+        ];
+      })()
+    : config.columns;
 
   return (
     <div className="space-y-6">
@@ -318,7 +351,7 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
           </div>
         ) : (
           <ReportTable 
-            columns={config.columns} 
+            columns={resolvedColumns} 
             data={data} 
             loading={fetchStatus.state === 'loading'}
             footerTotals={footerTotals}
