@@ -567,7 +567,10 @@ function FeeBalanceTable({ columns, data, loading, footerTotals, pagination, onP
       const cls = statusColors[v] || 'bg-slate-100 text-slate-600';
       return <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}>{(v || '').replace(/_/g, ' ')}</span>;
     }
-    if (col.key === 'inactive_reason') return v ? <span className="text-xs text-slate-500 italic">{v}</span> : <span className="text-slate-300">—</span>;
+    if (col.key === 'inactive_reason') {
+      const isActive = row.student_status === 'ACTIVE';
+      return (!isActive && v) ? <span className="text-xs text-slate-500 italic">{v}</span> : <span className="text-slate-300">—</span>;
+    }
     return v || '—';
   };
 

@@ -800,6 +800,10 @@ class StudentViewSet(viewsets.ModelViewSet):
                 if new_status in ('TRANSFERRED', 'INACTIVE', 'DROPOUT'):
                     student.leaving_date = request.data.get('leaving_date', timezone.now().date())
                     student.leaving_reason = request.data.get('leaving_reason', '')
+                elif new_status == 'ACTIVE':
+                    # Clear leaving info when re-activating a student
+                    student.leaving_date = None
+                    student.leaving_reason = None
                 student.save()
         return Response({'success': True, 'data': StudentSerializer(student).data})
 
