@@ -1,33 +1,34 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/axios';
 import { useApi } from '@/lib/hooks';
 import InlineCreateDropdown from '@/components/common/InlineCreateDropdown';
 import { useBranch } from '@/components/common/BranchContext';
 import { toast } from 'react-hot-toast';
-import { 
-  User, Briefcase, KeyRound, HeartPulse, 
-  Landmark, Phone, Save, X, Loader2, ArrowLeft,
-  CheckCircle2, ShieldCheck, Mail, Building2,
-  GraduationCap
+import {
+  User, Briefcase, HeartPulse,
+  Landmark, Phone, Save, Loader2, ArrowLeft,
+  Mail
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function StaffCreatePage() {
+export default function StaffEditPage() {
+  const { id } = useParams() as { id: string };
   const router = useRouter();
   const { selectedBranch } = useBranch();
-  
-  // Master data
+
+  const { data: staff, loading: staffLoading } = useApi<any>(`staff/${id}/`);
   const { data: categories, refetch: refetchCategories } = useApi<any[]>('staff-categories/');
   const { data: departments, refetch: refetchDepartments } = useApi<any[]>('staff-departments/');
   const { data: designations, refetch: refetchDesignations } = useApi<any[]>('staff-designations/');
   const { data: qualifications, refetch: refetchQualifications } = useApi<any[]>('staff-qualifications/');
   const { data: specializations, refetch: refetchSpecializations } = useApi<any[]>('staff-specializations/');
-  
+
   const [loading, setLoading] = useState(false);
+  const [populated, setPopulated] = useState(false);
   const [formData, setFormData] = useState({
     // 1. Profile
     first_name: '',
@@ -36,34 +37,28 @@ export default function StaffCreatePage() {
     date_of_birth: '',
     qualification: '',
     specialization: '',
-    
+
     // 2. Work
     category: '',
     department: '',
     designation: '',
-    joining_date: new Date().toISOString().split('T')[0],
+    joining_date: '',
     employment_type: 'REGULAR',
-    
-    // 3. Login
-    requires_portal_access: false,
-    email: '',
-    password: '',
-    role: 'STAFF', // Usually determined by backend, but we can send if needed
-    
+
     // 4. Personal
     blood_group: '',
     marital_status: 'SINGLE',
     father_name: '',
     mother_name: '',
     spouse_name: '',
-    
+
     // 5. Govt
     pan_number: '',
     aadhaar_number: '',
     pf_number: '',
     esi_number: '',
     uan_number: '',
-    
+
     // 6. Contact
     mobile: '',
     alternate_mobile: '',
@@ -78,9 +73,48 @@ export default function StaffCreatePage() {
   });
 
   const [extraCatData, setExtraCatData] = useState({ is_teaching_role: false });
-
-  // Update branch when it changes
   const branchId = selectedBranch || '';
+
+  // Populate form when staff data loads
+  useEffect(() => {
+    if (staff && !populated) {
+      const ud = staff.user_details;
+      setFormData({
+        first_name: ud?.first_name || '',
+        last_name: ud?.last_name || '',
+        gender: staff.gender || 'MALE',
+        date_of_birth: staff.date_of_birth || '',
+        qualification: staff.qualification || '',
+        specialization: staff.specialization || '',
+        category: staff.category || '',
+        department: staff.department || '',
+        designation: staff.designation || '',
+        joining_date: staff.joining_date || '',
+        employment_type: staff.employment_type || 'REGULAR',
+        blood_group: staff.blood_group || '',
+        marital_status: staff.marital_status || 'SINGLE',
+        father_name: staff.father_name || '',
+        mother_name: staff.mother_name || '',
+        spouse_name: staff.spouse_name || '',
+        pan_number: staff.pan_number || '',
+        aadhaar_number: staff.aadhaar_number || '',
+        pf_number: staff.pf_number || '',
+        esi_number: staff.esi_number || '',
+        uan_number: staff.uan_number || '',
+        mobile: staff.mobile || '',
+        alternate_mobile: staff.alternate_mobile || '',
+        personal_email: staff.personal_email || '',
+        emergency_contact_name: staff.emergency_contact_name || '',
+        emergency_contact_number: staff.emergency_contact_number || '',
+        current_address: staff.current_address || '',
+        permanent_address: staff.permanent_address || '',
+        city: staff.city || '',
+        state: staff.state || '',
+        pincode: staff.pincode || ''
+      });
+      setPopulated(true);
+    }
+  }, [staff, populated]);
 
   const setField = (field: string) => (e: any) => {
     setFormData(prev => ({ ...prev, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
@@ -100,27 +134,22 @@ export default function StaffCreatePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.requires_portal_access && !formData.email) {
-      toast.error("Email is required for portal access");
-      return;
-    }
     setLoading(true);
-    
     try {
-      // Backend expects branch in the payload
-      const payload = { ...formData, branch: branchId };
-      // Remove empty strings for nullable fields
+      const payload: any = { ...formData };
+      // Remove empty strings for nullable fields (but keep required ones)
+      const keepEmpty = ['mobile', 'personal_email', 'current_address', 'permanent_address', 'city', 'state', 'pincode'];
       Object.keys(payload).forEach(key => {
-        if (payload[key as keyof typeof payload] === '') {
-          delete payload[key as keyof typeof payload];
+        if (payload[key] === '' && !keepEmpty.includes(key)) {
+          delete payload[key];
         }
       });
-      
-      const res = await api.post('staff/', payload);
-      toast.success("Staff profile created successfully!");
-      router.push(`/staff/${res.data.id}`);
+
+      await api.patch(`staff/${id}/`, payload);
+      toast.success("Staff profile updated successfully!");
+      router.push(`/staff/${id}`);
     } catch (err: any) {
-      let errorMsg = "Error creating staff profile";
+      let errorMsg = "Error updating staff profile";
       if (err.response?.data) {
         if (typeof err.response.data === 'object') {
           errorMsg = Object.entries(err.response.data)
@@ -139,7 +168,6 @@ export default function StaffCreatePage() {
   const sections = [
     { id: 'profile', icon: User, title: 'Basic Profile', desc: 'Name, DOB & qualifications' },
     { id: 'work', icon: Briefcase, title: 'Work Details', desc: 'Department, Role & Dates' },
-    { id: 'login', icon: KeyRound, title: 'Portal Access', desc: 'System login & permissions' },
     { id: 'personal', icon: HeartPulse, title: 'Personal Info', desc: 'Family & health' },
     { id: 'govt', icon: Landmark, title: 'Govt. IDs', desc: 'PAN, Aadhaar, PF' },
     { id: 'contact', icon: Phone, title: 'Contact & Address', desc: 'Mobile, emergency & location' },
@@ -147,16 +175,29 @@ export default function StaffCreatePage() {
 
   const [activeSection, setActiveSection] = useState('profile');
 
+  if (staffLoading || !populated) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 space-y-4">
+        <Loader2 className="animate-spin text-blue-600" size={32} />
+        <p className="text-slate-500 font-medium text-sm">Loading staff profile...</p>
+      </div>
+    );
+  }
+
+  const staffName = staff?.user_details
+    ? `${staff.user_details.first_name} ${staff.user_details.last_name}`.trim()
+    : staff?.employee_id || '';
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/staff" className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+          <Link href={`/staff/${id}`} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
             <ArrowLeft size={18} className="text-slate-600" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Add New Staff Member</h1>
-            <p className="text-sm text-slate-500 mt-1">Create a comprehensive employee record</p>
+            <h1 className="text-2xl font-bold text-slate-900">Edit Profile</h1>
+            <p className="text-sm text-slate-500 mt-1">{staffName} · {staff?.employee_id}</p>
           </div>
         </div>
         <button
@@ -165,7 +206,7 @@ export default function StaffCreatePage() {
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold shadow-md shadow-blue-200 hover:shadow-lg transition-all active:scale-95 disabled:opacity-50"
         >
           {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-          Save Profile
+          Save Changes
         </button>
       </div>
 
@@ -177,8 +218,8 @@ export default function StaffCreatePage() {
               key={s.id}
               onClick={() => setActiveSection(s.id)}
               className={`w-full flex items-start gap-3 p-4 rounded-2xl border text-left transition-all ${
-                activeSection === s.id 
-                  ? 'bg-blue-50 border-blue-200 shadow-sm' 
+                activeSection === s.id
+                  ? 'bg-blue-50 border-blue-200 shadow-sm'
                   : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200'
               }`}
             >
@@ -196,7 +237,7 @@ export default function StaffCreatePage() {
         {/* Form Content */}
         <div className="col-span-12 md:col-span-9 bg-white border border-slate-100 shadow-sm rounded-3xl p-8">
           <form onSubmit={handleSubmit} className="space-y-8">
-            
+
             {/* 1. Basic Profile */}
             <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='profile'?1:0, height:activeSection==='profile'?'auto':0, overflow:'hidden', y:activeSection==='profile'?0:10}}>
               <div className="space-y-6">
@@ -204,7 +245,7 @@ export default function StaffCreatePage() {
                   <User className="text-blue-600" />
                   <h3 className="text-lg font-black text-slate-800">Basic Profile</h3>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-5">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">First Name <span className="text-red-500">*</span></label>
@@ -214,7 +255,7 @@ export default function StaffCreatePage() {
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Last Name <span className="text-red-500">*</span></label>
                     <input required value={formData.last_name} onChange={setField('last_name')} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
                   </div>
-                  
+
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Gender <span className="text-red-500">*</span></label>
                     <select value={formData.gender} onChange={setField('gender')} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all appearance-none">
@@ -259,7 +300,7 @@ export default function StaffCreatePage() {
                   <Briefcase className="text-blue-600" />
                   <h3 className="text-lg font-black text-slate-800">Work Details</h3>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-5">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Category <span className="text-red-500">*</span></label>
@@ -319,56 +360,7 @@ export default function StaffCreatePage() {
               </div>
             </motion.div>
 
-            {/* 3. Portal Access */}
-            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='login'?1:0, height:activeSection==='login'?'auto':0, overflow:'hidden', y:activeSection==='login'?0:10}}>
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
-                  <KeyRound className="text-blue-600" />
-                  <h3 className="text-lg font-black text-slate-800">System Portal Access</h3>
-                </div>
-
-                <div className="p-6 bg-slate-50 border border-slate-100 rounded-2xl shadow-sm">
-                  <label className="flex items-start gap-4 cursor-pointer">
-                    <div className="mt-1">
-                      <input 
-                        type="checkbox" 
-                        checked={formData.requires_portal_access} 
-                        onChange={setField('requires_portal_access')}
-                        className="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500" 
-                      />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">Requires Portal Access?</p>
-                      <p className="text-xs text-slate-500 mt-1">If enabled, a user account will be created. They can login to the ERP using the provided email and password.</p>
-                    </div>
-                  </label>
-                </div>
-
-                <AnimatePresence>
-                  {formData.requires_portal_access && (
-                    <motion.div initial={{opacity:0, height:0}} animate={{opacity:1, height:'auto'}} exit={{opacity:0, height:0}} className="grid grid-cols-2 gap-5 pt-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Email (Username) <span className="text-red-500">*</span></label>
-                        <div className="relative">
-                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                          <input type="email" required={formData.requires_portal_access} value={formData.email} onChange={setField('email')} className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all shadow-sm" placeholder="employee@school.com" />
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Temporary Password</label>
-                        <div className="relative">
-                          <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                          <input type="text" value={formData.password} onChange={setField('password')} placeholder="Leave blank to auto-generate" className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all shadow-sm" />
-                        </div>
-                        <p className="text-[10px] text-slate-400">User will be prompted to change on first login.</p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-
-            {/* 4. Personal Info */}
+            {/* 3. Personal Info */}
             <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='personal'?1:0, height:activeSection==='personal'?'auto':0, overflow:'hidden', y:activeSection==='personal'?0:10}}>
               <div className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
@@ -393,7 +385,7 @@ export default function StaffCreatePage() {
                       <option value="DIVORCED">Divorced</option>
                     </select>
                   </div>
-                  
+
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Father&apos;s Name</label>
                     <input type="text" value={formData.father_name} onChange={setField('father_name')} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
@@ -410,7 +402,7 @@ export default function StaffCreatePage() {
               </div>
             </motion.div>
 
-            {/* 5. Govt. IDs */}
+            {/* 4. Govt. IDs */}
             <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='govt'?1:0, height:activeSection==='govt'?'auto':0, overflow:'hidden', y:activeSection==='govt'?0:10}}>
               <div className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
@@ -443,7 +435,7 @@ export default function StaffCreatePage() {
               </div>
             </motion.div>
 
-            {/* 6. Contact & Address */}
+            {/* 5. Contact & Address */}
             <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='contact'?1:0, height:activeSection==='contact'?'auto':0, overflow:'hidden', y:activeSection==='contact'?0:10}}>
               <div className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
@@ -468,7 +460,7 @@ export default function StaffCreatePage() {
                       <input type="email" required value={formData.personal_email} onChange={setField('personal_email')} className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" placeholder="personal@email.com" />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Emergency Contact Name</label>
                     <input type="text" value={formData.emergency_contact_name} onChange={setField('emergency_contact_name')} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
@@ -491,7 +483,7 @@ export default function StaffCreatePage() {
                     </div>
                     <textarea required rows={2} value={formData.permanent_address} onChange={setField('permanent_address')} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all resize-none" />
                   </div>
-                  
+
                   <div className="grid grid-cols-3 gap-5">
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">City <span className="text-red-500">*</span></label>

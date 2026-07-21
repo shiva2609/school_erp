@@ -81,7 +81,8 @@ class Branch(models.Model):
         related_name='branches',
     )
     name = models.CharField(max_length=200)
-    branch_code = models.CharField(max_length=50) # e.g. "MAIN"
+    branch_code = models.CharField(max_length=50) # e.g. "MAIN" - used for fee/invoice prefixes
+    staff_code = models.CharField(max_length=20, blank=True)  # short prefix for employee IDs e.g. "MUS", "KAZ"
     address = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 

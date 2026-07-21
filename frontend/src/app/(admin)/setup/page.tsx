@@ -393,11 +393,11 @@ function BranchManager() {
   const [saving, setSaving] = useState(false);
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    name: '', branch_code: '', address: '', is_active: true, zone: '',
+    name: '', branch_code: '', staff_code: '', address: '', is_active: true, zone: '',
   });
 
   const resetForm = () => {
-    setFormData({ name: '', branch_code: '', address: '', is_active: true, zone: '' });
+    setFormData({ name: '', branch_code: '', staff_code: '', address: '', is_active: true, zone: '' });
     setEditingBranchId(null);
     setShowForm(false);
   };
@@ -456,6 +456,7 @@ function BranchManager() {
       const payload: any = {
         name: formData.name.trim(),
         branch_code: formData.branch_code.trim().toUpperCase(),
+        staff_code: formData.staff_code.trim().toUpperCase(),
         address: formData.address,
         is_active: formData.is_active,
       };
@@ -482,6 +483,7 @@ function BranchManager() {
     setFormData({
       name: branch.name || '',
       branch_code: branch.branch_code || '',
+      staff_code: branch.staff_code || '',
       address: branch.address || '',
       is_active: !!branch.is_active,
       zone: branch.zone || '',
@@ -537,13 +539,29 @@ function BranchManager() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-500 px-1">Branch Code</label>
+              <label className="text-xs font-semibold text-gray-500 px-1">
+                Branch Code <span className="text-red-500">*</span>
+              </label>
               <input
                 placeholder="e.g. HYD001"
                 value={formData.branch_code}
                 onChange={e => setFormData({ ...formData, branch_code: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none uppercase"
               />
+              <p className="text-[10px] text-gray-400 px-1">Used for invoice & fee number prefixes</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 px-1">
+                Staff Code / Prefix <span className="text-red-500">*</span>
+              </label>
+              <input
+                placeholder="e.g. MUS, KAZ, HYD"
+                value={formData.staff_code}
+                onChange={e => setFormData({ ...formData, staff_code: e.target.value })}
+                maxLength={10}
+                className="w-full px-4 py-2.5 border border-indigo-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none uppercase font-mono tracking-wider"
+              />
+              <p className="text-[10px] text-indigo-500 font-semibold px-1">Used as Employee ID prefix → e.g. MUS01001</p>
             </div>
             <div className="space-y-1 md:col-span-2">
               <label className="text-xs font-semibold text-gray-500 px-1">Address</label>
@@ -622,7 +640,14 @@ function BranchManager() {
                 <div className="bg-blue-50 p-2.5 rounded-xl text-blue-600"><Building2 size={20} /></div>
                 <div>
                   <h3 className="font-bold text-gray-900">{branch.name}</h3>
-                  <p className="text-xs text-gray-500 font-medium">{branch.branch_code}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <span className="text-[10px] text-gray-400 font-mono bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded-md">{branch.branch_code}</span>
+                    {branch.staff_code && (
+                      <span className="text-[10px] text-indigo-700 font-mono font-bold bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-md" title="Staff ID Prefix">
+                        👤 {branch.branch_code}{branch.staff_code}*
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${branch.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>

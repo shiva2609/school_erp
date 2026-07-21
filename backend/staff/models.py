@@ -103,8 +103,8 @@ class StaffProfile(models.Model):
     
     employment_type = models.CharField(
         max_length=20, 
-        choices=[('PERMANENT','Permanent'), ('CONTRACT','Contract')], 
-        default='PERMANENT'
+        choices=[('REGULAR','Regular'), ('CONTRACT','Contract'), ('TEMPORARY','Temporary')], 
+        default='REGULAR'
     )
     experience_years = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
     reporting_manager = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='reportees')
@@ -138,6 +138,7 @@ class StaffProfile(models.Model):
     # Contact
     mobile = models.CharField(max_length=15, blank=True)
     alternate_mobile = models.CharField(max_length=15, blank=True)
+    personal_email = models.EmailField(blank=True)  # personal/contact email (separate from portal login email)
     address = models.TextField(blank=True)  # legacy single address field
     current_address = models.TextField(blank=True)
     permanent_address = models.TextField(blank=True)
@@ -161,8 +162,9 @@ class StaffProfile(models.Model):
                 counter, _ = StaffIdCounter.objects.select_for_update().get_or_create(branch=self.branch)
                 counter.last_seq += 1
                 counter.save()
-                prefix = f"{self.branch.branch_code}-STF-"
-                self.employee_id = f"{prefix}{counter.last_seq:05d}"
+                branch_code = self.branch.branch_code.strip().upper()
+                staff_code = self.branch.staff_code.strip().upper() if self.branch.staff_code else '01'
+                self.employee_id = f"{branch_code}{staff_code}{counter.last_seq:03d}"
                 
         super().save(*args, **kwargs)
 

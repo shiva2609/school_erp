@@ -132,7 +132,7 @@ class StaffProfileSerializer(serializers.ModelSerializer):
             # Bank
             'bank_name', 'bank_account_number', 'ifsc_code',
             # Contact
-            'mobile', 'alternate_mobile', 'address',
+            'mobile', 'alternate_mobile', 'personal_email', 'address',
             'current_address', 'permanent_address', 'city', 'state', 'pincode',
             'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_number',
             # Flags

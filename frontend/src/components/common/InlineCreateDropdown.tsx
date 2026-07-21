@@ -94,7 +94,7 @@ export default function InlineCreateDropdown({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden"
+            className="absolute z-50 w-full min-w-[220px] mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden"
           >
             {!createMode ? (
               <div className="flex flex-col max-h-[300px]">
