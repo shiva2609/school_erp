@@ -44,9 +44,11 @@ export default function StaffEditPage() {
     designation: '',
     joining_date: '',
     employment_type: 'REGULAR',
+    experience_years: '',
 
     // 4. Personal
     blood_group: '',
+    religion: '',
     marital_status: 'SINGLE',
     father_name: '',
     mother_name: '',
@@ -86,11 +88,12 @@ export default function StaffEditPage() {
         date_of_birth: staff.date_of_birth || '',
         qualification: staff.qualification || '',
         specialization: staff.specialization || '',
-        category: staff.category || '',
-        department: staff.department || '',
-        designation: staff.designation || '',
-        joining_date: staff.joining_date || '',
-        employment_type: staff.employment_type || 'REGULAR',
+        category: ud?.category || '',
+        department: ud?.department || '',
+        designation: ud?.designation || '',
+        joining_date: ud?.joining_date || '',
+        employment_type: ud?.employment_type || 'REGULAR',
+        experience_years: ud?.experience_years || '',
         blood_group: staff.blood_group || '',
         marital_status: staff.marital_status || 'SINGLE',
         father_name: staff.father_name || '',
@@ -353,8 +356,13 @@ export default function StaffEditPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Joining Date</label>
-                    <input type="date" value={formData.joining_date} onChange={setField('joining_date')} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Joining Date <span className="text-red-500">*</span></label>
+                    <input type="date" required value={formData.joining_date} onChange={setField('joining_date')} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Years of Experience <span className="text-red-500">*</span></label>
+                    <input type="number" required min="0" step="0.1" value={formData.experience_years} onChange={setField('experience_years')} placeholder="e.g. 5.5" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
                   </div>
                 </div>
               </div>
@@ -375,6 +383,10 @@ export default function StaffEditPage() {
                       <option value="">Select...</option>
                       {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => <option key={bg} value={bg}>{bg}</option>)}
                     </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Religion</label>
+                    <input type="text" value={formData.religion} onChange={setField('religion')} placeholder="e.g. Hinduism" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Marital Status</label>

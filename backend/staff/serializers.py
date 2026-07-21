@@ -125,7 +125,7 @@ class StaffProfileSerializer(serializers.ModelSerializer):
             # Legacy free-text
             'qualification', 'specialization', 'bio',
             # Personal
-            'gender', 'date_of_birth', 'blood_group', 'photo_url',
+            'gender', 'date_of_birth', 'blood_group', 'religion', 'photo_url',
             'marital_status', 'father_name', 'mother_name', 'spouse_name',
             # Govt IDs
             'aadhar_number', 'aadhaar_number', 'pan_number', 'pf_number', 'uan_number', 'esi_number',
