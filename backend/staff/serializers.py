@@ -178,19 +178,25 @@ class StaffProfileSerializer(serializers.ModelSerializer):
         tenant = validated_data.get('tenant')
 
         with transaction.atomic():
-            if requires_portal and email:
-                user = User.objects.create_user(
-                    email=email,
-                    first_name=first_name,
-                    last_name=last_name,
-                    phone=phone,
-                    role=user_role,
-                    tenant=tenant,
-                    branch=branch,
-                    password=password,
-                    must_change_password=True,
-                )
-                validated_data['user'] = user
+            # Always ensure a User is created to hold the name
+            actual_email = email
+            if not actual_email:
+                import uuid
+                actual_email = f"staff_{uuid.uuid4().hex[:8]}@noemail.local"
+
+            user = User.objects.create_user(
+                email=actual_email,
+                first_name=first_name,
+                last_name=last_name,
+                phone=phone,
+                role=user_role,
+                tenant=tenant,
+                branch=branch,
+                password=password,
+                must_change_password=True,
+                is_active=bool(requires_portal)  # Only active if portal access is granted
+            )
+            validated_data['user'] = user
             validated_data['branch'] = branch
             return super().create(validated_data)
 
@@ -205,7 +211,6 @@ class StaffProfileSerializer(serializers.ModelSerializer):
         branch = validated_data.pop('branch', None)
 
         with transaction.atomic():
-            # Update portal user if one already exists
             if instance.user:
                 user = instance.user
                 user_updated = False
@@ -227,8 +232,33 @@ class StaffProfileSerializer(serializers.ModelSerializer):
                 if branch is not None:
                     user.branch = branch
                     user_updated = True
+                if requires_portal is True:
+                    user.is_active = True
+                    user_updated = True
                 if user_updated:
                     user.save()
+            else:
+                # Fallback for staff created before this fix without a user object
+                if first_name or last_name or email or requires_portal:
+                    actual_email = email
+                    if not actual_email:
+                        import uuid
+                        actual_email = f"staff_{uuid.uuid4().hex[:8]}@noemail.local"
+                    
+                    user = User.objects.create_user(
+                        email=actual_email,
+                        first_name=first_name or '',
+                        last_name=last_name or '',
+                        phone=phone or '',
+                        role='TEACHER',
+                        tenant=instance.tenant,
+                        branch=branch or instance.branch,
+                        password=password or 'Password123!',
+                        must_change_password=True,
+                        is_active=bool(requires_portal)
+                    )
+                    instance.user = user
+                    instance.save(update_fields=['user'])
 
             if branch is not None:
                 validated_data['branch'] = branch

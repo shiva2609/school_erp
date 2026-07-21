@@ -198,7 +198,7 @@ export default function StaffCreatePage() {
           <form onSubmit={handleSubmit} className="space-y-8">
             
             {/* 1. Basic Profile */}
-            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='profile'?1:0, height:activeSection==='profile'?'auto':0, overflow:'hidden', y:activeSection==='profile'?0:10}}>
+            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='profile'?1:0, height:activeSection==='profile'?'auto':0, overflow:activeSection==='profile'?'visible':'hidden', y:activeSection==='profile'?0:10}}>
               <div className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
                   <User className="text-blue-600" />
@@ -253,7 +253,7 @@ export default function StaffCreatePage() {
             </motion.div>
 
             {/* 2. Work Details */}
-            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='work'?1:0, height:activeSection==='work'?'auto':0, overflow:'hidden', y:activeSection==='work'?0:10}}>
+            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='work'?1:0, height:activeSection==='work'?'auto':0, overflow:activeSection==='work'?'visible':'hidden', y:activeSection==='work'?0:10}}>
               <div className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
                   <Briefcase className="text-blue-600" />
@@ -320,7 +320,7 @@ export default function StaffCreatePage() {
             </motion.div>
 
             {/* 3. Portal Access */}
-            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='login'?1:0, height:activeSection==='login'?'auto':0, overflow:'hidden', y:activeSection==='login'?0:10}}>
+            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='login'?1:0, height:activeSection==='login'?'auto':0, overflow:activeSection==='login'?'visible':'hidden', y:activeSection==='login'?0:10}}>
               <div className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
                   <KeyRound className="text-blue-600" />
@@ -369,7 +369,7 @@ export default function StaffCreatePage() {
             </motion.div>
 
             {/* 4. Personal Info */}
-            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='personal'?1:0, height:activeSection==='personal'?'auto':0, overflow:'hidden', y:activeSection==='personal'?0:10}}>
+            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='personal'?1:0, height:activeSection==='personal'?'auto':0, overflow:activeSection==='personal'?'visible':'hidden', y:activeSection==='personal'?0:10}}>
               <div className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
                   <HeartPulse className="text-blue-600" />
@@ -411,7 +411,7 @@ export default function StaffCreatePage() {
             </motion.div>
 
             {/* 5. Govt. IDs */}
-            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='govt'?1:0, height:activeSection==='govt'?'auto':0, overflow:'hidden', y:activeSection==='govt'?0:10}}>
+            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='govt'?1:0, height:activeSection==='govt'?'auto':0, overflow:activeSection==='govt'?'visible':'hidden', y:activeSection==='govt'?0:10}}>
               <div className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
                   <Landmark className="text-blue-600" />
@@ -444,7 +444,7 @@ export default function StaffCreatePage() {
             </motion.div>
 
             {/* 6. Contact & Address */}
-            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='contact'?1:0, height:activeSection==='contact'?'auto':0, overflow:'hidden', y:activeSection==='contact'?0:10}}>
+            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='contact'?1:0, height:activeSection==='contact'?'auto':0, overflow:activeSection==='contact'?'visible':'hidden', y:activeSection==='contact'?0:10}}>
               <div className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
                   <Phone className="text-blue-600" />
