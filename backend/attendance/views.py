@@ -38,7 +38,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 class_section__branch=self.request.user.branch
             ).filter(
                 Q(class_section__class_teacher=self.request.user) |
-                Q(class_section__teacher_assignments__staff__user=self.request.user, class_section__teacher_assignments__is_class_teacher=True)
+                Q(class_section__teacher_assignments__staff__user=self.request.user, class_section__teacher_assignments__role='CLASS_TEACHER')
             ).distinct()
             
         return qs
@@ -75,7 +75,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_403_FORBIDDEN)
             is_class_teacher = (
                 class_section.class_teacher == request.user or
-                class_section.teacher_assignments.filter(teacher__user=request.user, is_class_teacher=True).exists()
+                class_section.teacher_assignments.filter(staff__user=request.user, role='CLASS_TEACHER').exists()
             )
             if not is_class_teacher:
                 return Response({

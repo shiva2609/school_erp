@@ -109,7 +109,7 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
         if teacher_only == 'true' and role == 'TEACHER':
             qs = qs.filter(
                 models.Q(class_teacher=user) |
-                models.Q(teacher_assignments__staff__user=user, teacher_assignments__is_class_teacher=True)
+                models.Q(teacher_assignments__staff__user=user, teacher_assignments__role='CLASS_TEACHER')
             ).distinct()
             
         # Filter for any assigned teacher (used by Homework)
@@ -153,7 +153,7 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
                     if assignments.exists():
                         details["assignments"] = [
                             {
-                                "is_class_teacher": a.is_class_teacher,
+                                "is_class_teacher": a.role == 'CLASS_TEACHER',
                                 "academic_year_id": str(a.academic_year_id),
                                 "academic_year_active": a.academic_year.is_active,
                             } for a in assignments

@@ -225,17 +225,20 @@ def create_teacher(tenant, branch, ay, class_section, subjects, is_class_teacher
     counter['teachers'] += 1
 
     # Assign as class teacher
-    if subjects:
-        primary_subj = subjects[0]
-        TeacherAssignment.objects.create(
-            tenant=tenant, teacher=profile, class_section=class_section,
-            subject=primary_subj, is_class_teacher=is_class_teacher, academic_year=ay,
-        )
-
-    # Also mark on ClassSection
     if is_class_teacher:
+        TeacherAssignment.objects.create(
+            tenant=tenant, staff=profile, class_section=class_section,
+            subject=None, role='CLASS_TEACHER', academic_year=ay,
+        )
         class_section.class_teacher = user
         class_section.save(update_fields=['class_teacher'])
+
+    # Assign subjects
+    for subj in subjects:
+        TeacherAssignment.objects.create(
+            tenant=tenant, staff=profile, class_section=class_section,
+            subject=subj, role='SUBJECT_TEACHER', academic_year=ay,
+        )
 
     return user, profile
 

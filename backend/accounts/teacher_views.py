@@ -42,7 +42,7 @@ def teacher_dashboard(request):
             academic_year__is_active=True,
             class_section__academic_year__is_active=True
         ).select_related('class_section').values(
-            'class_section__id', 'class_section__display_name', 'is_class_teacher'
+            'class_section__id', 'class_section__display_name', 'role'
         ).distinct()
 
         for a in assignments:
@@ -59,7 +59,7 @@ def teacher_dashboard(request):
                 'id': str(cs_id),
                 'display_name': cs_name,
                 'student_count': student_count,
-                'is_class_teacher': a['is_class_teacher'],
+                'is_class_teacher': a['role'] == 'CLASS_TEACHER',
             })
 
             # Check if attendance marked today for this class

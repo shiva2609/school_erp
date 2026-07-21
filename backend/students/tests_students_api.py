@@ -37,8 +37,8 @@ class StudentAPIErrorTest(TestCase):
             staff=self.teacher_profile,
             class_section=self.class_section,
             academic_year=self.ay,
-            subject=self.subject,
-            is_class_teacher=True
+            subject=None,
+            role='CLASS_TEACHER'
         )
         
         self.student = Student.objects.create(

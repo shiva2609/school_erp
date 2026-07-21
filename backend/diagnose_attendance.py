@@ -64,11 +64,11 @@ def diagnose(teacher_email):
         print(f"   - Employee ID: {profile.employee_id}")
         print(f"   - Profile Branch: {profile.branch.name if profile.branch else 'None'}")
         
-        assignments = TeacherAssignment.objects.filter(teacher=profile)
+        assignments = TeacherAssignment.objects.filter(staff=profile)
         if assignments.exists():
             print(f"✅ Found {assignments.count()} total subject/class assignments:")
             for ta in assignments:
-                is_class_teacher_status = "Primary/Class Teacher" if ta.is_class_teacher else "Subject Teacher"
+                is_class_teacher_status = "Primary/Class Teacher" if ta.role == 'CLASS_TEACHER' else "Subject Teacher"
                 is_ay_active = (ta.class_section.academic_year == active_ay)
                 is_branch_match = (ta.class_section.branch_id == user.branch_id)
                 print(f"   * Class: {ta.class_section.display_name} | Subject: {ta.subject.name} | Status: {is_class_teacher_status}")
@@ -94,7 +94,7 @@ def diagnose(teacher_email):
     # Apply teacher attendance filtering
     qs_attendance = qs.filter(
         django.db.models.Q(class_teacher=user) |
-        django.db.models.Q(teacher_assignments__teacher__user=user, teacher_assignments__is_class_teacher=True)
+        django.db.models.Q(teacher_assignments__staff__user=user, teacher_assignments__role='CLASS_TEACHER')
     ).distinct()
     
     print(f"4. After Attendance Filter (teacher_only=True): {qs_attendance.count()}")

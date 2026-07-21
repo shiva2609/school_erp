@@ -177,19 +177,43 @@ class StaffProfile(models.Model):
 
 
 class TeacherAssignment(models.Model):
+    ROLE_CHOICES = [
+        ('CLASS_TEACHER', 'Class Teacher'),
+        ('SECOND_CLASS_TEACHER', 'Second Class Teacher'),
+        ('SUBJECT_TEACHER', 'Subject Teacher'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='teacher_assignments')
     staff = models.ForeignKey(StaffProfile, on_delete=models.CASCADE, related_name='assignments')
     class_section = models.ForeignKey('students.ClassSection', on_delete=models.CASCADE, related_name='teacher_assignments')
-    subject = models.ForeignKey('timetable.Subject', on_delete=models.CASCADE, related_name='teacher_assignments')
-    is_class_teacher = models.BooleanField(default=False)
+    
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES, default='SUBJECT_TEACHER')
+    subject = models.ForeignKey('timetable.Subject', on_delete=models.CASCADE, null=True, blank=True, related_name='teacher_assignments')
     academic_year = models.ForeignKey('tenants.AcademicYear', on_delete=models.CASCADE, related_name='teacher_assignments')
 
     class Meta:
-        unique_together = ('class_section', 'subject', 'academic_year') 
+        constraints = [
+            models.UniqueConstraint(
+                fields=['staff', 'class_section', 'subject', 'academic_year'],
+                name='unique_subject_teacher_per_section',
+                condition=models.Q(role='SUBJECT_TEACHER')
+            ),
+            models.UniqueConstraint(
+                fields=['class_section', 'academic_year'],
+                name='unique_class_teacher_per_section',
+                condition=models.Q(role='CLASS_TEACHER')
+            ),
+            models.UniqueConstraint(
+                fields=['class_section', 'academic_year'],
+                name='unique_second_class_teacher_per_section',
+                condition=models.Q(role='SECOND_CLASS_TEACHER')
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.staff} -> {self.class_section} ({self.subject.name})"
+        subject_name = self.subject.name if self.subject else "No Subject"
+        return f"{self.staff} -> {self.class_section} ({self.get_role_display()} - {subject_name})"
 
 # ALIAS for backwards compatibility
 TeacherProfile = StaffProfile

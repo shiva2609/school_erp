@@ -146,17 +146,17 @@ class TeacherYearPromotionTests(TestCase):
             tenant=self.tenant,
             staff=self.teacher_profile,
             class_section=self.cs_active,
-            subject=self.subject,
+            subject=None,
             academic_year=self.ay_active,
-            is_class_teacher=True,
+            role='CLASS_TEACHER',
         )
         self.ta_inactive = TeacherAssignment.objects.create(
             tenant=self.tenant,
             staff=self.teacher_profile,
             class_section=self.cs_inactive,
-            subject=self.subject,
+            subject=None,
             academic_year=self.ay_inactive,
-            is_class_teacher=True,
+            role='CLASS_TEACHER',
         )
         
         # Create students

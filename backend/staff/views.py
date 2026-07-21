@@ -221,99 +221,81 @@ class StaffViewSet(viewsets.ModelViewSet):
         from django.db import transaction
         from students.models import ClassSection
 
-        staff_id = request.data.get('teacher')  # frontend still sends 'teacher' key
-        class_assignments = request.data.get('class_assignments', {})
+        staff_id = request.data.get('teacher')
         academic_year_id = request.data.get('academic_year')
-        is_class_teacher_requested = request.data.get('is_class_teacher', False)
-        primary_class_id = request.data.get('primary_class_id')
-
-        # Legacy flat format: class_sections + subjects → convert
-        class_ids = request.data.get('class_sections', [])
-        subject_ids = request.data.get('subjects', [])
-        if not class_assignments and class_ids and subject_ids:
-            class_assignments = {str(cid): [str(sid) for sid in subject_ids] for cid in class_ids}
+        assignments_payload = request.data.get('assignments', [])
 
         if not staff_id or not academic_year_id:
             return Response(
                 {"error": "teacher and academic_year are required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if not class_assignments:
-            return Response(
-                {"error": "No class-subject assignments provided."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
         created_assignments = []
         with transaction.atomic():
-            # 1. Collect all requested (class_id, subject_id) pairs
-            requested_pairs = set()
-            for cs_id, sub_ids in class_assignments.items():
-                for sub_id in sub_ids:
-                    requested_pairs.add((str(cs_id), str(sub_id)))
-
-            # 2. Remove assignments that are NOT in the requested set
-            existing_qs = TeacherAssignment.objects.filter(
-                staff_id=staff_id, academic_year_id=academic_year_id
-            )
-            for ext in existing_qs:
-                if (str(ext.class_section_id), str(ext.subject_id)) not in requested_pairs:
-                    ext.delete()
-
-            # 3. Resolve the staff profile
+            # 1. Resolve the staff profile and user
             staff_profile = StaffProfile.objects.get(id=staff_id)
             staff_user = staff_profile.user
 
-            # 4. Create/update requested pairs
-            for cs_id, sub_ids in class_assignments.items():
-                is_ct = False
-                if is_class_teacher_requested:
-                    if primary_class_id and str(cs_id) == str(primary_class_id):
-                        is_ct = True
-                    elif not primary_class_id and len(class_assignments) == 1:
-                        is_ct = True
+            # 2. Get existing assignments for this staff in this academic year
+            existing_assignments = TeacherAssignment.objects.filter(
+                staff_id=staff_id, academic_year_id=academic_year_id
+            )
+            
+            # Create a set of keys for the requested assignments to know what to keep
+            requested_keys = set()
+            for item in assignments_payload:
+                cs_id = item.get('class_section_id')
+                role = item.get('role', 'SUBJECT_TEACHER')
+                sub_id = item.get('subject_id') if role == 'SUBJECT_TEACHER' else None
+                requested_keys.add((str(cs_id), role, str(sub_id) if sub_id else None))
+            
+            # Delete existing assignments that are not in the new payload
+            for ext in existing_assignments:
+                ext_sub_id = str(ext.subject_id) if ext.subject_id else None
+                if (str(ext.class_section_id), ext.role, ext_sub_id) not in requested_keys:
+                    # If we are deleting a CLASS_TEACHER role, sync ClassSection
+                    if ext.role == 'CLASS_TEACHER' and staff_user:
+                        ClassSection.objects.filter(id=ext.class_section_id, class_teacher=staff_user).update(class_teacher=None)
+                    ext.delete()
 
-                if is_ct:
-                    # 1-to-1: clear class-teacher flag on all other classes for this staff
+            # 3. Create or Update requested assignments
+            for item in assignments_payload:
+                cs_id = item.get('class_section_id')
+                role = item.get('role', 'SUBJECT_TEACHER')
+                sub_id = item.get('subject_id') if role == 'SUBJECT_TEACHER' else None
+                
+                # Check constraints before creating/updating
+                if role == 'CLASS_TEACHER':
                     TeacherAssignment.objects.filter(
-                        staff_id=staff_id, academic_year_id=academic_year_id
-                    ).exclude(class_section_id=cs_id).update(is_class_teacher=False)
-
-                    # 1-to-1: clear class-teacher flag on all other staff for this class
-                    TeacherAssignment.objects.filter(
-                        class_section_id=cs_id, academic_year_id=academic_year_id
-                    ).exclude(staff_id=staff_id).update(is_class_teacher=False)
-
+                        class_section_id=cs_id, academic_year_id=academic_year_id, role='CLASS_TEACHER'
+                    ).exclude(staff_id=staff_id).delete()
+                    
                     if staff_user:
-                        ClassSection.objects.filter(class_teacher=staff_user).exclude(
-                            id=cs_id
-                        ).update(class_teacher=None)
                         ClassSection.objects.filter(id=cs_id).update(class_teacher=staff_user)
-                else:
-                    # Unset class_teacher on this section if it was this staff
-                    if staff_user:
-                        ClassSection.objects.filter(
-                            id=cs_id, class_teacher=staff_user
-                        ).update(class_teacher=None)
+                        
+                elif role == 'SECOND_CLASS_TEACHER':
+                    TeacherAssignment.objects.filter(
+                        class_section_id=cs_id, academic_year_id=academic_year_id, role='SECOND_CLASS_TEACHER'
+                    ).exclude(staff_id=staff_id).delete()
 
-                for sub_id in sub_ids:
-                    assignment, _ = TeacherAssignment.objects.update_or_create(
-                        class_section_id=cs_id,
-                        subject_id=sub_id,
-                        academic_year_id=academic_year_id,
-                        defaults={
-                            'staff_id': staff_id,
-                            'tenant': request.user.tenant,
-                            'is_class_teacher': is_ct,
-                        },
-                    )
-                    created_assignments.append(assignment)
+                assignment, _ = TeacherAssignment.objects.update_or_create(
+                    staff_id=staff_id,
+                    class_section_id=cs_id,
+                    role=role,
+                    subject_id=sub_id,
+                    academic_year_id=academic_year_id,
+                    defaults={
+                        'tenant': request.user.tenant,
+                    }
+                )
+                created_assignments.append(assignment)
 
         return Response(
             {
                 "success": True,
                 "count": len(created_assignments),
-                "message": f"Successfully assigned {len(created_assignments)} class-subject(s).",
+                "message": f"Successfully updated assignments.",
             },
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_200_OK,
         )

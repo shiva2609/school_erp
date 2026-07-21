@@ -65,7 +65,7 @@ class TeacherAssignmentSerializer(serializers.ModelSerializer):
         model = TeacherAssignment
         fields = [
             'id', 'tenant', 'staff', 'staff_name', 'class_section', 'class_name',
-            'subject_name', 'subject', 'is_class_teacher', 'academic_year'
+            'subject_name', 'subject', 'role', 'academic_year'
         ]
         read_only_fields = ['id', 'tenant']
 
