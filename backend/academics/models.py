@@ -48,7 +48,7 @@ class ExamResult(models.Model):
     branch = models.ForeignKey('tenants.Branch', on_delete=models.CASCADE, related_name='exam_results')
     student = models.ForeignKey('students.Student', on_delete=models.CASCADE, related_name='exam_results')
     exam_term = models.ForeignKey(ExamTerm, on_delete=models.CASCADE, related_name='results')
-    subject = models.ForeignKey('timetable.Subject', on_delete=models.CASCADE, related_name='exam_results')
+    subject = models.ForeignKey('academics.AcademicSubject', on_delete=models.CASCADE, related_name='exam_results')
     
     marks_obtained = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     is_absent = models.BooleanField(default=False)
@@ -101,7 +101,7 @@ class ExamSubjectConfig(models.Model):
     branch = models.ForeignKey('tenants.Branch', on_delete=models.CASCADE, related_name='exam_configs')
     exam_term = models.ForeignKey(ExamTerm, on_delete=models.CASCADE, related_name='subject_configs')
     class_section = models.ForeignKey('students.ClassSection', on_delete=models.CASCADE, related_name='exam_configs')
-    subject = models.ForeignKey('timetable.Subject', on_delete=models.CASCADE, related_name='exam_configs')
+    subject = models.ForeignKey('academics.AcademicSubject', on_delete=models.CASCADE, related_name='exam_configs')
     max_marks = models.DecimalField(max_digits=5, decimal_places=2)
 
     class Meta:

@@ -48,7 +48,7 @@ class TimetableSlot(models.Model):
     class_section = models.ForeignKey('students.ClassSection', on_delete=models.CASCADE, related_name='timetable_slots')
     period = models.ForeignKey(Period, on_delete=models.CASCADE, related_name='timetable_slots')
     day_of_week = models.CharField(max_length=3, choices=DAY_CHOICES)
-    subject = models.ForeignKey(Subject, on_delete=models.SET_NULL, null=True, blank=True, related_name='timetable_slots')
+    subject = models.ForeignKey('academics.AcademicSubject', on_delete=models.SET_NULL, null=True, blank=True, related_name='timetable_slots')
     teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='timetable_slots')
 
     class Meta:
@@ -65,7 +65,7 @@ class ClassSubjectDemand(models.Model):
     branch = models.ForeignKey('tenants.Branch', on_delete=models.CASCADE, related_name='subject_demands')
     academic_year = models.ForeignKey('tenants.AcademicYear', on_delete=models.CASCADE, related_name='subject_demands')
     class_section = models.ForeignKey('students.ClassSection', on_delete=models.CASCADE, related_name='subject_demands')
-    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='demands')
+    subject = models.ForeignKey('academics.AcademicSubject', on_delete=models.CASCADE, related_name='demands')
     teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='subject_demands')
     
     classes_per_week = models.PositiveIntegerField(default=5)

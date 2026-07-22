@@ -12,8 +12,8 @@ class StudentAPIErrorTest(TestCase):
         self.tenant = Tenant.objects.create(name='Test Tenant')
         self.branch = Branch.objects.create(name='Test Branch', tenant=self.tenant)
         self.ay = AcademicYear.objects.create(name='2024-2025', tenant=self.tenant, is_active=True, start_date='2024-04-01', end_date='2025-03-31')
-        from timetable.models import Subject
-        self.subject = Subject.objects.create(tenant=self.tenant, branch=self.branch, name='Math')
+        from academics.models import AcademicSubject
+        self.subject = AcademicSubject.objects.create(tenant=self.tenant, branch=self.branch, name='Math')
         
         self.teacher_user = User.objects.create_user(
             email='teacher@test.com',

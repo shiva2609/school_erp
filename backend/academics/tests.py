@@ -4,11 +4,10 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from academics.models import ExamResult, ExamTerm, ExamSubjectConfig
+from academics.models import ExamResult, ExamTerm, ExamSubjectConfig, AcademicSubject
 from staff.models import TeacherProfile, TeacherAssignment
 from students.models import ClassSection, Student
 from tenants.models import Tenant, Branch, AcademicYear, Zone
-from timetable.models import Subject
 
 
 class TeacherMarksApiTests(TestCase):
@@ -31,8 +30,8 @@ class TeacherMarksApiTests(TestCase):
             grade='5',
             section='A',
         )
-        self.subject = Subject.objects.create(
-            tenant=self.tenant, branch=self.branch, name='Mathematics', code='MAT'
+        self.subject = AcademicSubject.objects.create(
+            tenant=self.tenant, branch=self.branch, name='Mathematics',
         )
         self.exam = ExamTerm.objects.create(
             tenant=self.tenant,

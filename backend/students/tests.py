@@ -6,7 +6,9 @@ from accounts.models import User
 from tenants.models import Tenant, Branch, AcademicYear, Zone
 from students.models import Student, ClassSection
 from staff.models import TeacherProfile, TeacherAssignment
-from timetable.models import Subject, TimetableSlot, Period
+from timetable.models import Subject
+from academics.models import AcademicSubject
+from timetable.models import TimetableSlot, Period
 
 
 class StudentAccessPolicyTests(TestCase):
@@ -126,11 +128,11 @@ class TeacherYearPromotionTests(TestCase):
         )
         
         # Create subject and period
-        self.subject = Subject.objects.create(
+        self.subject = AcademicSubject.objects.create(
             tenant=self.tenant,
             branch=self.branch,
             name='Mathematics',
-            code='MATH',
+            
         )
         self.period = Period.objects.create(
             tenant=self.tenant,

@@ -189,7 +189,7 @@ class TeacherAssignment(models.Model):
     class_section = models.ForeignKey('students.ClassSection', on_delete=models.CASCADE, related_name='teacher_assignments')
     
     role = models.CharField(max_length=50, choices=ROLE_CHOICES, default='SUBJECT_TEACHER')
-    subject = models.ForeignKey('timetable.Subject', on_delete=models.CASCADE, null=True, blank=True, related_name='teacher_assignments')
+    subject = models.ForeignKey('academics.AcademicSubject', on_delete=models.CASCADE, null=True, blank=True, related_name='teacher_assignments')
     academic_year = models.ForeignKey('tenants.AcademicYear', on_delete=models.CASCADE, related_name='teacher_assignments')
 
     class Meta:

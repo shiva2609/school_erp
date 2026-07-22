@@ -178,7 +178,7 @@ def _resolve_exam_class_subject(user, exam_term_id, class_section_id, subject_id
             {'success': False, 'error': 'Class section not found.'},
             status=status.HTTP_404_NOT_FOUND,
         )
-    sub = Subject.objects.filter(pk=subject_id, tenant=user.tenant).first()
+    sub = AcademicSubject.objects.filter(pk=subject_id, tenant=user.tenant).first()
     if not sub:
         return None, Response(
             {'success': False, 'error': 'Subject not found.'},
@@ -265,7 +265,7 @@ def teacher_marks_grid(request):
                 'grade': cs.grade,
                 'section': cs.section,
             },
-            'subject': {'id': str(sub.id), 'name': sub.name, 'code': sub.code or ''},
+            'subject': {'id': str(sub.id), 'name': sub.name, 'code': ''},
             'default_max_marks': str(default_max),
             'students': rows,
         },
@@ -368,7 +368,7 @@ def teacher_marks_publish(request):
         cs = ClassSection.objects.filter(pk=class_section_id, tenant=request.user.tenant).first()
         if not exam or not cs:
             return Response({'success': False, 'error': 'Exam term or class section not found.'}, status=404)
-        subjects = Subject.objects.filter(exam_results__exam_term=exam, exam_results__student__class_section=cs).distinct()
+        subjects = AcademicSubject.objects.filter(exam_results__exam_term=exam, exam_results__student__class_section=cs).distinct()
 
     published_count = 0
     from students.models import ParentStudentRelation

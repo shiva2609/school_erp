@@ -13,7 +13,7 @@ class Homework(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='homework')
     class_section = models.ForeignKey('students.ClassSection', on_delete=models.CASCADE, related_name='homework')
-    subject = models.ForeignKey('timetable.Subject', on_delete=models.CASCADE, related_name='homework')
+    subject = models.ForeignKey('academics.AcademicSubject', on_delete=models.CASCADE, related_name='homework')
     posted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='homework_posted')
     title = models.CharField(max_length=200)
     description = models.TextField()
