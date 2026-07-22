@@ -7,7 +7,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('academics', '0007_alter_examresult_subject_and_more'),
+        ('academics', '0008_populate_academic_subjects'),
         ('staff', '0010_remove_teacherassignment_is_class_teacher_and_more'),
     ]
 
