@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.db.models import Count, DecimalField, Exists, OuterRef, Q, Subquery, Sum, Value, UUIDField
 from django.db.models.functions import Coalesce
 
-from academics.models import ExamResult, ExamTerm, Assessment, AssessmentSubject
+from academics.models import ExamResult, Assessment, AssessmentSubject
 from attendance.models import AttendanceRecord
 from fees.models import FeeInvoice, Payment
 from reports.services.base import BaseReportService
@@ -332,7 +332,7 @@ class AcademicsService:
                 'note': r.remarks,
             })
 
-        ex = ExamResult.objects.select_related('student', 'subject', 'exam_term', 'student__class_section').filter(
+        ex = ExamResult.objects.select_related('student', 'subject', 'assessment', 'student__class_section').filter(
             tenant=filters.user.tenant,
         ).exclude(remarks__isnull=True).exclude(remarks='')
         if filters.branch_id:
@@ -390,12 +390,12 @@ class AcademicsService:
             return []
         qs = ExamResult.objects.filter(
             tenant=filters.user.tenant,
-            exam_term_id=filters.exam_id,
+            assessment_id=filters.exam_id,
         )
         if filters.branch_id:
             qs = qs.filter(branch_id=filters.branch_id)
         if filters.academic_year_id:
-            qs = qs.filter(exam_term__academic_year_id=filters.academic_year_id)
+            qs = qs.filter(assessment__academic_year_id=filters.academic_year_id)
         if filters.class_id:
             qs = qs.filter(student__class_section__grade=filters.class_id)
         if filters.section_id:
@@ -403,12 +403,12 @@ class AcademicsService:
         rows = list(qs.values(
             'student__first_name', 'student__last_name', 'student__admission_number',
             'student__class_section__grade', 'student__class_section__section',
-            'subject__name', 'marks_obtained', 'max_marks', 'percentage', 'exam_term__name',
+            'subject__name', 'marks_obtained', 'max_marks', 'percentage', 'assessment__name',
         ))
         buckets = defaultdict(list)
         for r in rows:
             key = (
-                r.get('exam_term__name') or '',
+                r.get('assessment__name') or '',
                 r.get('subject__name') or '',
                 r.get('student__class_section__grade') or '',
                 r.get('student__class_section__section') or '',
@@ -434,31 +434,24 @@ class AcademicsService:
 
     @staticmethod
     def get_consolidated_marks_flat(filters):
-        """Long-format marks for an exam term (export / consolidated sheet)."""
+        """Long-format marks for an assessment (export / consolidated sheet)."""
         if not getattr(filters, 'exam_id', None):
             return ExamResult.objects.none()
-        qs = ExamResult.objects.filter(tenant=filters.user.tenant, exam_term_id=filters.exam_id)
+        qs = ExamResult.objects.filter(tenant=filters.user.tenant, assessment_id=filters.exam_id)
         if filters.branch_id:
             qs = qs.filter(branch_id=filters.branch_id)
         if filters.academic_year_id:
-            qs = qs.filter(exam_term__academic_year_id=filters.academic_year_id)
+            qs = qs.filter(assessment__academic_year_id=filters.academic_year_id)
         if filters.class_id:
             qs = qs.filter(student__class_section__grade=filters.class_id)
         if filters.section_id:
             qs = qs.filter(student__class_section_id=filters.section_id)
-        return qs.select_related('student', 'subject', 'exam_term').order_by(
+        return qs.select_related('student', 'subject', 'assessment').order_by(
             'student__class_section__grade', 'student__class_section__section',
             'student__first_name', 'subject__name',
         )
 
-    @staticmethod
-    def get_exam_term_for_print(filters):
-        eid = getattr(filters, 'exam_id', None)
-        if not eid:
-            return None
-        return ExamTerm.objects.filter(pk=eid, tenant=filters.user.tenant).select_related(
-            'academic_year', 'branch',
-        ).first()
+
 
     @staticmethod
     def get_assessment_for_print(filters):
@@ -516,14 +509,10 @@ class AcademicsService:
             qs = qs.filter(class_section__grade=filters.class_id)
         if filters.section_id:
             qs = qs.filter(class_section_id=filters.section_id)
-        # Try Assessment first (new module), fall back to legacy ExamTerm
+        # Use Assessment
         assessment = AcademicsService.get_assessment_for_print(filters)
         if assessment and assessment.academic_year_id:
             qs = qs.filter(academic_year_id=assessment.academic_year_id)
-        else:
-            term = AcademicsService.get_exam_term_for_print(filters)
-            if term and term.academic_year_id:
-                qs = qs.filter(academic_year_id=term.academic_year_id)
         return qs.order_by('class_section__grade', 'class_section__section', 'roll_number', 'first_name')
 
     @staticmethod
@@ -554,24 +543,21 @@ class AcademicsService:
         }
 
     @staticmethod
-    def _exam_dict(exam_term):
+    def _exam_dict(assessment):
         """
-        Build the exam context dict. Works for both Assessment and legacy ExamTerm
-        since both have .name, .start_date, .end_date, .academic_year.
+        Build the exam context dict for an Assessment.
         """
         return {
-            'name': exam_term.name,
-            'start_date': str(exam_term.start_date),
-            'end_date': str(exam_term.end_date),
-            'academic_year': str(exam_term.academic_year) if exam_term.academic_year_id else '',
+            'name': assessment.name,
+            'start_date': str(assessment.start_date),
+            'end_date': str(assessment.end_date),
+            'academic_year': str(assessment.academic_year) if assessment.academic_year_id else '',
         }
 
     @staticmethod
-    def build_hall_ticket_context(student, exam_term, subjects=None):
+    def build_hall_ticket_context(student, assessment, subjects=None):
         """
         Build hall ticket context for a student.
-        `exam_term` may be an Assessment (new) or ExamTerm (legacy).
-        `subjects` is a pre-computed list from _build_subjects_schedule().
         """
         tenant = student.tenant
         branch = student.branch
@@ -584,7 +570,7 @@ class AcademicsService:
             'tenant_city': tenant.city or '',
             'tenant_state': tenant.state or '',
             'branch_name': branch.name if branch else '',
-            'exam': AcademicsService._exam_dict(exam_term),
+            'exam': AcademicsService._exam_dict(assessment),
             'student': AcademicsService._student_card_dict(student),
             'subjects': subj_list,
             # Pre-split for Django templates (no index access in Django template engine)
@@ -593,10 +579,10 @@ class AcademicsService:
         }
 
     @staticmethod
-    def build_report_card_context(student, exam_term):
-        base = AcademicsService.build_hall_ticket_context(student, exam_term)
+    def build_report_card_context(student, assessment):
+        base = AcademicsService.build_hall_ticket_context(student, assessment)
         results = ExamResult.objects.filter(
-            student=student, exam_term=exam_term, tenant=student.tenant,
+            student=student, assessment=assessment, tenant=student.tenant,
         ).select_related('subject').order_by('subject__name')
         subjects = []
         total_obt = Decimal('0')
@@ -624,12 +610,12 @@ class AcademicsService:
         return base
 
     @staticmethod
-    def build_report_card_summary_context(students_qs, exam_term):
-        tenant = exam_term.tenant
-        branch = exam_term.branch
+    def build_report_card_summary_context(students_qs, assessment):
+        tenant = assessment.tenant
+        branch = assessment.branch
         rows = []
         for s in students_qs:
-            card = AcademicsService.build_report_card_context(s, exam_term)
+            card = AcademicsService.build_report_card_context(s, assessment)
             rows.append({
                 'student': card['student'],
                 'subjects': card['subjects'],
@@ -642,7 +628,7 @@ class AcademicsService:
             'tenant_city': tenant.city or '',
             'tenant_state': tenant.state or '',
             'branch_name': branch.name if branch else '',
-            'exam': AcademicsService._exam_dict(exam_term),
+            'exam': AcademicsService._exam_dict(assessment),
             'students': rows,
         }
 
@@ -674,7 +660,7 @@ class AcademicsService:
 
     @staticmethod
     def get_report_card_summary_preview_rows(filters):
-        term = AcademicsService.get_exam_term_for_print(filters)
+        term = AcademicsService.get_assessment_for_print(filters)
         if not term:
             return []
         rows = []

@@ -148,7 +148,7 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
                         "user_branch_id": str(request.user.branch_id) if request.user.branch_id else None,
                         "user_role": request.user.role,
                     })
-                    assignments = TeacherAssignment.objects.filter(class_section=cs, teacher__user=request.user)
+                    assignments = TeacherAssignment.objects.filter(class_section=cs, staff__user=request.user)
                     details["assignments_count"] = assignments.count()
                     if assignments.exists():
                         details["assignments"] = [

@@ -10,16 +10,16 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.permissions import normalize_role, IsAccountantOrAbove
-from academics.models import ExamResult, ExamTerm, ExamSubjectConfig, AcademicSubject, Assessment, AssessmentSubject
+from academics.models import ExamResult, AcademicSubject, Assessment, AssessmentSubject
 from academics.marks_access import can_enter_exam_marks
 from academics.permissions import AcademicDomainPermission
 from academics.serializers import (
-    BulkExamMarksSerializer, ExamTermSerializer, ExamSubjectConfigSerializer,
+    BulkExamMarksSerializer,
     AcademicSubjectSerializer, AssessmentSerializer, AssessmentSubjectSerializer,
 )
 from students.models import ClassSection, Student
 from staff.models import TeacherProfile, TeacherAssignment
-from timetable.models import Subject, TimetableSlot
+from timetable.models import TimetableSlot
 
 logger = logging.getLogger(__name__)
 
@@ -47,92 +47,38 @@ def _collect_teaching_pairs(user):
                 'branch_id': str(cs.branch_id),
                 'academic_year_id': str(cs.academic_year_id),
             })
-    slots = TimetableSlot.objects.filter(
-        teacher=user, subject__isnull=False
-    ).select_related('class_section', 'class_section__branch', 'subject')
-    for row in slots:
-        cs = row.class_section
-        sub = row.subject
-        key = (str(cs.id), str(sub.id))
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append({
-            'class_section_id': str(cs.id),
-            'class_name': cs.display_name or str(cs),
-            'subject_id': str(sub.id),
-            'subject_name': sub.name,
-            'branch_id': str(cs.branch_id),
-            'academic_year_id': str(cs.academic_year_id),
-        })
+        
+        slots = TimetableSlot.objects.filter(
+            teacher=tp, subject__isnull=False
+        ).select_related('class_section', 'class_section__branch', 'subject')
+        for row in slots:
+            cs = row.class_section
+            sub = row.subject
+            key = (str(cs.id), str(sub.id))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({
+                'class_section_id': str(cs.id),
+                'class_name': cs.display_name or str(cs),
+                'subject_id': str(sub.id),
+                'subject_name': sub.name,
+                'branch_id': str(cs.branch_id),
+                'academic_year_id': str(cs.academic_year_id),
+            })
     return out
 
 
-def _exam_terms_for_branches(tenant, branch_ids):
+def _assessments_for_branches(tenant, branch_ids):
     if not branch_ids:
         return []
-    qs = ExamTerm.objects.filter(tenant=tenant, branch_id__in=branch_ids, is_active=True)
+    qs = Assessment.objects.filter(tenant=tenant, branch_id__in=branch_ids, is_active=True)
     return list(
-        qs.order_by('start_date').values('id', 'name', 'start_date', 'end_date', 'branch_id', 'academic_year_id')
+        qs.order_by('start_date').values('id', 'name', 'start_date', 'end_date', 'branch_id', 'academic_year_id', 'grade')
     )
 
 
-class ExamTermViewSet(viewsets.ModelViewSet):
-    serializer_class = ExamTermSerializer
-    permission_classes = [IsAuthenticated, AcademicDomainPermission, IsAccountantOrAbove]
-    
-    def get_queryset(self):
-        user = self.request.user
-        qs = ExamTerm.objects.filter(tenant=user.tenant)
-        if hasattr(user, 'branch_id') and user.branch_id:
-            qs = qs.filter(branch_id=user.branch_id)
-        return qs.order_by('-start_date')
-        
-    def perform_create(self, serializer):
-        user = self.request.user
-        # The frontend might send academic_year_id or it comes from request.headers via middleware
-        academic_year_id = self.request.data.get('academic_year_id')
-        if not academic_year_id:
-            from tenants.models import AcademicYear
-            ay = AcademicYear.objects.filter(branch_id=user.branch_id, is_active=True).first()
-            if ay:
-                academic_year_id = ay.id
-        
-        serializer.save(
-            tenant=user.tenant,
-            branch_id=user.branch_id,
-            academic_year_id=academic_year_id
-        )
 
-    @action(detail=True, methods=['get', 'post'])
-    def configs(self, request, pk=None):
-        exam_term = self.get_object()
-        if request.method == 'GET':
-            configs = ExamSubjectConfig.objects.filter(exam_term=exam_term)
-            serializer = ExamSubjectConfigSerializer(configs, many=True)
-            return Response({'success': True, 'data': serializer.data})
-        
-        elif request.method == 'POST':
-            configs_data = request.data.get('configs', [])
-            saved = 0
-            with transaction.atomic():
-                for c in configs_data:
-                    cs_id = c.get('class_section')
-                    sub_id = c.get('subject')
-                    max_marks = c.get('max_marks')
-                    if cs_id and sub_id and max_marks is not None:
-                        ExamSubjectConfig.objects.update_or_create(
-                            exam_term=exam_term,
-                            class_section_id=cs_id,
-                            subject_id=sub_id,
-                            defaults={
-                                'tenant': exam_term.tenant,
-                                'branch': exam_term.branch,
-                                'max_marks': max_marks
-                            }
-                        )
-                        saved += 1
-            return Response({'success': True, 'message': f'Saved {saved} configurations.'})
 
 
 @api_view(['GET'])
@@ -149,27 +95,27 @@ def teacher_marks_context(request):
         'PRINCIPAL', 'BRANCH_ADMIN', 'SUPER_ADMIN', 'OWNER', 'ZONAL_ADMIN',
     ):
         branch_ids = [str(user.branch_id)]
-    exam_terms = _exam_terms_for_branches(user.tenant, branch_ids)
-    if not exam_terms and role in ('SUPER_ADMIN', 'OWNER'):
-        exam_terms = list(
-            ExamTerm.objects.filter(tenant=user.tenant, is_active=True)
+    assessments = _assessments_for_branches(user.tenant, branch_ids)
+    if not assessments and role in ('SUPER_ADMIN', 'OWNER'):
+        assessments = list(
+            Assessment.objects.filter(tenant=user.tenant, is_active=True)
             .order_by('start_date')
-            .values('id', 'name', 'start_date', 'end_date', 'branch_id', 'academic_year_id')
+            .values('id', 'name', 'start_date', 'end_date', 'branch_id', 'academic_year_id', 'grade')
         )
     return Response({
         'success': True,
         'data': {
             'assignments': assignments,
-            'exam_terms': exam_terms,
+            'assessments': assessments,  # Kept as exam_terms to prevent frontend from breaking until we refactor it
         },
     })
 
 
-def _resolve_exam_class_subject(user, exam_term_id, class_section_id, subject_id):
-    exam = ExamTerm.objects.filter(pk=exam_term_id, tenant=user.tenant).first()
+def _resolve_assessment_class_subject(user, assessment_id, class_section_id, subject_id):
+    exam = Assessment.objects.filter(pk=assessment_id, tenant=user.tenant).first()
     if not exam:
         return None, Response(
-            {'success': False, 'error': 'Exam term not found.'},
+            {'success': False, 'error': 'Assessment not found.'},
             status=status.HTTP_404_NOT_FOUND,
         )
     cs = ClassSection.objects.filter(pk=class_section_id, tenant=user.tenant).select_related('branch').first()
@@ -186,12 +132,17 @@ def _resolve_exam_class_subject(user, exam_term_id, class_section_id, subject_id
         )
     if str(exam.branch_id) != str(cs.branch_id):
         return None, Response(
-            {'success': False, 'error': 'Exam term and class section must belong to the same branch.'},
+            {'success': False, 'error': 'Assessment and class section must belong to the same branch.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
     if str(cs.academic_year_id) != str(exam.academic_year_id):
         return None, Response(
-            {'success': False, 'error': 'Exam term must match the class academic year.'},
+            {'success': False, 'error': 'Assessment must match the class academic year.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if cs.grade != exam.grade:
+        return None, Response(
+            {'success': False, 'error': 'Assessment grade must match class section grade.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
     if not can_enter_exam_marks(user, cs, sub):
@@ -213,7 +164,7 @@ def teacher_marks_grid(request):
             {'success': False, 'error': 'exam_term_id, class_section_id, and subject_id are required.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    resolved, err = _resolve_exam_class_subject(request.user, exam_term_id, class_section_id, subject_id)
+    resolved, err = _resolve_assessment_class_subject(request.user, exam_term_id, class_section_id, subject_id)
     if err:
         return err
     exam, cs, sub = resolved
@@ -221,12 +172,12 @@ def teacher_marks_grid(request):
     students = Student.objects.filter(class_section=cs, status='ACTIVE').order_by('roll_number', 'first_name')
     results = {
         str(r.student_id): r
-        for r in ExamResult.objects.filter(exam_term=exam, subject=sub, student__class_section=cs).select_related(
+        for r in ExamResult.objects.filter(assessment=exam, subject=sub, student__class_section=cs).select_related(
             'student'
         )
     }
-    config = ExamSubjectConfig.objects.filter(
-        exam_term=exam, class_section=cs, subject=sub
+    config = AssessmentSubject.objects.filter(
+        assessment=exam, subject=sub
     ).first()
     
     if not config:
@@ -277,18 +228,18 @@ def teacher_marks_grid(request):
 def teacher_marks_bulk_save(request):
     ser = BulkExamMarksSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
-    exam_term_id = str(ser.validated_data['exam_term_id'])
+    exam_term_id = str(ser.validated_data['assessment_id'])
     class_section_id = str(ser.validated_data['class_section_id'])
     subject_id = str(ser.validated_data['subject_id'])
     rows_in = ser.validated_data['rows']
 
-    resolved, err = _resolve_exam_class_subject(request.user, exam_term_id, class_section_id, subject_id)
+    resolved, err = _resolve_assessment_class_subject(request.user, exam_term_id, class_section_id, subject_id)
     if err:
         return err
     exam, cs, sub = resolved
 
-    config = ExamSubjectConfig.objects.filter(
-        exam_term=exam, class_section=cs, subject=sub
+    config = AssessmentSubject.objects.filter(
+        assessment=exam, subject=sub
     ).first()
     
     if not config:
@@ -328,7 +279,7 @@ def teacher_marks_bulk_save(request):
             remarks = row.get('remarks') or ''
             ExamResult.objects.update_or_create(
                 student_id=sid,
-                exam_term_id=exam.id,
+                assessment_id=exam.id,
                 subject_id=sub.id,
                 defaults={
                     'tenant_id': cs.tenant_id,
@@ -359,16 +310,16 @@ def teacher_marks_publish(request):
         return Response({'success': False, 'error': 'exam_term_id and class_section_id are required.'}, status=400)
         
     if subject_id:
-        resolved, err = _resolve_exam_class_subject(request.user, exam_term_id, class_section_id, subject_id)
+        resolved, err = _resolve_assessment_class_subject(request.user, exam_term_id, class_section_id, subject_id)
         if err: return err
         exam, cs, subjects = resolved[0], resolved[1], [resolved[2]]
     else:
         # Publish all subjects for class
-        exam = ExamTerm.objects.filter(pk=exam_term_id, tenant=request.user.tenant).first()
+        exam = Assessment.objects.filter(pk=exam_term_id, tenant=request.user.tenant).first()
         cs = ClassSection.objects.filter(pk=class_section_id, tenant=request.user.tenant).first()
         if not exam or not cs:
-            return Response({'success': False, 'error': 'Exam term or class section not found.'}, status=404)
-        subjects = AcademicSubject.objects.filter(exam_results__exam_term=exam, exam_results__student__class_section=cs).distinct()
+            return Response({'success': False, 'error': 'Assessment or class section not found.'}, status=404)
+        subjects = AcademicSubject.objects.filter(exam_results__assessment=exam, exam_results__student__class_section=cs).distinct()
 
     published_count = 0
     from students.models import ParentStudentRelation
@@ -378,7 +329,7 @@ def teacher_marks_publish(request):
     for sub in subjects:
         # Calculate ranks for this subject
         results = list(ExamResult.objects.filter(
-            exam_term=exam, 
+            assessment=exam, 
             student__class_section=cs, 
             subject=sub,
         ).exclude(
@@ -432,14 +383,14 @@ def report_card(request):
         return Response({'success': False, 'error': 'student_id and exam_term_id are required.'}, status=400)
         
     student = Student.objects.filter(id=student_id, tenant=request.user.tenant).first()
-    exam_term = ExamTerm.objects.filter(id=exam_term_id, tenant=request.user.tenant).first()
+    exam_term = Assessment.objects.filter(id=exam_term_id, tenant=request.user.tenant).first()
     
     if not student or not exam_term:
-        return Response({'success': False, 'error': 'Student or Exam Term not found.'}, status=404)
+        return Response({'success': False, 'error': 'Student or Assessment not found.'}, status=404)
         
     results = ExamResult.objects.filter(
         student=student, 
-        exam_term=exam_term, 
+        assessment=exam_term, 
         is_published=True
     ).select_related('subject')
     

@@ -23,7 +23,7 @@ from django.db import transaction
 from accounts.models import User
 from tenants.models import Tenant, Branch, AcademicYear
 from students.models import ClassSection, Student, ParentStudentRelation, GRADE_CHOICES
-from timetable.models import Subject
+from academics.models import AcademicSubject
 from staff.models import TeacherProfile, TeacherAssignment
 from fees.models import FeeCategory, FeeStructure, FeeStructureItem, StudentFeeItem
 from transport.models import TransportRateSlab, StudentTransport
@@ -145,7 +145,7 @@ def clean_existing(tenant):
     User.objects.filter(tenant=tenant, role__in=['SUPER_ADMIN', 'BRANCH_ADMIN']).delete()
     User.objects.filter(tenant=tenant, role__in=['TEACHER', 'PARENT']).delete()
     ClassSection.objects.filter(tenant=tenant).delete()
-    Subject.objects.filter(tenant=tenant).delete()
+    AcademicSubject.objects.filter(tenant=tenant).delete()
     FeeStructureItem.objects.filter(structure__tenant=tenant).delete()
     FeeStructure.objects.filter(tenant=tenant).delete()
     FeeCategory.objects.filter(tenant=tenant).delete()
@@ -159,9 +159,9 @@ def create_subjects(tenant, branch):
         created[group] = []
         for name in names:
             code = name[:3].upper()
-            subj, _ = Subject.objects.get_or_create(
+            subj, _ = AcademicSubject.objects.get_or_create(
                 tenant=tenant, branch=branch, name=name,
-                defaults={'code': code, 'grade_levels': [], 'is_active': True}
+                defaults={'code': code, 'is_active': True}
             )
             created[group].append(subj)
             counter['subjects'] += 1

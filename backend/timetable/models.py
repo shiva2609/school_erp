@@ -29,18 +29,6 @@ class Period(models.Model):
         return f"{self.name} ({self.start_time}-{self.end_time})"
 
 
-class Subject(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='subjects')
-    branch = models.ForeignKey('tenants.Branch', on_delete=models.CASCADE, related_name='subjects')
-    name = models.CharField(max_length=100)
-    code = models.CharField(max_length=10, blank=True)
-    grade_levels = models.JSONField(default=list, blank=True)
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return f"{self.code} - {self.name}"
-
 
 class TimetableSlot(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -49,7 +37,7 @@ class TimetableSlot(models.Model):
     period = models.ForeignKey(Period, on_delete=models.CASCADE, related_name='timetable_slots')
     day_of_week = models.CharField(max_length=3, choices=DAY_CHOICES)
     subject = models.ForeignKey('academics.AcademicSubject', on_delete=models.SET_NULL, null=True, blank=True, related_name='timetable_slots')
-    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='timetable_slots')
+    teacher = models.ForeignKey('staff.StaffProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='timetable_slots')
 
     class Meta:
         unique_together = ['class_section', 'period', 'day_of_week']
@@ -66,7 +54,7 @@ class ClassSubjectDemand(models.Model):
     academic_year = models.ForeignKey('tenants.AcademicYear', on_delete=models.CASCADE, related_name='subject_demands')
     class_section = models.ForeignKey('students.ClassSection', on_delete=models.CASCADE, related_name='subject_demands')
     subject = models.ForeignKey('academics.AcademicSubject', on_delete=models.CASCADE, related_name='demands')
-    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='subject_demands')
+    teacher = models.ForeignKey('staff.StaffProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='subject_demands')
     
     classes_per_week = models.PositiveIntegerField(default=5)
     priority = models.PositiveIntegerField(default=1, help_text="Higher number = higher priority")

@@ -16,7 +16,7 @@ type Assignment = {
   academic_year_id: string;
 };
 
-type ExamTerm = {
+type Assessment = {
   id: string;
   name: string;
   start_date: string;
@@ -41,7 +41,7 @@ type GridStudent = {
 };
 
 type GridPayload = {
-  exam_term: { id: string; name: string; academic_year_id: string };
+  assessment: { id: string; name: string; academic_year_id: string };
   class_section: { id: string; display_name: string; grade: string; section: string };
   subject: { id: string; name: string; code: string };
   default_max_marks: string;
@@ -70,9 +70,9 @@ export default function ExamMarksPage() {
 
   const [contextLoading, setContextLoading] = useState(true);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [examTerms, setExamTerms] = useState<ExamTerm[]>([]);
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
 
-  const [examTermId, setExamTermId] = useState("");
+  const [assessmentId, setAssessmentId] = useState("");
   const [assignmentKey, setAssignmentKey] = useState("");
   const [classSectionId, setClassSectionId] = useState("");
   const [subjectId, setSubjectId] = useState("");
@@ -106,11 +106,11 @@ export default function ExamMarksPage() {
       const res = await api.get("academics/marks/context/");
       const d = res.data?.data ?? res.data;
       setAssignments(d?.assignments ?? []);
-      setExamTerms(d?.exam_terms ?? []);
+      setAssessments(d?.assessments ?? []);
     } catch {
       toast.error("Could not load marks context.");
       setAssignments([]);
-      setExamTerms([]);
+      setAssessments([]);
     } finally {
       setContextLoading(false);
     }
@@ -161,7 +161,7 @@ export default function ExamMarksPage() {
   }, [selectedClass?.branch]);
 
   useEffect(() => {
-    if (!examTermId || !classSectionId || !subjectId) {
+    if (!assessmentId || !classSectionId || !subjectId) {
       setGrid(null);
       setDraft({});
       return;
@@ -172,7 +172,7 @@ export default function ExamMarksPage() {
       try {
         const res = await api.get("academics/marks/grid/", {
           params: {
-            exam_term_id: examTermId,
+            assessment_id: assessmentId,
             class_section_id: classSectionId,
             subject_id: subjectId,
           },
@@ -206,7 +206,7 @@ export default function ExamMarksPage() {
     return () => {
       cancelled = true;
     };
-  }, [examTermId, classSectionId, subjectId]);
+  }, [assessmentId, classSectionId, subjectId]);
 
   const onAssignmentPick = (key: string) => {
     setAssignmentKey(key);
@@ -237,7 +237,7 @@ export default function ExamMarksPage() {
   };
 
   const handleSave = async () => {
-    if (!examTermId || !classSectionId || !subjectId || !grid) {
+    if (!assessmentId || !classSectionId || !subjectId || !grid) {
       toast.error("Select exam, class, and subject first.");
       return;
     }
@@ -257,7 +257,7 @@ export default function ExamMarksPage() {
     setSaving(true);
     try {
       const res = await api.post("academics/marks/bulk/", {
-        exam_term_id: examTermId,
+        assessment_id: assessmentId,
         class_section_id: classSectionId,
         subject_id: subjectId,
         default_max_marks: defaultMax,
@@ -272,7 +272,7 @@ export default function ExamMarksPage() {
       }
       const gr = await api.get("academics/marks/grid/", {
         params: {
-          exam_term_id: examTermId,
+          assessment_id: assessmentId,
           class_section_id: classSectionId,
           subject_id: subjectId,
         },
@@ -337,11 +337,11 @@ export default function ExamMarksPage() {
                 </label>
                 <select
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                  value={examTermId}
-                  onChange={(e) => setExamTermId(e.target.value)}
+                  value={assessmentId}
+                  onChange={(e) => setAssessmentId(e.target.value)}
                 >
                   <option value="">Select exam…</option>
-                  {examTerms.map((ex) => (
+                  {assessments.map((ex) => (
                     <option key={ex.id} value={ex.id}>
                       {ex.name}
                     </option>

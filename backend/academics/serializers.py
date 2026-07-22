@@ -1,19 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
-
-from academics.models import ExamTerm, ExamSubjectConfig, AcademicSubject, Assessment, AssessmentSubject
-
-class ExamTermSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ExamTerm
-        fields = ['id', 'name', 'start_date', 'end_date', 'weightage_percentage', 'is_active', 'branch', 'academic_year']
-        read_only_fields = ['branch', 'academic_year']
-
-class ExamSubjectConfigSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ExamSubjectConfig
-        fields = ['id', 'exam_term', 'class_section', 'subject', 'max_marks']
-
+from academics.models import AcademicSubject, Assessment, AssessmentSubject
 
 class MarkRowSerializer(serializers.Serializer):
     student_id = serializers.UUIDField()
@@ -23,7 +10,7 @@ class MarkRowSerializer(serializers.Serializer):
 
 
 class BulkExamMarksSerializer(serializers.Serializer):
-    exam_term_id = serializers.UUIDField()
+    assessment_id = serializers.UUIDField()
     class_section_id = serializers.UUIDField()
     subject_id = serializers.UUIDField()
     default_max_marks = serializers.DecimalField(

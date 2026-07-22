@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Period, Subject, TimetableSlot, ClassSubjectDemand
+from .models import Period, TimetableSlot, ClassSubjectDemand
 
 
 class PeriodSerializer(serializers.ModelSerializer):
@@ -8,18 +8,6 @@ class PeriodSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id', 'tenant']
 
-
-class SubjectSerializer(serializers.ModelSerializer):
-    branch = serializers.PrimaryKeyRelatedField(
-        queryset=Subject._meta.get_field('branch').remote_field.model.objects.all(), 
-        required=False, 
-        allow_null=True
-    )
-
-    class Meta:
-        model = Subject
-        fields = '__all__'
-        read_only_fields = ['id', 'tenant']
 
 
 class TimetableSlotSerializer(serializers.ModelSerializer):
@@ -35,8 +23,8 @@ class TimetableSlotSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'tenant']
 
     def get_teacher_name(self, obj):
-        if obj.teacher:
-            return f"{obj.teacher.first_name} {obj.teacher.last_name}"
+        if obj.teacher and obj.teacher.user:
+            return f"{obj.teacher.user.first_name} {obj.teacher.user.last_name}"
         return None
 
     def validate(self, data):
@@ -80,6 +68,6 @@ class ClassSubjectDemandSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'tenant']
 
     def get_teacher_name(self, obj):
-        if obj.teacher:
-            return f"{obj.teacher.first_name} {obj.teacher.last_name}"
+        if obj.teacher and obj.teacher.user:
+            return f"{obj.teacher.user.first_name} {obj.teacher.user.last_name}"
         return None

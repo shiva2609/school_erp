@@ -3,26 +3,6 @@ from django.db import models
 from django.conf import settings
 from students.models import GRADE_CHOICES
 
-class ExamTerm(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='exam_terms')
-    branch = models.ForeignKey('tenants.Branch', on_delete=models.CASCADE, related_name='exam_terms')
-    academic_year = models.ForeignKey('tenants.AcademicYear', on_delete=models.CASCADE, related_name='exam_terms')
-    name = models.CharField(max_length=100) # e.g. "Term 1", "Half Yearly", "Finals"
-    start_date = models.DateField()
-    end_date = models.DateField()
-    weightage_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=100.0)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['start_date']
-        unique_together = ('branch', 'academic_year', 'name')
-
-    def __str__(self):
-        return f"{self.name} ({self.academic_year})"
-
-
 class GradeScale(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='grade_scales')
@@ -47,7 +27,7 @@ class ExamResult(models.Model):
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='exam_results')
     branch = models.ForeignKey('tenants.Branch', on_delete=models.CASCADE, related_name='exam_results')
     student = models.ForeignKey('students.Student', on_delete=models.CASCADE, related_name='exam_results')
-    exam_term = models.ForeignKey(ExamTerm, on_delete=models.CASCADE, related_name='results')
+    assessment = models.ForeignKey('Assessment', on_delete=models.CASCADE, related_name='results')
     subject = models.ForeignKey('academics.AcademicSubject', on_delete=models.CASCADE, related_name='exam_results')
     
     marks_obtained = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
@@ -67,7 +47,7 @@ class ExamResult(models.Model):
     remarks = models.CharField(max_length=200, blank=True)
 
     class Meta:
-        unique_together = ('student', 'exam_term', 'subject')
+        unique_together = ('student', 'assessment', 'subject')
         ordering = ['student', 'subject']
         
     def save(self, *args, **kwargs):
@@ -92,23 +72,10 @@ class ExamResult(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.student} - {self.subject} ({self.exam_term.name}): {self.marks_obtained}/{self.max_marks}"
+        return f"{self.student} - {self.subject} ({self.assessment.name}): {self.marks_obtained}/{self.max_marks}"
 
 
-class ExamSubjectConfig(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='exam_configs')
-    branch = models.ForeignKey('tenants.Branch', on_delete=models.CASCADE, related_name='exam_configs')
-    exam_term = models.ForeignKey(ExamTerm, on_delete=models.CASCADE, related_name='subject_configs')
-    class_section = models.ForeignKey('students.ClassSection', on_delete=models.CASCADE, related_name='exam_configs')
-    subject = models.ForeignKey('academics.AcademicSubject', on_delete=models.CASCADE, related_name='exam_configs')
-    max_marks = models.DecimalField(max_digits=5, decimal_places=2)
 
-    class Meta:
-        unique_together = ('exam_term', 'class_section', 'subject')
-        
-    def __str__(self):
-        return f"{self.exam_term.name} - {self.class_section} - {self.subject} (Max: {self.max_marks})"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

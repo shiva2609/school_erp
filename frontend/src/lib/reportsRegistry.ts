@@ -270,7 +270,7 @@ export const reportsRegistry: ReportCategory[] = [
         filters: { showDateRange: false, showClassSection: true, showAcademicYear: true, showExam: true },
         offerPdfDownload: true,
         columns: [
-          { key: 'exam_term__name', label: 'Exam' },
+          { key: 'assessment__name', label: 'Exam' },
           { key: 'admission_number', label: 'Adm. No.' },
           { key: 'name', label: 'Student', render: (_v: any, row: any) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || '-' },
           { key: 'class', label: 'Class', render: (_v: any, row: any) => `${row.class_section__grade || ''}-${row.class_section__section || ''}`.replace(/-$/, '') },
@@ -288,7 +288,7 @@ export const reportsRegistry: ReportCategory[] = [
           { key: 'student', label: 'Student', render: (_v: any, row: any) => `${row.student__first_name || ''} ${row.student__last_name || ''}`.trim() || '-' },
           { key: 'adm', label: 'Adm. No.', render: (_v: any, row: any) => row.student__admission_number || '-' },
           { key: 'class', label: 'Class', render: (_v: any, row: any) => `${row.student__class_section__grade || ''}-${row.student__class_section__section || ''}`.replace(/-$/, '') },
-          { key: 'exam_term__name', label: 'Exam' },
+          { key: 'assessment__name', label: 'Exam' },
           { key: 'subject__name', label: 'Subject' },
           { key: 'marks_obtained', label: 'Marks' },
           { key: 'max_marks', label: 'Max' },
@@ -306,7 +306,7 @@ export const reportsRegistry: ReportCategory[] = [
         filters: { showDateRange: false, showClassSection: true, showAcademicYear: true, showExam: true },
         offerPdfDownload: true,
         columns: [
-          { key: 'exam_term__name', label: 'Exam' },
+          { key: 'assessment__name', label: 'Exam' },
           { key: 'admission_number', label: 'Adm. No.' },
           { key: 'name', label: 'Student', render: (_v: any, row: any) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || '-' },
           { key: 'class', label: 'Class', render: (_v: any, row: any) => `${row.class_section__grade || ''}-${row.class_section__section || ''}`.replace(/-$/, '') },

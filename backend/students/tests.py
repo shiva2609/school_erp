@@ -6,7 +6,6 @@ from accounts.models import User
 from tenants.models import Tenant, Branch, AcademicYear, Zone
 from students.models import Student, ClassSection
 from staff.models import TeacherProfile, TeacherAssignment
-from timetable.models import Subject
 from academics.models import AcademicSubject
 from timetable.models import TimetableSlot, Period
 
@@ -225,7 +224,7 @@ class TeacherYearPromotionTests(TestCase):
             period=self.period,
             day_of_week=today_day,
             subject=self.subject,
-            teacher=self.teacher_user,
+            teacher=self.teacher_profile,
         )
         TimetableSlot.objects.create(
             tenant=self.tenant,
@@ -233,7 +232,7 @@ class TeacherYearPromotionTests(TestCase):
             period=self.period,
             day_of_week=today_day,
             subject=self.subject,
-            teacher=self.teacher_user,
+            teacher=self.teacher_profile,
         )
 
         response = self.client.get('/api/v1/teacher/dashboard/')

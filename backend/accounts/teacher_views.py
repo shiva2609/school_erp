@@ -80,20 +80,21 @@ def teacher_dashboard(request):
     today_schedule = []
     try:
         from timetable.models import TimetableSlot, Period
-        slots = TimetableSlot.objects.filter(
-            teacher=user,
+        if teacher_profile:
+            slots = TimetableSlot.objects.filter(
+                teacher=teacher_profile,
             day_of_week=day_of_week,
             class_section__academic_year__is_active=True
         ).select_related('period', 'subject', 'class_section').order_by('period__order')
 
-        for slot in slots:
-            today_schedule.append({
-                'period': slot.period.name,
-                'start_time': slot.period.start_time.strftime('%I:%M %p') if slot.period.start_time else '',
-                'end_time': slot.period.end_time.strftime('%I:%M %p') if slot.period.end_time else '',
-                'subject': slot.subject.name if slot.subject else 'Free',
-                'class_name': slot.class_section.display_name if slot.class_section else '',
-            })
+            for slot in slots:
+                today_schedule.append({
+                    'period': slot.period.name,
+                    'start_time': slot.period.start_time.strftime('%I:%M %p') if slot.period.start_time else '',
+                    'end_time': slot.period.end_time.strftime('%I:%M %p') if slot.period.end_time else '',
+                    'subject': slot.subject.name if slot.subject else 'Free',
+                    'class_name': slot.class_section.display_name if slot.class_section else '',
+                })
     except Exception as e:
         logger.warning(f"Timetable query failed for teacher {user.email}: {e}")
 

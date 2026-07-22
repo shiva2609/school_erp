@@ -50,8 +50,11 @@ def can_enter_exam_marks(user, class_section, subject) -> bool:
     ).exists():
         return True
 
+    if not tp:
+        return False
+        
     return TimetableSlot.objects.filter(
-        teacher=user,
+        teacher=tp,
         class_section=class_section,
         subject=subject,
     ).exclude(subject__isnull=True).exists()

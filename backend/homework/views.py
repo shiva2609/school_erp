@@ -43,7 +43,7 @@ class HomeworkViewSet(viewsets.ModelViewSet):
                 if user.branch and cls_sec.branch != user.branch:
                     raise PermissionDenied('You cannot create homework for another branch.')
                 exists = TeacherAssignment.objects.filter(
-                    teacher__user=user, 
+                    staff__user=user, 
                     class_section=cls_sec, 
                     subject=subj
                 ).exists()
@@ -98,7 +98,7 @@ class HomeworkViewSet(viewsets.ModelViewSet):
                 if user.branch and cls_sec.branch != user.branch:
                     raise PermissionDenied('You cannot modify homework for another branch.')
                 exists = TeacherAssignment.objects.filter(
-                    teacher__user=user, 
+                    staff__user=user, 
                     class_section=cls_sec, 
                     subject=subj
                 ).exists()
@@ -140,7 +140,7 @@ class HomeworkViewSet(viewsets.ModelViewSet):
         if normalize_role(request.user.role) == 'TEACHER':
             from staff.models import TeacherAssignment
             if not TeacherAssignment.objects.filter(
-                teacher__user=request.user,
+                staff__user=request.user,
                 class_section_id=cs_id,
             ).exists():
                 return Response({'detail': 'You are not assigned to this class.'}, status=403)

@@ -18,8 +18,8 @@ export default function TimetableSetupWizard() {
   const [selectedClass, setSelectedClass] = useState('');
   
   const { data: classes } = useApi<any[]>('/classes/');
-  const { data: subjects } = useApi<any[]>('/subjects/');
-  const { data: teachers } = useApi<any[]>('/users/?role=TEACHER');
+  const { data: subjects } = useApi<any[]>('/academics/subjects/');
+  const { data: teachers } = useApi<any[]>('/staff/staff/');
   
   const { data: demands, refetch: refetchDemands } = useApi<any[]>(
     `/timetable/demands/?class_section_id=${selectedClass}`
@@ -148,7 +148,7 @@ export default function TimetableSetupWizard() {
                             className="w-full p-2.5 rounded-lg border-blue-200 mt-1 text-sm text-black"
                           >
                             <option value="">Select...</option>
-                            {teachers?.map(t => <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>)}
+                            {teachers?.filter(t => t.is_teaching_role).map(t => <option key={t.id} value={t.id}>{t.user_details?.first_name || 'No Name'} {t.user_details?.last_name || `(${t.employee_id})`}</option>)}
                           </select>
                       </div>
                       <div>

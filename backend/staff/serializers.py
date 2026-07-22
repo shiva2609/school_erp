@@ -232,9 +232,16 @@ class StaffProfileSerializer(serializers.ModelSerializer):
                 if branch is not None:
                     user.branch = branch
                     user_updated = True
-                if requires_portal is True:
-                    user.is_active = True
+                if requires_portal is not None:
+                    user.is_active = bool(requires_portal)
                     user_updated = True
+                
+                # Deactivate user if HR status dictates it
+                hr_status = validated_data.get('status')
+                if hr_status in ['INACTIVE', 'RESIGNED']:
+                    user.is_active = False
+                    user_updated = True
+                    
                 if user_updated:
                     user.save()
             else:

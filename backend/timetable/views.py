@@ -5,8 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from collections import defaultdict
 
 from accounts.permissions import IsSchoolAdminOrAbove, IsTeacherOrAbove, IsBranchAdminOrAbove, normalize_role
-from .models import Period, Subject, TimetableSlot, DAY_CHOICES, ClassSubjectDemand
-from .serializers import PeriodSerializer, SubjectSerializer, TimetableSlotSerializer, ClassSubjectDemandSerializer
+from .models import Period, TimetableSlot, DAY_CHOICES, ClassSubjectDemand
+from .serializers import PeriodSerializer, TimetableSlotSerializer, ClassSubjectDemandSerializer
 import random
 
 
@@ -24,85 +24,6 @@ class PeriodViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(tenant=self.request.user.tenant)
 
-
-class SubjectViewSet(viewsets.ModelViewSet):
-    serializer_class = SubjectSerializer
-    permission_classes = [IsAuthenticated, IsTeacherOrAbove]
-
-    def get_permissions(self):
-        if self.action in ('create', 'update', 'partial_update', 'destroy'):
-            return [IsAuthenticated(), IsBranchAdminOrAbove()]
-        return [IsAuthenticated(), IsTeacherOrAbove()]
-
-    def get_queryset(self):
-        # Filter by tenant directly for better performance and reliability
-        qs = Subject.objects.filter(tenant=self.request.user.tenant)
-        import uuid
-        branch = self.request.query_params.get('branch_id')
-        user = self.request.user
-        role = normalize_role(user.role)
-        
-        if role in ('PRINCIPAL', 'BRANCH_ADMIN') and user.branch:
-            qs = qs.filter(branch=user.branch)
-        elif branch and branch not in ('undefined', 'null', ''):
-            try:
-                uuid.UUID(str(branch))
-                qs = qs.filter(branch_id=branch)
-            except ValueError:
-                pass
-            
-        # Teachers should only see their assigned subjects if requested
-        assigned_only = self.request.query_params.get('assigned_only')
-        if assigned_only == 'true' and role == 'TEACHER':
-            qs = qs.filter(teacher_assignments__staff__user=user)
-            cs = self.request.query_params.get('class_section_id')
-            if cs and cs not in ('undefined', 'null', ''):
-                try:
-                    uuid.UUID(str(cs))
-                    qs = qs.filter(teacher_assignments__class_section_id=cs)
-                except ValueError:
-                    pass
-            qs = qs.distinct()
-            
-        return qs
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        branch = serializer.validated_data.get('branch')
-        user = request.user
-        role = normalize_role(user.role)
-        
-        # Determine if "All Branches" was requested
-        # (branch is null and user is School Admin or above)
-        if not branch and role in ['OWNER', 'SUPER_ADMIN']:
-            branches = user.tenant.branches.filter(is_active=True)
-            subjects = []
-            for b in branches:
-                subjects.append(Subject(
-                    tenant=user.tenant,
-                    branch=b,
-                    name=serializer.validated_data['name'],
-                    code=serializer.validated_data.get('code', ''),
-                    grade_levels=serializer.validated_data.get('grade_levels', []),
-                    is_active=serializer.validated_data.get('is_active', True)
-                ))
-            
-            if subjects:
-                Subject.objects.bulk_create(subjects)
-                return Response({
-                    "success": True, 
-                    "message": f"Subject created for {len(subjects)} branches.",
-                    "data": SubjectSerializer(subjects[0]).data # Return first as sample
-                }, status=201)
-        
-        # Default behavior: single branch
-        if not branch and user.branch:
-            branch = user.branch
-            
-        instance = serializer.save(tenant=user.tenant, branch=branch)
-        return Response({"success": True, "data": SubjectSerializer(instance).data}, status=201)
 
 
 class ClassSubjectDemandViewSet(viewsets.ModelViewSet):
@@ -273,7 +194,7 @@ class TimetableSlotViewSet(viewsets.ModelViewSet):
                     'type': slot.period.period_type,
                 },
                 'subject': slot.subject.name if slot.subject else None,
-                'teacher': f"{slot.teacher.first_name} {slot.teacher.last_name}" if slot.teacher else None,
+                'teacher': f"{slot.teacher.user.first_name} {slot.teacher.user.last_name}" if slot.teacher and slot.teacher.user else None,
             })
 
         # Ensure all days are present
@@ -292,9 +213,15 @@ class TimetableSlotViewSet(viewsets.ModelViewSet):
 
         user = request.user
         role = normalize_role(user.role)
-        if role == 'TEACHER' and str(user.id) != str(teacher_id):
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('You can only view your own timetable.')
+        if role == 'TEACHER':
+            from staff.models import StaffProfile
+            try:
+                staff = StaffProfile.objects.get(id=teacher_id)
+                if str(user.id) != str(staff.user_id):
+                    from rest_framework.exceptions import PermissionDenied
+                    raise PermissionDenied('You can only view your own timetable.')
+            except StaffProfile.DoesNotExist:
+                return Response({'detail': 'Teacher not found.'}, status=404)
 
         slots = TimetableSlot.objects.filter(
             teacher_id=teacher_id,

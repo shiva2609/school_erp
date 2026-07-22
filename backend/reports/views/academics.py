@@ -1,7 +1,7 @@
 import logging
 import re
 
-from academics.models import ExamTerm, Assessment
+from academics.models import Assessment
 from django.http import HttpResponse
 from document_templates.models import DocumentTemplate
 from document_templates.services import generate_bulk_pdf_from_template, generate_pdf_from_template
@@ -59,15 +59,6 @@ class AcademicsReportViewSet(viewsets.ViewSet):
             qs = qs.filter(grade=class_id)
 
         data = list(qs.order_by('start_date', 'name').values('id', 'name', 'start_date', 'end_date', 'grade'))
-
-        # Fallback: if no Assessments exist (legacy branches), serve ExamTerms
-        if not data:
-            legacy_qs = ExamTerm.objects.filter(tenant=filters.user.tenant)
-            if filters.branch_id:
-                legacy_qs = legacy_qs.filter(branch_id=filters.branch_id)
-            if filters.academic_year_id:
-                legacy_qs = legacy_qs.filter(academic_year_id=filters.academic_year_id)
-            data = list(legacy_qs.order_by('start_date').values('id', 'name', 'start_date', 'end_date'))
 
         return Response({'success': True, 'data': data})
 
@@ -152,15 +143,11 @@ class AcademicsReportViewSet(viewsets.ViewSet):
                 {'success': False, 'error': 'exam_id is required. Choose an exam and generate the report.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        # Try Assessment first, fall back to legacy ExamTerm
+        # Use Assessment
         assessment = AcademicsService.get_assessment_for_print(filters)
-        if assessment:
-            exam_name = assessment.name
-        else:
-            term = AcademicsService.get_exam_term_for_print(filters)
-            if not term:
-                return Response({'success': False, 'error': 'Exam not found for this school.'}, status=404)
-            exam_name = term.name
+        if not assessment:
+            return Response({'success': False, 'error': 'Assessment not found for this school.'}, status=404)
+        exam_name = assessment.name
         qs = AcademicsService.get_students_for_exam_print(filters)
         summary = simple_count_summary(qs)
         data = qs.values(
@@ -169,7 +156,7 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         )
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
-        enriched = [{**row, 'exam_term__name': exam_name} for row in page]
+        enriched = [{**row, 'assessment__name': exam_name} for row in page]
         return paginator.get_paginated_response(enriched, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='consolidated-marks')
@@ -180,7 +167,7 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         data = qs.values(
             'student__admission_number', 'student__first_name', 'student__last_name',
             'student__class_section__grade', 'student__class_section__section',
-            'exam_term__name', 'subject__name', 'marks_obtained', 'max_marks', 'percentage', 'grade',
+            'assessment__name', 'subject__name', 'marks_obtained', 'max_marks', 'percentage', 'grade',
         )
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
@@ -196,9 +183,9 @@ class AcademicsReportViewSet(viewsets.ViewSet):
                 {'success': False, 'error': 'exam_id is required. Choose an exam term and generate the report.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        term = AcademicsService.get_exam_term_for_print(filters)
+        term = AcademicsService.get_assessment_for_print(filters)
         if not term:
-            return Response({'success': False, 'error': 'Exam not found for this school.'}, status=404)
+            return Response({'success': False, 'error': 'Assessment not found for this school.'}, status=404)
         qs = AcademicsService.get_students_for_exam_print(filters)
         summary = simple_count_summary(qs)
         data = qs.values(
@@ -207,7 +194,7 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         )
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
-        enriched = [{**row, 'exam_term__name': term.name} for row in page]
+        enriched = [{**row, 'assessment__name': term.name} for row in page]
         return paginator.get_paginated_response(enriched, summary=summary)
 
     @action(detail=False, methods=['get'], url_path='section-report-cards-summary')
@@ -220,9 +207,9 @@ class AcademicsReportViewSet(viewsets.ViewSet):
                 {'success': False, 'error': 'exam_id is required. Choose an exam term and generate the report.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        term = AcademicsService.get_exam_term_for_print(filters)
+        term = AcademicsService.get_assessment_for_print(filters)
         if not term:
-            return Response({'success': False, 'error': 'Exam not found for this school.'}, status=404)
+            return Response({'success': False, 'error': 'Assessment not found for this school.'}, status=404)
         data = AcademicsService.get_report_card_summary_preview_rows(filters)
         summary = list_len_summary(data)
         paginator = ReportPagination()
@@ -233,14 +220,12 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         if not filters.exam_id:
             return Response({'error': 'exam_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Resolve Assessment (new module) or fall back to legacy ExamTerm
+        # Resolve Assessment
         assessment = AcademicsService.get_assessment_for_print(filters)
-        exam_obj = assessment  # assessment or None; if None we try legacy below
+        exam_obj = assessment
 
         if not exam_obj:
-            exam_obj = AcademicsService.get_exam_term_for_print(filters)
-        if not exam_obj:
-            return Response({'error': 'Exam not found.'}, status=404)
+            return Response({'error': 'Assessment not found.'}, status=404)
 
         template = _pick_document_template(filters.user.tenant, 'HALL_TICKET', filters.branch_id)
         if not template:
@@ -284,9 +269,9 @@ class AcademicsReportViewSet(viewsets.ViewSet):
     def _section_report_cards_pdf(self, filters):
         if not filters.exam_id:
             return Response({'error': 'exam_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
-        term = AcademicsService.get_exam_term_for_print(filters)
+        term = AcademicsService.get_assessment_for_print(filters)
         if not term:
-            return Response({'error': 'Exam not found.'}, status=404)
+            return Response({'error': 'Assessment not found.'}, status=404)
         template = _pick_document_template(filters.user.tenant, 'REPORT_CARD', filters.branch_id)
         if not template:
             return Response(
@@ -313,9 +298,9 @@ class AcademicsReportViewSet(viewsets.ViewSet):
     def _report_card_summary_pdf(self, filters):
         if not filters.exam_id:
             return Response({'error': 'exam_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
-        term = AcademicsService.get_exam_term_for_print(filters)
+        term = AcademicsService.get_assessment_for_print(filters)
         if not term:
-            return Response({'error': 'Exam not found.'}, status=404)
+            return Response({'error': 'Assessment not found.'}, status=404)
         template = _pick_document_template(filters.user.tenant, 'REPORT_CARD_SUMMARY', filters.branch_id)
         if not template:
             return Response(

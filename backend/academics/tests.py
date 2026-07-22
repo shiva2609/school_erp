@@ -4,7 +4,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from academics.models import ExamResult, ExamTerm, ExamSubjectConfig, AcademicSubject
+from academics.models import ExamResult, Assessment, AssessmentSubject, AcademicSubject
 from staff.models import TeacherProfile, TeacherAssignment
 from students.models import ClassSection, Student
 from tenants.models import Tenant, Branch, AcademicYear, Zone
@@ -33,21 +33,20 @@ class TeacherMarksApiTests(TestCase):
         self.subject = AcademicSubject.objects.create(
             tenant=self.tenant, branch=self.branch, name='Mathematics',
         )
-        self.exam = ExamTerm.objects.create(
+        self.exam = Assessment.objects.create(
             tenant=self.tenant,
             branch=self.branch,
             academic_year=self.ay,
             name='Mid Term',
             start_date='2026-10-01',
             end_date='2026-10-15',
+            grade='5'
         )
-        self.exam_config = ExamSubjectConfig.objects.create(
-            tenant=self.tenant,
-            branch=self.branch,
-            exam_term=self.exam,
-            class_section=self.cs,
+        self.exam_config = AssessmentSubject.objects.create(
+            assessment=self.exam,
             subject=self.subject,
-            max_marks=Decimal('50.00')
+            max_marks=Decimal('50.00'),
+            min_marks=Decimal('15.00')
         )
         self.teacher_user = User.objects.create_user(
             email='teacher@marks.edu',
@@ -97,8 +96,8 @@ class TeacherMarksApiTests(TestCase):
         self.assertEqual(r.status_code, 200)
         data = r.data['data']
         self.assertEqual(len(data['assignments']), 1)
-        self.assertEqual(len(data['exam_terms']), 1)
-        self.assertEqual(data['exam_terms'][0]['name'], 'Mid Term')
+        self.assertEqual(len(data['assessments']), 1)
+        self.assertEqual(data['assessments'][0]['name'], 'Mid Term')
 
     def test_marks_grid_and_bulk_save(self):
         self.client.force_authenticate(self.teacher_user)
@@ -114,7 +113,7 @@ class TeacherMarksApiTests(TestCase):
         self.assertEqual(len(gr.data['data']['students']), 1)
 
         payload = {
-            'exam_term_id': str(self.exam.id),
+            'assessment_id': str(self.exam.id),
             'class_section_id': str(self.cs.id),
             'subject_id': str(self.subject.id),
             'default_max_marks': '50',
@@ -125,7 +124,7 @@ class TeacherMarksApiTests(TestCase):
         self.assertEqual(br.data['data']['saved'], 1)
         self.assertEqual(br.data['data']['errors'], [])
 
-        er = ExamResult.objects.get(student=self.student, exam_term=self.exam, subject=self.subject)
+        er = ExamResult.objects.get(student=self.student, assessment=self.exam, subject=self.subject)
         self.assertEqual(er.marks_obtained, Decimal('42'))
         self.assertEqual(er.max_marks, Decimal('50'))
         self.assertEqual(er.evaluator_id, self.teacher_user.id)
@@ -133,7 +132,7 @@ class TeacherMarksApiTests(TestCase):
     def test_unassigned_teacher_forbidden_on_bulk(self):
         self.client.force_authenticate(self.other_teacher)
         payload = {
-            'exam_term_id': str(self.exam.id),
+            'assessment_id': str(self.exam.id),
             'class_section_id': str(self.cs.id),
             'subject_id': str(self.subject.id),
             'rows': [{'student_id': str(self.student.id), 'marks_obtained': '10'}],
