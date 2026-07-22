@@ -20,7 +20,7 @@ export default function StaffProfilePage() {
   const { data: staff, loading, error, refetch } = useApi<any>(`staff/${id}/`);
   const { data: years } = useApi<any[]>('tenants/academic-years/');
   const { data: classes } = useApi<any[]>('classes/');
-  const { data: subjects } = useApi<any[]>('subjects/');
+  const { data: subjects } = useApi<any[]>('academics/subjects/');
 
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
@@ -622,7 +622,7 @@ export default function StaffProfilePage() {
       <AnimatePresence>
         {showAssignModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100">
               <div className="flex items-center justify-between p-6 border-b border-slate-50 bg-slate-50/50">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-md">
@@ -670,10 +670,10 @@ export default function StaffProfilePage() {
                         
                         return (
                           <div key={assignment.id} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm relative group animate-in zoom-in-95">
-                            <button type="button" onClick={() => setAssignments(assignments.filter(a => a.id !== assignment.id))} className="absolute -top-2 -right-2 p-1.5 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button type="button" onClick={() => setAssignments(assignments.filter(a => a.id !== assignment.id))} className="absolute -top-2 -right-2 p-1.5 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-sm border border-red-200">
                               <X size={14} />
                             </button>
-                            <div className="grid grid-cols-2 gap-3 mb-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                               <select 
                                 value={selectedFriendlyGrade} 
                                 onChange={e => {
@@ -703,8 +703,6 @@ export default function StaffProfilePage() {
                                   <option key={c.id} value={c.id}>{c.display_name}</option>
                                 ))}
                               </select>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
                               <select 
                                 required
                                 value={assignment.role} 
@@ -738,7 +736,7 @@ export default function StaffProfilePage() {
                                   }
                                   return true;
                                 }).map((s: any) => (
-                                  <option key={s.id} value={s.id}>{s.name}</option>
+                                  <option key={s.id} value={s.id}>{s.name} {s.is_optional ? '(Optional)' : ''}</option>
                                 ))}
                               </select>
                             </div>
