@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('academics', '0007_alter_examresult_subject_and_more'),
-        ('timetable', '0003_alter_timetableslot_teacher'),
+        ('timetable', '0003_alter_classsubjectdemand_unique_together'),
     ]
 
     operations = [
