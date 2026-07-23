@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.permissions import normalize_role, IsAccountantOrAbove
+from accounts.permissions import normalize_role, IsAccountantOrAbove, IsTeacherOrAbove
 from academics.models import ExamResult, AcademicSubject, Assessment, AssessmentSubject
 from academics.marks_access import can_enter_exam_marks
 from academics.permissions import AcademicDomainPermission
