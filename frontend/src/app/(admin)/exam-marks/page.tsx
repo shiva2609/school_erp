@@ -10,6 +10,7 @@ import { Award, Loader2, Save, BookOpen } from "lucide-react";
 type Assignment = {
   class_section_id: string;
   class_name: string;
+  class_grade?: string;
   subject_id: string;
   subject_name: string;
   branch_id: string;
