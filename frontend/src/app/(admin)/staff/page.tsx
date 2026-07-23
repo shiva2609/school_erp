@@ -14,6 +14,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useConfirm } from '@/components/common/ConfirmProvider';
+import StaffStatusModal, { StaffStatus } from '@/components/staff/StaffStatusModal';
 
 // ─────────────────────────────────────────
 // Types
@@ -238,12 +239,12 @@ function FilterBar({ filters, onChange, departments, designations, categories, t
 
 interface StaffCardProps {
   member: StaffMember;
-  onDeactivate: (id: string, name: string) => void;
   menuOpen: string | null;
   setMenuOpen: (id: string | null) => void;
+  onStatusChange: (id: string, name: string, currentStatus: string, targetStatus: StaffStatus) => void;
 }
 
-function StaffCard({ member, onDeactivate, menuOpen, setMenuOpen }: StaffCardProps) {
+function StaffCard({ member, menuOpen, setMenuOpen, onStatusChange }: StaffCardProps) {
   const name = getDisplayName(member);
   const initials = getInitials(member);
   const gradient = avatarGradient(member.id);
@@ -298,12 +299,28 @@ function StaffCard({ member, onDeactivate, menuOpen, setMenuOpen }: StaffCardPro
                   >
                     <IdCard size={14} className="text-slate-400" /> View Profile
                   </Link>
+                  {member.status !== 'ACTIVE' && (
+                    <button
+                      onClick={() => { setMenuOpen(null); onStatusChange(member.id, name, member.status, 'ACTIVE'); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-emerald-600 hover:bg-emerald-50 transition-colors"
+                    >
+                      <CheckCircle2 size={14} /> Make Active
+                    </button>
+                  )}
                   {member.status === 'ACTIVE' && (
                     <button
-                      onClick={() => { setMenuOpen(null); onDeactivate(member.id, name); }}
+                      onClick={() => { setMenuOpen(null); onStatusChange(member.id, name, member.status, 'INACTIVE'); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 transition-colors"
+                    >
+                      <Clock size={14} /> Make Inactive
+                    </button>
+                  )}
+                  {member.status !== 'RESIGNED' && (
+                    <button
+                      onClick={() => { setMenuOpen(null); onStatusChange(member.id, name, member.status, 'RESIGNED'); }}
                       className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                     >
-                      <UserMinus size={14} /> Deactivate
+                      <UserMinus size={14} /> Mark Resigned
                     </button>
                   )}
                 </motion.div>
@@ -382,12 +399,14 @@ function StaffCard({ member, onDeactivate, menuOpen, setMenuOpen }: StaffCardPro
 
 interface StaffTableProps {
   members: StaffMember[];
-  onDeactivate: (id: string, name: string) => void;
+  onStatusChange: (id: string, name: string, currentStatus: string, targetStatus: StaffStatus) => void;
 }
 
-function StaffTable({ members, onDeactivate }: StaffTableProps) {
+function StaffTable({ members, onStatusChange }: StaffTableProps) {
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden" onClick={() => setMenuOpen(null)}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -456,21 +475,55 @@ function StaffTable({ members, onDeactivate }: StaffTableProps) {
                     }
                   </td>
                   <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Link
-                        href={`/staff/${m.id}`}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-600 rounded-lg text-[11px] font-semibold transition-all"
+                    <div className="relative">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === m.id ? null : m.id); }}
+                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                       >
-                        Profile
-                      </Link>
-                      {m.status === 'ACTIVE' && (
-                        <button
-                          onClick={() => onDeactivate(m.id, name)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <UserMinus size={14} />
-                        </button>
-                      )}
+                        <MoreVertical size={16} />
+                      </button>
+                      <AnimatePresence>
+                        {menuOpen === m.id && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: -4 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: -4 }}
+                            transition={{ duration: 0.12 }}
+                            className="absolute right-0 top-9 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-20"
+                          >
+                            <Link
+                              href={`/staff/${m.id}`}
+                              className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                            >
+                              <IdCard size={14} className="text-slate-400" /> View Profile
+                            </Link>
+                            {m.status !== 'ACTIVE' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setMenuOpen(null); onStatusChange(m.id, name, m.status, 'ACTIVE'); }}
+                                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-emerald-600 hover:bg-emerald-50 transition-colors"
+                              >
+                                <CheckCircle2 size={14} /> Make Active
+                              </button>
+                            )}
+                            {m.status === 'ACTIVE' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setMenuOpen(null); onStatusChange(m.id, name, m.status, 'INACTIVE'); }}
+                                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 transition-colors"
+                              >
+                                <Clock size={14} /> Make Inactive
+                              </button>
+                            )}
+                            {m.status !== 'RESIGNED' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setMenuOpen(null); onStatusChange(m.id, name, m.status, 'RESIGNED'); }}
+                                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                              >
+                                <UserMinus size={14} /> Mark Resigned
+                              </button>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </td>
                 </motion.tr>
@@ -528,6 +581,11 @@ export default function StaffManagementPage() {
   const [filters, setFilters]   = useState<FilterState>({
     search: '', status: '', department: '', designation: '', category: '', employment_type: '',
   });
+
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<StaffStatus>('ACTIVE');
+  const [statusMember, setStatusMember] = useState<{id: string, name: string, status: string} | null>(null);
+
   const { confirm } = useConfirm();
 
   const staff = staffRaw ?? [];
@@ -551,27 +609,28 @@ export default function StaffManagementPage() {
     });
   }, [staff, filters]);
 
-  const handleDeactivate = useCallback(async (id: string, name: string) => {
-    const ok = await confirm({
-      title: 'Deactivate Staff Member',
-      message: `Are you sure you want to deactivate ${name}? Their portal access will also be revoked.`,
-      isDestructive: true,
-    });
-    if (!ok) return;
-    try {
-      await api.delete(`staff/${id}/`);
-      toast.success(`${name} deactivated successfully`);
-      refetch();
-    } catch {
-      toast.error('Failed to deactivate. Please try again.');
-    }
-  }, [confirm, refetch]);
+  const handleStatusChange = useCallback((id: string, name: string, currentStatus: string, targetStatus: StaffStatus) => {
+    setStatusMember({ id, name, status: currentStatus });
+    setStatusTarget(targetStatus);
+    setStatusModalOpen(true);
+  }, []);
 
   // Close dropdown on outside click
   const handleBackdropClick = useCallback(() => setMenuOpen(null), []);
 
   return (
     <div className="space-y-6 pb-20" onClick={handleBackdropClick}>
+      {statusMember && (
+        <StaffStatusModal
+          isOpen={statusModalOpen}
+          onClose={() => setStatusModalOpen(false)}
+          staffId={statusMember.id}
+          staffName={statusMember.name}
+          currentStatus={statusMember.status}
+          targetStatus={statusTarget}
+          onSuccess={refetch}
+        />
+      )}
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -680,7 +739,7 @@ export default function StaffManagementPage() {
               <StaffCard
                 key={m.id}
                 member={m}
-                onDeactivate={handleDeactivate}
+                onStatusChange={handleStatusChange}
                 menuOpen={menuOpen}
                 setMenuOpen={id => { (event as any)?.stopPropagation?.(); setMenuOpen(id); }}
               />
@@ -688,7 +747,7 @@ export default function StaffManagementPage() {
           </AnimatePresence>
         </div>
       ) : (
-        <StaffTable members={filtered} onDeactivate={handleDeactivate} />
+        <StaffTable members={filtered} onStatusChange={handleStatusChange} />
       )}
     </div>
   );

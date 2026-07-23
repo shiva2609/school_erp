@@ -115,7 +115,7 @@ class StaffProfileSerializer(serializers.ModelSerializer):
             # Core IDs
             'id', 'tenant', 'employee_id', 'branch',
             # Status / HR
-            'status', 'employment_type', 'experience_years', 'joining_date',
+            'status', 'status_reason', 'employment_type', 'experience_years', 'joining_date',
             # FK relations
             'category', 'category_name', 'department', 'department_name',
             'designation', 'designation_name',
@@ -269,6 +269,10 @@ class StaffProfileSerializer(serializers.ModelSerializer):
 
             if branch is not None:
                 validated_data['branch'] = branch
+
+            hr_status_for_reason = validated_data.get('status', instance.status)
+            if hr_status_for_reason == 'ACTIVE':
+                validated_data['status_reason'] = None
 
             return super().update(instance, validated_data)
 

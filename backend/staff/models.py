@@ -92,6 +92,7 @@ class StaffProfile(models.Model):
         choices=[('ACTIVE','Active'), ('INACTIVE','Inactive'), ('RESIGNED','Resigned')], 
         default='ACTIVE'
     )
+    status_reason = models.TextField(blank=True, null=True)
     photo_url = models.URLField(blank=True, null=True)
     
     # Work Info

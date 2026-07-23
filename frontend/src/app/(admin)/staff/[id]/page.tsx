@@ -10,10 +10,12 @@ import { toast } from 'react-hot-toast';
 import {
   ArrowLeft, User, Briefcase, HeartPulse, MapPin, Landmark, Phone, Mail,
   Calendar, CheckCircle2, ShieldCheck, GraduationCap, Clock, AlertCircle,
-  BookOpen, Plus, Trash2, Edit2, KeyRound, Loader2, X, Save
+  BookOpen, Plus, Trash2, Edit2, KeyRound, Loader2, X, Save,
+  MoreVertical, UserMinus
 } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/components/common/AuthProvider';
 import { differenceInYears, differenceInMonths } from 'date-fns';
+import StaffStatusModal, { StaffStatus } from '@/components/staff/StaffStatusModal';
 
 export default function StaffProfilePage() {
   const { id } = useParams() as { id: string };
@@ -29,6 +31,10 @@ export default function StaffProfilePage() {
   
   const [assignments, setAssignments] = useState<any[]>([]);
   const [activeAcademicYear, setActiveAcademicYear] = useState('');
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<StaffStatus>('ACTIVE');
 
   useEffect(() => {
     if (years?.length && !activeAcademicYear) {
@@ -140,8 +146,19 @@ export default function StaffProfilePage() {
         <ArrowLeft size={16} /> Back to Directory
       </Link>
 
-      {/* Header Card (Restored original styling) */}
-      <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+      {/* ── Main Content ── */}
+      {staff && (
+        <StaffStatusModal
+          isOpen={statusModalOpen}
+          onClose={() => setStatusModalOpen(false)}
+          staffId={staff.id}
+          staffName={name}
+          currentStatus={staff.status}
+          targetStatus={statusTarget}
+          onSuccess={refetch}
+        />
+      )}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-6 relative">
         <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-700 relative">
           <div className="absolute -bottom-12 left-8 p-1.5 bg-white rounded-3xl shadow-md">
             <div className="w-24 h-24 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-[1.25rem] flex items-center justify-center text-3xl font-black text-blue-600 border border-blue-100">
@@ -183,10 +200,53 @@ export default function StaffProfilePage() {
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 relative">
               <Link href={`/staff/${id}/edit`} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-200 transition-colors flex items-center gap-2">
                 <Edit2 size={16} /> Edit Profile
               </Link>
+              <button 
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-200 transition-colors flex items-center justify-center"
+              >
+                <MoreVertical size={16} />
+              </button>
+              
+              <AnimatePresence>
+                {menuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9, y: 4 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 4 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute right-0 top-12 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-30"
+                  >
+                    {staff.status !== 'ACTIVE' && (
+                      <button
+                        onClick={() => { setMenuOpen(false); setStatusTarget('ACTIVE'); setStatusModalOpen(true); }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-emerald-600 font-medium hover:bg-emerald-50 transition-colors"
+                      >
+                        <CheckCircle2 size={16} /> Make Active
+                      </button>
+                    )}
+                    {staff.status === 'ACTIVE' && (
+                      <button
+                        onClick={() => { setMenuOpen(false); setStatusTarget('INACTIVE'); setStatusModalOpen(true); }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-amber-600 font-medium hover:bg-amber-50 transition-colors"
+                      >
+                        <Clock size={16} /> Make Inactive
+                      </button>
+                    )}
+                    {staff.status !== 'RESIGNED' && (
+                      <button
+                        onClick={() => { setMenuOpen(false); setStatusTarget('RESIGNED'); setStatusModalOpen(true); }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 font-medium hover:bg-red-50 transition-colors border-t border-slate-50"
+                      >
+                        <UserMinus size={16} /> Mark Resigned
+                      </button>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
