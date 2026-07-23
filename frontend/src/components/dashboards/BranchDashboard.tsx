@@ -121,6 +121,10 @@ export default function BranchDashboard({ user }: { user: any }) {
               color="blue"
               details={
                 <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-500">Academic Tuition Fees:</span>
+                    <span className="font-medium text-slate-900">₹{(data.stats?.academic_tuition_only || 0).toLocaleString('en-IN')}</span>
+                  </div>
                   {(data.stats?.admission_revenue_collected > 0) && (
                     <div className="flex justify-between gap-4">
                       <span className="text-slate-500">Admission Fees:</span>
@@ -129,21 +133,22 @@ export default function BranchDashboard({ user }: { user: any }) {
                   )}
                   {(data.stats?.special_fee_revenue_collected > 0) && (
                     <div className="flex justify-between gap-4">
-                      <span className="text-slate-500">Academic Tuition Fees:</span>
-                      <span className="font-medium text-slate-900">₹{(data.stats?.academic_tuition_collected || 0).toLocaleString('en-IN')}</span>
+                      <span className="text-slate-500">Special Fees:</span>
+                      <span className="font-medium text-slate-900">₹{(data.stats?.special_fee_revenue_collected || 0).toLocaleString('en-IN')}</span>
                     </div>
-                    <div className="flex justify-between gap-4">
-                      <span className="text-slate-500">Transport Fees:</span>
-                      <span className="font-medium text-slate-900">₹{(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span className="text-slate-500">Old Dues Collected:</span>
-                      <span className="font-medium text-slate-900">₹{(data.stats?.old_dues_collected || 0).toLocaleString('en-IN')}</span>
-                    </div>
-                    <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between gap-4">
-                      <span className="text-slate-700 font-medium">Total Academic Revenue:</span>
-                      <span className="font-bold text-slate-900">₹{(data.stats?.academic_revenue_collected ?? 0).toLocaleString('en-IN')}</span>
-                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-500">Transport Fees:</span>
+                    <span className="font-medium text-slate-900">₹{(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-500">Previous Year Dues:</span>
+                    <span className="font-medium text-slate-900">₹{(data.stats?.previous_year_dues_collected || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between gap-4">
+                    <span className="text-slate-700 font-medium">Total Amount:</span>
+                    <span className="font-bold text-slate-900">₹{(data.stats?.academic_revenue_collected ?? 0).toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
               }
             />
