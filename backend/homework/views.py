@@ -42,13 +42,18 @@ class HomeworkViewSet(viewsets.ModelViewSet):
             if cls_sec and subj:
                 if user.branch and cls_sec.branch != user.branch:
                     raise PermissionDenied('You cannot create homework for another branch.')
-                exists = TeacherAssignment.objects.filter(
-                    staff__user=user, 
-                    class_section=cls_sec, 
-                    subject=subj
-                ).exists()
-                if not exists:
-                    raise PermissionDenied('You are not assigned to teach this subject in this class.')
+                is_class_teacher = (
+                    cls_sec.class_teacher == user or 
+                    TeacherAssignment.objects.filter(staff__user=user, class_section=cls_sec, role='CLASS_TEACHER').exists()
+                )
+                if not is_class_teacher:
+                    exists = TeacherAssignment.objects.filter(
+                        staff__user=user, 
+                        class_section=cls_sec, 
+                        subject=subj
+                    ).exists()
+                    if not exists:
+                        raise PermissionDenied('You are not assigned to teach this subject in this class.')
                     
         instance = serializer.save(tenant=self.request.user.tenant, posted_by=self.request.user)
         if instance.is_published:
@@ -97,13 +102,18 @@ class HomeworkViewSet(viewsets.ModelViewSet):
             if cls_sec and subj:
                 if user.branch and cls_sec.branch != user.branch:
                     raise PermissionDenied('You cannot modify homework for another branch.')
-                exists = TeacherAssignment.objects.filter(
-                    staff__user=user, 
-                    class_section=cls_sec, 
-                    subject=subj
-                ).exists()
-                if not exists:
-                    raise PermissionDenied('You are not assigned to teach this subject in this class.')
+                is_class_teacher = (
+                    cls_sec.class_teacher == user or 
+                    TeacherAssignment.objects.filter(staff__user=user, class_section=cls_sec, role='CLASS_TEACHER').exists()
+                )
+                if not is_class_teacher:
+                    exists = TeacherAssignment.objects.filter(
+                        staff__user=user, 
+                        class_section=cls_sec, 
+                        subject=subj
+                    ).exists()
+                    if not exists:
+                        raise PermissionDenied('You are not assigned to teach this subject in this class.')
         serializer.save()
 
     def perform_destroy(self, instance):

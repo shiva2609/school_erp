@@ -64,9 +64,10 @@ export default function HomeworkPage() {
   // Load subjects dynamically when class changes
   useEffect(() => {
     if (showForm && formData.class_section) {
-      api.get(`/subjects/?assigned_only=true&class_section_id=${formData.class_section}`).then(res => {
-        const arr = res.data?.data ?? res.data?.results ?? res.data;
-        setSubjects(Array.isArray(arr) ? arr : []);
+      api.get(`/academics/subjects-for-class/?branch_id=${user?.branch || ''}`).then(res => {
+        const d = res.data?.data;
+        const arr = d ? [...(d.subjects || []), ...(d.optional_subjects || [])] : [];
+        setSubjects(arr);
       }).catch(() => setSubjects([]));
     } else {
       setSubjects([]);

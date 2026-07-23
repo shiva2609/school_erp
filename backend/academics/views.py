@@ -42,6 +42,7 @@ def _collect_teaching_pairs(user):
             out.append({
                 'class_section_id': str(cs.id),
                 'class_name': cs.display_name or str(cs),
+                'class_grade': cs.grade,
                 'subject_id': str(a.subject_id),
                 'subject_name': a.subject.name,
                 'branch_id': str(cs.branch_id),
@@ -61,6 +62,7 @@ def _collect_teaching_pairs(user):
             out.append({
                 'class_section_id': str(cs.id),
                 'class_name': cs.display_name or str(cs),
+                'class_grade': cs.grade,
                 'subject_id': str(sub.id),
                 'subject_name': sub.name,
                 'branch_id': str(cs.branch_id),
@@ -650,7 +652,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, AcademicDomainPermission, IsAccountantOrAbove])
+@permission_classes([IsAuthenticated, AcademicDomainPermission, IsTeacherOrAbove])
 def subjects_for_class(request):
     """
     Returns active AcademicSubjects for the branch, split into:
