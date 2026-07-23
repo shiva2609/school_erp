@@ -122,7 +122,7 @@ class FeeInvoiceListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'invoice_number', 'student', 'student_name', 'month',
             'net_amount', 'paid_amount', 'outstanding_amount',
-            'due_date', 'status',
+            'due_date', 'status', 'created_at',
         ]
 
     def get_student_name(self, obj):

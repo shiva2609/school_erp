@@ -168,7 +168,7 @@ class ReportingViewSet(viewsets.ViewSet):
         cf_collected_total = cf_payments_qs.aggregate(total=Sum('allocated_amount'))['total'] or Decimal('0.00')
 
         # Student count (active only, filtered by branch and AY)
-        student_qs = Student.objects.filter(tenant=request.user.tenant, status='ACTIVE')
+        student_qs = Student.objects.filter(tenant=request.user.tenant, status__in=['ACTIVE', 'PENDING_APPROVAL'])
         if branch_id:
             student_qs = student_qs.filter(branch_id=branch_id)
         elif zone_ids is not None:
@@ -214,6 +214,7 @@ class ReportingViewSet(viewsets.ViewSet):
         today_payments = self._billable_payments(today_payments)
         today_payments = today_payments.exclude(id__in=cf_payment_ids)
         today_collection = today_payments.aggregate(total=Sum('amount'))['total'] or 0
+        today_transport = today_payments.filter(invoice__invoice_number__startswith='TRN-').aggregate(total=Sum('amount'))['total'] or 0
 
         # Revenue received to date (current-year payments only — carry-forwards counted separately)
         revenue_qs = Payment.objects.filter(tenant=request.user.tenant, status='COMPLETED')
@@ -269,6 +270,14 @@ class ReportingViewSet(viewsets.ViewSet):
                 'total_students': total_students,
                 'active_branches': active_branches,
                 'pending_approvals': pending_approvals,
+                # Detailed Breakdown fields
+                'today_current_academic': float(today_collection),
+                'today_old_dues': float(cf_collected_today),
+                'today_transport': float(today_transport),
+                'academic_tuition_only': float(academic_core_rev),
+                'previous_year_dues_collected': float(cf_collected_total),
+                'this_academic_balance_due': float(stats['total_outstanding'] or Decimal('0.00')),
+                'old_dues_remaining': float(cf_outstanding),
             }
         })
 
@@ -390,7 +399,7 @@ class ReportingViewSet(viewsets.ViewSet):
         """Students per branch for the current AY"""
         ay_id = self._get_academic_year_id(request)
         
-        qs = Student.objects.filter(tenant=request.user.tenant, status='ACTIVE')
+        qs = Student.objects.filter(tenant=request.user.tenant, status__in=['ACTIVE', 'PENDING_APPROVAL'])
         if ay_id:
             qs = qs.filter(academic_year_id=ay_id)
             
