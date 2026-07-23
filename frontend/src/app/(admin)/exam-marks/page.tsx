@@ -138,6 +138,7 @@ export default function ExamMarksPage() {
   }, [user, assignments.length, loadClasses]);
 
   useEffect(() => {
+    if (assignments.length > 0) return;
     const bid = selectedClass?.branch;
     if (!bid) {
       setSubjects([]);
@@ -360,14 +361,21 @@ export default function ExamMarksPage() {
                     onChange={(e) => onAssignmentPick(e.target.value)}
                   >
                     <option value="">Select class &amp; subject…</option>
-                    {assignments.map((a) => {
-                      const key = `${a.class_section_id}::${a.subject_id}`;
-                      return (
-                        <option key={key} value={key}>
-                          {a.class_name} — {a.subject_name}
-                        </option>
-                      );
-                    })}
+                    {assignments
+                      .filter((a) => {
+                        if (!assessmentId) return true;
+                        const ex = assessments.find((x) => x.id === assessmentId);
+                        if (!ex) return true;
+                        return a.academic_year_id === ex.academic_year_id && a.class_name.includes(ex.grade as string);
+                      })
+                      .map((a) => {
+                        const key = `${a.class_section_id}::${a.subject_id}`;
+                        return (
+                          <option key={key} value={key}>
+                            {a.class_name} — {a.subject_name}
+                          </option>
+                        );
+                      })}
                   </select>
                 </div>
               ) : (
