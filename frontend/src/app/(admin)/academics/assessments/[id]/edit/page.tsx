@@ -39,6 +39,7 @@ interface Assessment {
   grade_display: string;
   start_date: string;
   end_date: string;
+  status: 'DRAFT' | 'ACTIVE' | 'LOCKED';
 }
 
 export default function EditAssessmentPage() {
@@ -58,6 +59,7 @@ export default function EditAssessmentPage() {
   const [examName, setExamName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [statusVal, setStatusVal] = useState<'DRAFT' | 'ACTIVE' | 'LOCKED'>('DRAFT');
   const [activeTab, setActiveTab] = useState<'subjects' | 'optional'>('subjects');
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [saving, setSaving] = useState(false);
@@ -68,6 +70,7 @@ export default function EditAssessmentPage() {
       setExamName(assessment.name);
       setStartDate(assessment.start_date);
       setEndDate(assessment.end_date);
+      setStatusVal(assessment.status || 'DRAFT');
     }
   }, [assessment]);
 
@@ -136,6 +139,7 @@ export default function EditAssessmentPage() {
         name: examName.trim(),
         start_date: startDate,
         end_date: endDate,
+        status: statusVal,
       });
 
       await api.post(`academics/assessments/${id}/subjects/`, {
@@ -200,8 +204,8 @@ export default function EditAssessmentPage() {
           </div>
         </div>
 
-        {/* Dates */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Dates & Status */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1.5">Start Date <span className="text-red-500">*</span></label>
             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
@@ -211,6 +215,18 @@ export default function EditAssessmentPage() {
             <label className="block text-xs font-bold text-slate-600 mb-1.5">End Date <span className="text-red-500">*</span></label>
             <input type="date" value={endDate} min={startDate} onChange={e => setEndDate(e.target.value)}
               className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1.5">Status <span className="text-red-500">*</span></label>
+            <select
+              value={statusVal}
+              onChange={e => setStatusVal(e.target.value as any)}
+              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="DRAFT">Draft (Configuring)</option>
+              <option value="ACTIVE">Active (Open for Marks Entry)</option>
+              <option value="LOCKED">Locked (Results Published / Immutable)</option>
+            </select>
           </div>
         </div>
 

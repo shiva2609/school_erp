@@ -39,6 +39,7 @@ function NewAssessmentInner() {
   const [examName, setExamName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [statusVal, setStatusVal] = useState<'DRAFT' | 'ACTIVE' | 'LOCKED'>('DRAFT');
   const [saving, setSaving] = useState(false);
   const [saveAndNew, setSaveAndNew] = useState(false);
 
@@ -137,6 +138,7 @@ function NewAssessmentInner() {
         name: examName.trim(),
         start_date: startDate,
         end_date: endDate,
+        status: statusVal,
       });
       // DRF ModelViewSet.create() returns the serializer data directly (not wrapped)
       const assessmentId = res.data?.id;
@@ -235,8 +237,8 @@ function NewAssessmentInner() {
           </div>
         </div>
 
-        {/* Row 2: Dates */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Row 2: Dates & Status */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1.5">
               Start Date <span className="text-red-500">*</span>
@@ -259,6 +261,20 @@ function NewAssessmentInner() {
               onChange={e => setEndDate(e.target.value)}
               className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1.5">
+              Status <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={statusVal}
+              onChange={e => setStatusVal(e.target.value as any)}
+              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="DRAFT">Draft (Configuring)</option>
+              <option value="ACTIVE">Active (Open for Marks Entry)</option>
+              <option value="LOCKED">Locked (Results Published / Immutable)</option>
+            </select>
           </div>
         </div>
 
