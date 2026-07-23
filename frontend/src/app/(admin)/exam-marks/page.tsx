@@ -368,7 +368,9 @@ export default function ExamMarksPage() {
                         if (!assessmentId) return true;
                         const ex = assessments.find((x) => x.id === assessmentId);
                         if (!ex) return true;
-                        return a.academic_year_id === ex.academic_year_id && a.class_grade === ex.grade;
+                        if (a.academic_year_id !== ex.academic_year_id) return false;
+                        if (a.class_grade && a.class_grade !== ex.grade) return false;
+                        return true;
                       })
                       .map((a) => {
                         const key = `${a.class_section_id}::${a.subject_id}`;
