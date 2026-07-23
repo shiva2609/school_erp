@@ -365,11 +365,6 @@ export default function ExamMarksPage() {
                     <option value="">Select class &amp; subject…</option>
                     {assignments
                       .filter((a) => {
-                        if (!assessmentId) return true;
-                        const ex = assessments.find((x) => x.id === assessmentId);
-                        if (!ex) return true;
-                        if (a.academic_year_id !== ex.academic_year_id) return false;
-                        if (a.class_grade && a.class_grade !== ex.grade) return false;
                         return true;
                       })
                       .map((a) => {
