@@ -92,12 +92,65 @@ export default function BranchDashboard({ user }: { user: any }) {
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard title="Today's Collection" value={`₹${(data.stats?.today_collection || 0).toLocaleString('en-IN')}`} icon={IndianRupee} color="green" />
+            <StatCard 
+              title="Today's Collection" 
+              value={`₹${(data.stats?.today_collection || 0).toLocaleString('en-IN')}`} 
+              icon={IndianRupee} 
+              color="green" 
+              details={
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-400">Current Academic Fees:</span>
+                    <span className="font-medium text-slate-100">₹{(data.stats?.today_current_academic || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-400">Old Dues Collected:</span>
+                    <span className="font-medium text-slate-100">₹{(data.stats?.today_old_dues || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="pt-1 mt-1 border-t border-slate-700 flex justify-between gap-4">
+                    <span className="text-slate-300 font-medium">Total Amount:</span>
+                    <span className="font-semibold text-white">₹{(data.stats?.today_collection || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              }
+            />
             <StatCard
               title="Academic Revenue"
               value={`₹${(data.stats?.academic_revenue_collected ?? data.stats?.revenue_collected ?? data.stats?.total_paid ?? 0).toLocaleString('en-IN')}`}
               icon={TrendingUp}
               color="blue"
+              details={
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-400">Academic Tuition Fees:</span>
+                    <span className="font-medium text-slate-100">₹{(data.stats?.academic_tuition_only || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  {(data.stats?.admission_revenue_collected > 0) && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-slate-400">Admission Fees:</span>
+                      <span className="font-medium text-slate-100">₹{(data.stats?.admission_revenue_collected || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                  {(data.stats?.special_fee_revenue_collected > 0) && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-slate-400">Special Fees:</span>
+                      <span className="font-medium text-slate-100">₹{(data.stats?.special_fee_revenue_collected || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-400">Transport Fees:</span>
+                    <span className="font-medium text-slate-100">₹{(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-400">Previous Year Dues:</span>
+                    <span className="font-medium text-slate-100">₹{(data.stats?.previous_year_dues_collected || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="pt-1 mt-1 border-t border-slate-700 flex justify-between gap-4">
+                    <span className="text-slate-300 font-medium">Total Amount:</span>
+                    <span className="font-semibold text-white">₹{(data.stats?.academic_revenue_collected ?? 0).toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              }
             />
             {hasTransportRevenue && (
               <StatCard
@@ -105,9 +158,42 @@ export default function BranchDashboard({ user }: { user: any }) {
                 value={`₹${(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}`}
                 icon={IndianRupee}
                 color="amber"
+                details={
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-slate-400">Today's Collection:</span>
+                      <span className="font-medium text-slate-100">₹{(data.stats?.today_transport || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="pt-1 mt-1 border-t border-slate-700 flex justify-between gap-4">
+                      <span className="text-slate-300 font-medium">Overall Collected:</span>
+                      <span className="font-semibold text-white">₹{(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+                }
               />
             )}
-            <StatCard title="Outstanding Dues" value={`₹${(data.stats?.total_outstanding || 0).toLocaleString('en-IN')}`} icon={AlertCircle} color="red" />
+            <StatCard 
+              title="Outstanding Dues" 
+              value={`₹${(data.stats?.total_outstanding || 0).toLocaleString('en-IN')}`} 
+              icon={AlertCircle} 
+              color="red" 
+              details={
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-400">This Academic Balance Due:</span>
+                    <span className="font-medium text-slate-100">₹{(data.stats?.this_academic_balance_due || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-400">Old Dues Remaining:</span>
+                    <span className="font-medium text-slate-100">₹{(data.stats?.old_dues_remaining || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="pt-1 mt-1 border-t border-slate-700 flex justify-between gap-4">
+                    <span className="text-slate-300 font-medium">Total Final Amount:</span>
+                    <span className="font-semibold text-white">₹{(data.stats?.total_outstanding || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              }
+            />
             <StatCard title="Today's Attendance" value={`${avgAttendance}%`} icon={Calendar} color="purple" />
           </div>
 

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon, Info } from 'lucide-react';
 
 interface StatCardProps {
   title: string;
@@ -13,6 +13,7 @@ interface StatCardProps {
     value: number;
     label: string;
   };
+  details?: React.ReactNode;
 }
 
 const colorMap = {
@@ -23,7 +24,7 @@ const colorMap = {
   purple: 'bg-purple-50 text-purple-600 border-purple-100',
 };
 
-export default function StatCard({ title, value, icon: Icon, color, trend }: StatCardProps) {
+export default function StatCard({ title, value, icon: Icon, color, trend, details }: StatCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -32,7 +33,17 @@ export default function StatCard({ title, value, icon: Icon, color, trend }: Sta
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-slate-500 text-sm font-medium tracking-wide">{title}</p>
+          <div className="flex items-center gap-1.5 relative">
+            <p className="text-slate-500 text-sm font-medium tracking-wide">{title}</p>
+            {details && (
+              <div className="group/tooltip relative flex items-center justify-center">
+                <Info size={14} className="text-slate-400 hover:text-slate-600 transition-colors cursor-help" />
+                <div className="pointer-events-none absolute left-0 sm:left-1/2 sm:-translate-x-1/2 bottom-full mb-2 opacity-0 group-hover/tooltip:opacity-100 transition-all scale-95 group-hover/tooltip:scale-100 z-50 w-max min-w-[200px] bg-slate-900 text-slate-100 rounded-md shadow-xl p-3 border border-slate-700">
+                  {details}
+                </div>
+              </div>
+            )}
+          </div>
           <p className="text-3xl font-semibold text-slate-900 mt-2 tracking-tight">{value}</p>
           
           {trend && (

@@ -10,7 +10,7 @@ import { toast } from 'react-hot-toast';
 import {
   User, Briefcase, HeartPulse,
   Landmark, Phone, Save, Loader2, ArrowLeft,
-  Mail
+  Mail, ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,6 +45,10 @@ export default function StaffEditPage() {
     joining_date: '',
     employment_type: 'REGULAR',
     experience_years: '',
+    
+    // 3. HR & Access
+    status: 'ACTIVE',
+    requires_portal_access: false,
 
     // 4. Personal
     blood_group: '',
@@ -94,6 +98,8 @@ export default function StaffEditPage() {
         joining_date: staff.joining_date || '',
         employment_type: staff.employment_type || 'REGULAR',
         experience_years: staff.experience_years || '',
+        status: staff.status || 'ACTIVE',
+        requires_portal_access: ud?.is_active || false,
         blood_group: staff.blood_group || '',
         religion: staff.religion || '',
         marital_status: staff.marital_status || 'SINGLE',
@@ -142,7 +148,7 @@ export default function StaffEditPage() {
     try {
       const payload: any = { ...formData };
       // Remove empty strings for nullable fields (but keep required ones)
-      const keepEmpty = ['mobile', 'personal_email', 'current_address', 'permanent_address', 'city', 'state', 'pincode'];
+      const keepEmpty = ['mobile', 'personal_email', 'current_address', 'permanent_address', 'city', 'state', 'pincode', 'status', 'requires_portal_access'];
       Object.keys(payload).forEach(key => {
         if (payload[key] === '' && !keepEmpty.includes(key)) {
           delete payload[key];
@@ -172,6 +178,7 @@ export default function StaffEditPage() {
   const sections = [
     { id: 'profile', icon: User, title: 'Basic Profile', desc: 'Name, DOB & qualifications' },
     { id: 'work', icon: Briefcase, title: 'Work Details', desc: 'Department, Role & Dates' },
+    { id: 'hr', icon: ShieldCheck, title: 'HR & Access', desc: 'Status & Login' },
     { id: 'personal', icon: HeartPulse, title: 'Personal Info', desc: 'Family & health' },
     { id: 'govt', icon: Landmark, title: 'Govt. IDs', desc: 'PAN, Aadhaar, PF' },
     { id: 'contact', icon: Phone, title: 'Contact & Address', desc: 'Mobile, emergency & location' },
@@ -369,7 +376,45 @@ export default function StaffEditPage() {
               </div>
             </motion.div>
 
-            {/* 3. Personal Info */}
+            {/* 3. HR & Access */}
+            <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='hr'?1:0, height:activeSection==='hr'?'auto':0, overflow:activeSection==='hr'?'visible':'hidden', y:activeSection==='hr'?0:10}}>
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
+                  <ShieldCheck className="text-blue-600" />
+                  <h3 className="text-lg font-black text-slate-800">HR &amp; Access</h3>
+                </div>
+
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Employment Status <span className="text-red-500">*</span></label>
+                    <select value={formData.status} onChange={setField('status')} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all appearance-none">
+                      <option value="ACTIVE">Active</option>
+                      <option value="INACTIVE">Inactive</option>
+                      <option value="ON_LEAVE">On Leave</option>
+                      <option value="RESIGNED">Resigned</option>
+                      <option value="TERMINATED">Terminated</option>
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-1.5 flex flex-col justify-end">
+                    <label className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.requires_portal_access} 
+                        onChange={setField('requires_portal_access')} 
+                        className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500" 
+                      />
+                      <div>
+                        <span className="text-sm font-bold text-slate-800 block">Requires Portal Access</span>
+                        <span className="text-xs text-slate-500 block">Uncheck to revoke login access instantly</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* 4. Personal Info */}
             <motion.div initial={{opacity:0, y:10}} animate={{opacity:activeSection==='personal'?1:0, height:activeSection==='personal'?'auto':0, overflow:activeSection==='personal'?'visible':'hidden', y:activeSection==='personal'?0:10}}>
               <div className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
