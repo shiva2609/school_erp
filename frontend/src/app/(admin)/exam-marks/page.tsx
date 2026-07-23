@@ -23,6 +23,7 @@ type Assessment = {
   end_date: string;
   branch_id: string;
   academic_year_id: string;
+  grade?: string;
 };
 
 type GridStudent = {
