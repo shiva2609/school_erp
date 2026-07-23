@@ -28,7 +28,13 @@ class ExamResult(models.Model):
     branch = models.ForeignKey('tenants.Branch', on_delete=models.CASCADE, related_name='exam_results')
     student = models.ForeignKey('students.Student', on_delete=models.CASCADE, related_name='exam_results')
     assessment = models.ForeignKey('Assessment', on_delete=models.CASCADE, related_name='results')
-    subject = models.ForeignKey('academics.AcademicSubject', on_delete=models.CASCADE, related_name='exam_results')
+    subject = models.ForeignKey(
+        'academics.AcademicSubject',
+        # Phase 13: PROTECT (not CASCADE) — prevents silent bulk-deletion of marks
+        # if an AcademicSubject master record is ever deleted.
+        on_delete=models.PROTECT,
+        related_name='exam_results'
+    )
     
     marks_obtained = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     is_absent = models.BooleanField(default=False)
@@ -121,7 +127,17 @@ class Assessment(models.Model):
     """
     Exam header created by an accountant for a specific grade and academic year.
     Subjects are linked via AssessmentSubject.
+
+    Status lifecycle:
+        DRAFT  — Admin is still configuring subjects/dates. Teachers cannot enter marks.
+        ACTIVE — Marks entry is open for teachers.
+        LOCKED — Results have been published. Marks cannot be changed.
     """
+    ASSESSMENT_STATUS = [
+        ('DRAFT',  'Draft'),   # configuring
+        ('ACTIVE', 'Active'),  # marks entry open
+        ('LOCKED', 'Locked'),  # published, immutable
+    ]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(
         'tenants.Tenant', on_delete=models.CASCADE, related_name='assessments'
@@ -136,6 +152,14 @@ class Assessment(models.Model):
     name = models.CharField(max_length=150)  # e.g. "Mid Term", "Annual Exam"
     start_date = models.DateField()
     end_date = models.DateField()
+    status = models.CharField(
+        max_length=10,
+        choices=ASSESSMENT_STATUS,
+        default='DRAFT',
+        db_index=True,
+        help_text='DRAFT=configuring, ACTIVE=marks entry open, LOCKED=published/immutable'
+    )
+    # is_active kept for backward-compatible API filters
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
@@ -149,7 +173,7 @@ class Assessment(models.Model):
         ordering = ['start_date']
 
     def __str__(self):
-        return f"{self.name} — {self.grade} ({self.academic_year})"
+        return f"{self.name} — {self.grade} ({self.academic_year}) [{self.status}]"
 
 
 class AssessmentSubject(models.Model):

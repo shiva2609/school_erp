@@ -1,9 +1,11 @@
 """
 Who may enter exam marks for a given class section + subject.
+
+Access is granted only via explicit TeacherAssignment records.
+Timetable slots are a scheduling artefact and do NOT grant marks access.
 """
 from accounts.permissions import normalize_role, can_access_domain
 from staff.models import TeacherProfile, TeacherAssignment
-from timetable.models import TimetableSlot
 
 
 def can_enter_exam_marks(user, class_section, subject) -> bool:
@@ -29,32 +31,26 @@ def can_enter_exam_marks(user, class_section, subject) -> bool:
     if role in ('OWNER', 'SUPER_ADMIN'):
         return True
 
-    if role in ('PRINCIPAL', 'BRANCH_ADMIN', 'TEACHER'):
+    if role in ('PRINCIPAL', 'BRANCH_ADMIN'):
         if user.branch_id and str(class_section.branch_id) != str(user.branch_id):
             return False
-
-    if role in ('PRINCIPAL', 'BRANCH_ADMIN'):
         return True
 
+    # ACCOUNTANT cannot enter marks — they configure assessments only
     if role != 'TEACHER':
         return False
 
-    # Assignment is already tied to this class section (which has its academic year).
-    # Do not require assignment.academic_year_id == class_section.academic_year_id — that
-    # often drifts after year setup fixes and would wrongly block legitimate teachers.
+    # Branch isolation for teachers
+    if user.branch_id and str(class_section.branch_id) != str(user.branch_id):
+        return False
+
+    # Marks access is ONLY via TeacherAssignment (not TimetableSlot)
     tp = TeacherProfile.objects.filter(user=user).first()
-    if tp and TeacherAssignment.objects.filter(
+    if not tp:
+        return False
+
+    return TeacherAssignment.objects.filter(
         staff=tp,
         class_section=class_section,
         subject=subject,
-    ).exists():
-        return True
-
-    if not tp:
-        return False
-        
-    return TimetableSlot.objects.filter(
-        teacher=tp,
-        class_section=class_section,
-        subject=subject,
-    ).exclude(subject__isnull=True).exists()
+    ).exists()

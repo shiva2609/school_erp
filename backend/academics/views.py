@@ -19,13 +19,15 @@ from academics.serializers import (
 )
 from students.models import ClassSection, Student
 from staff.models import TeacherProfile, TeacherAssignment
-from timetable.models import TimetableSlot
 
 logger = logging.getLogger(__name__)
 
 
 def _collect_teaching_pairs(user):
-    """Distinct (class_section, subject) the user may enter marks for as a teacher."""
+    """Distinct (class_section, subject) the user may enter marks for.
+    Source of truth: TeacherAssignment only.
+    TimetableSlot is a scheduling artefact and does NOT grant marks access.
+    """
     out = []
     seen = set()
     tp = TeacherProfile.objects.filter(user=user).first()
@@ -48,35 +50,25 @@ def _collect_teaching_pairs(user):
                 'branch_id': str(cs.branch_id),
                 'academic_year_id': str(cs.academic_year_id),
             })
-        
-        slots = TimetableSlot.objects.filter(
-            teacher=tp, subject__isnull=False
-        ).select_related('class_section', 'class_section__branch', 'subject')
-        for row in slots:
-            cs = row.class_section
-            sub = row.subject
-            key = (str(cs.id), str(sub.id))
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append({
-                'class_section_id': str(cs.id),
-                'class_name': cs.display_name or str(cs),
-                'class_grade': cs.grade,
-                'subject_id': str(sub.id),
-                'subject_name': sub.name,
-                'branch_id': str(cs.branch_id),
-                'academic_year_id': str(cs.academic_year_id),
-            })
     return out
 
 
-def _assessments_for_branches(tenant, branch_ids):
+def _assessments_for_branches(tenant, branch_ids, grades=None):
+    """
+    Return active assessments for the given branch IDs.
+    If `grades` is provided (a set/list of grade strings), only return
+    assessments whose grade is in that set — used to scope teacher view.
+    """
     if not branch_ids:
         return []
     qs = Assessment.objects.filter(tenant=tenant, branch_id__in=branch_ids, is_active=True)
+    if grades:
+        qs = qs.filter(grade__in=grades)
     return list(
-        qs.order_by('start_date').values('id', 'name', 'start_date', 'end_date', 'branch_id', 'academic_year_id', 'grade')
+        qs.order_by('start_date').values(
+            'id', 'name', 'start_date', 'end_date',
+            'branch_id', 'academic_year_id', 'grade', 'status',
+        )
     )
 
 
@@ -92,12 +84,16 @@ def teacher_marks_context(request):
     user = request.user
     assignments = _collect_teaching_pairs(user)
     branch_ids = list({a['branch_id'] for a in assignments})
+    # Extract grades that this teacher teaches — used to narrow assessment list
+    teacher_grades = list({a['class_grade'] for a in assignments if a.get('class_grade')})
     role = normalize_role(user.role)
     if not branch_ids and user.branch_id and role in (
         'PRINCIPAL', 'BRANCH_ADMIN', 'SUPER_ADMIN', 'OWNER', 'ZONAL_ADMIN',
     ):
         branch_ids = [str(user.branch_id)]
-    assessments = _assessments_for_branches(user.tenant, branch_ids)
+    # TEACHERS: filter by their grades. Admins/principals see all branch assessments.
+    grade_filter = teacher_grades if (role == 'TEACHER' and teacher_grades) else None
+    assessments = _assessments_for_branches(user.tenant, branch_ids, grades=grade_filter)
     if not assessments and role in ('SUPER_ADMIN', 'OWNER'):
         assessments = list(
             Assessment.objects.filter(tenant=user.tenant, is_active=True)
@@ -171,6 +167,13 @@ def teacher_marks_grid(request):
         return err
     exam, cs, sub = resolved
 
+    # Phase 11: Block marks view for DRAFT assessments (not yet activated by admin)
+    if exam.status == 'DRAFT':
+        return Response(
+            {'success': False, 'error': 'This assessment is still being configured by the admin. Marks entry is not yet open.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     students = Student.objects.filter(class_section=cs, status='ACTIVE').order_by('roll_number', 'first_name')
     results = {
         str(r.student_id): r
@@ -181,7 +184,7 @@ def teacher_marks_grid(request):
     config = AssessmentSubject.objects.filter(
         assessment=exam, subject=sub
     ).first()
-    
+
     if not config:
         return Response(
             {'success': False, 'error': 'Accountant has not configured max marks for this subject yet.'},
@@ -193,6 +196,11 @@ def teacher_marks_grid(request):
     rows = []
     for st in students:
         r = results.get(str(st.id))
+        # Phase 2 source-fix: return numeric or None — never empty string.
+        # This ensures the frontend can safely detect 0 vs no-mark.
+        marks_val = None
+        if r and not r.is_absent and r.marks_obtained is not None:
+            marks_val = float(r.marks_obtained)
         rows.append({
             'student_id': str(st.id),
             'admission_number': st.admission_number or '',
@@ -200,11 +208,12 @@ def teacher_marks_grid(request):
             'last_name': st.last_name or '',
             'roll_number': st.roll_number,
             'result_id': str(r.id) if r else None,
-            'marks_obtained': str(r.marks_obtained) if r and r.marks_obtained is not None else '',
+            'marks_obtained': marks_val,
             'is_absent': r.is_absent if r else False,
-            'max_marks': str(r.max_marks) if r else str(default_max),
-            'percentage': str(r.percentage) if r and r.percentage is not None else '',
+            'max_marks': float(r.max_marks) if r else float(default_max),
+            'percentage': float(r.percentage) if r and r.percentage is not None else None,
             'grade': r.grade if r else '',
+            'is_published': r.is_published if r else False,
             'remarks': r.remarks if r else '',
         })
 
@@ -240,16 +249,28 @@ def teacher_marks_bulk_save(request):
         return err
     exam, cs, sub = resolved
 
+    # Phase 11: Block marks entry for DRAFT (not yet open) and LOCKED (published)
+    if exam.status == 'DRAFT':
+        return Response(
+            {'success': False, 'error': 'This assessment is still being configured. Marks entry is not open yet.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if exam.status == 'LOCKED':
+        return Response(
+            {'success': False, 'error': 'This assessment is locked. Results have been published and marks cannot be changed.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
     config = AssessmentSubject.objects.filter(
         assessment=exam, subject=sub
     ).first()
-    
+
     if not config:
         return Response(
             {'success': False, 'error': 'Accountant has not configured max marks for this subject yet.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    
+
     default_max = config.max_marks
 
     student_ids = {str(s.id) for s in Student.objects.filter(class_section=cs, status='ACTIVE')}
@@ -262,15 +283,24 @@ def teacher_marks_bulk_save(request):
             if sid not in student_ids:
                 errors.append({'index': i, 'student_id': sid, 'error': 'Student not in this class or not active.'})
                 continue
-            marks = row.get('marks_obtained')
+            marks = row.get('marks_obtained')  # None if absent or cleared
             is_absent = row.get('is_absent', False)
             max_m = default_max
+
             if max_m <= 0:
                 errors.append({'index': i, 'student_id': sid, 'error': 'max_marks must be greater than zero.'})
                 continue
+
+            # If not absent and no marks provided → clear/delete the existing result
             if not is_absent and marks is None:
-                errors.append({'index': i, 'student_id': sid, 'error': 'Marks must be provided unless student is absent.'})
+                ExamResult.objects.filter(
+                    student_id=sid,
+                    assessment_id=exam.id,
+                    subject_id=sub.id,
+                ).delete()
+                saved += 1
                 continue
+
             if not is_absent and (marks < 0 or marks > max_m):
                 errors.append({
                     'index': i,
@@ -278,6 +308,7 @@ def teacher_marks_bulk_save(request):
                     'error': f'Marks must be between 0 and {max_m}.',
                 })
                 continue
+
             remarks = row.get('remarks') or ''
             ExamResult.objects.update_or_create(
                 student_id=sid,
@@ -291,6 +322,10 @@ def teacher_marks_bulk_save(request):
                     'max_marks': max_m,
                     'remarks': remarks[:200],
                     'evaluator': request.user,
+                    # Phase 12: Always reset publish state on re-entry so
+                    # stale ranks/grades are not visible to parents.
+                    'is_published': False,
+                    'subject_rank': None,
                 },
             )
             saved += 1
@@ -369,6 +404,14 @@ def teacher_marks_publish(request):
                 send_sms=False,
                 send_email=False
             )
+
+    # Phase 11: Lock the assessment if ALL subjects have now been published
+    # (i.e. no ExamResult for this assessment still has is_published=False)
+    unpublished_remain = ExamResult.objects.filter(
+        assessment=exam, is_published=False
+    ).exists()
+    if not unpublished_remain:
+        Assessment.objects.filter(pk=exam.pk).update(status='LOCKED')
 
     return Response({
         'success': True,

@@ -25,6 +25,7 @@ type Assessment = {
   branch_id: string;
   academic_year_id: string;
   grade?: string;
+  status?: "DRAFT" | "ACTIVE" | "LOCKED";
 };
 
 type GridStudent = {
@@ -33,19 +34,22 @@ type GridStudent = {
   first_name: string;
   last_name: string;
   roll_number: number | null;
-  marks_obtained: string;
+  // Backend returns number | null (never empty string) after Phase 2 fix
+  marks_obtained: number | null;
   is_absent: boolean;
-  max_marks: string;
-  percentage?: string;
+  max_marks: number;
+  percentage?: number | null;
   grade?: string;
+  is_published?: boolean;
   subject_rank?: number | null;
   remarks: string;
 };
 
 type GridPayload = {
-  assessment: { id: string; name: string; academic_year_id: string };
+  exam_term: { id: string; name: string; academic_year_id: string };
   class_section: { id: string; display_name: string; grade: string; section: string };
   subject: { id: string; name: string; code: string };
+  // default_max_marks comes as string from backend
   default_max_marks: string;
   students: GridStudent[];
 };
@@ -141,7 +145,8 @@ export default function ExamMarksPage() {
 
   useEffect(() => {
     if (assignments.length > 0) return;
-    const bid = selectedClass?.branch;
+    // Phase 8 fix: classes/ API returns branch_id, not branch
+    const bid = selectedClass?.branch_id ?? (selectedClass as any)?.branch;
     if (!bid) {
       setSubjects([]);
       return;
@@ -154,14 +159,15 @@ export default function ExamMarksPage() {
       } catch {
         if (!cancelled) {
           setSubjects([]);
-          toast.error("Could not load subjects.");
+          toast.error("Could not load subjects for this class.");
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedClass?.branch]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClass?.branch_id, (selectedClass as any)?.branch]);
 
   useEffect(() => {
     if (!assessmentId || !classSectionId || !subjectId) {
@@ -186,7 +192,10 @@ export default function ExamMarksPage() {
         const next: Record<string, { marks: string; is_absent: boolean; remarks: string }> = {};
         for (const s of d.students) {
           next[s.student_id] = {
-            marks: s.marks_obtained || "",
+            // Phase 2 fix: 0 is falsy in JS — use explicit null/undefined check
+            marks: s.marks_obtained !== null && s.marks_obtained !== undefined
+              ? String(s.marks_obtained)
+              : "",
             is_absent: s.is_absent || false,
             remarks: s.remarks || "",
           };
@@ -211,7 +220,23 @@ export default function ExamMarksPage() {
     };
   }, [assessmentId, classSectionId, subjectId]);
 
+  /** Phase 7: Check if draft has unsaved work before changing selections */
+  const hasDraftWork = () =>
+    Object.values(draft).some((v) => v.marks.trim() !== "" || v.is_absent);
+
+  const guardedSetAssessmentId = (newId: string) => {
+    if (newId !== assessmentId && hasDraftWork()) {
+      if (!window.confirm("You have unsaved marks. Changing this will lose your work. Continue?"))
+        return;
+    }
+    setAssessmentId(newId);
+  };
+
   const onAssignmentPick = (key: string) => {
+    if (key !== assignmentKey && hasDraftWork()) {
+      if (!window.confirm("You have unsaved marks. Changing this will lose your work. Continue?"))
+        return;
+    }
     setAssignmentKey(key);
     if (!key) {
       setClassSectionId("");
@@ -245,15 +270,32 @@ export default function ExamMarksPage() {
       return;
     }
     const defaultMax = grid.default_max_marks;
-    const rows = Object.entries(draft)
-      .filter(([, v]) => v.is_absent || v.marks.trim() !== "")
-      .map(([student_id, v]) => ({
-        student_id,
-        marks_obtained: v.is_absent ? null : v.marks.trim(),
+    const maxVal = parseFloat(defaultMax);
+
+    // Phase 6: validate all rows before submitting
+    const overMax = Object.entries(draft).filter(
+      ([, v]) => !v.is_absent && v.marks.trim() !== "" && parseFloat(v.marks) > maxVal
+    );
+    if (overMax.length) {
+      toast.error(`${overMax.length} student(s) have marks exceeding the maximum (${defaultMax}). Please correct before saving.`);
+      return;
+    }
+
+    // Phase 3 fix: send ALL students so the backend can clear deleted marks.
+    // For a student with empty marks and not absent, marks_obtained=null tells
+    // the backend to delete their existing ExamResult (clear the mark).
+    const rows = grid.students.map((s) => {
+      const v = draft[s.student_id] ?? { marks: "", is_absent: false, remarks: "" };
+      return {
+        student_id: s.student_id,
+        marks_obtained: v.is_absent ? null : (v.marks.trim() !== "" ? v.marks.trim() : null),
         is_absent: v.is_absent,
         remarks: v.remarks?.trim() || "",
-      }));
-    if (!rows.length) {
+      };
+    });
+
+    const hasAnyEntry = rows.some((r) => r.is_absent || r.marks_obtained !== null);
+    if (!hasAnyEntry) {
       toast.error("Enter at least one mark to save.");
       return;
     }
@@ -285,7 +327,10 @@ export default function ExamMarksPage() {
       const next: Record<string, { marks: string; is_absent: boolean; remarks: string }> = {};
       for (const s of d.students) {
         next[s.student_id] = {
-          marks: s.marks_obtained || "",
+          // Phase 2 fix: same zero-safe pattern used on initial load
+          marks: s.marks_obtained !== null && s.marks_obtained !== undefined
+            ? String(s.marks_obtained)
+            : "",
           is_absent: s.is_absent || false,
           remarks: s.remarks || "",
         };
@@ -341,7 +386,7 @@ export default function ExamMarksPage() {
                 <select
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
                   value={assessmentId}
-                  onChange={(e) => setAssessmentId(e.target.value)}
+                  onChange={(e) => guardedSetAssessmentId(e.target.value)}
                 >
                   <option value="">Select assessment…</option>
                   {assessments.map((ex) => (
@@ -365,7 +410,15 @@ export default function ExamMarksPage() {
                     <option value="">Select class &amp; subject…</option>
                     {assignments
                       .filter((a) => {
-                        return true;
+                        // Phase 5: Only show class+subject combos that match the
+                        // selected assessment's grade. If no assessment is chosen,
+                        // show all assignments so the teacher can pick either way.
+                        if (!assessmentId) return true;
+                        const selectedAssessment = assessments.find(
+                          (ex) => ex.id === assessmentId
+                        );
+                        if (!selectedAssessment?.grade) return true;
+                        return a.class_grade === selectedAssessment.grade;
                       })
                       .map((a) => {
                         const key = `${a.class_section_id}::${a.subject_id}`;
@@ -473,8 +526,9 @@ export default function ExamMarksPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {grid.students.map((s) => {
-                  const drow = draft[s.student_id] || {
+                  const drow = draft[s.student_id] ?? {
                     marks: "",
+                    is_absent: false,
                     remarks: "",
                   };
                   return (
@@ -500,8 +554,15 @@ export default function ExamMarksPage() {
                           type="number"
                           step="0.01"
                           min={0}
+                          max={parseFloat(grid.default_max_marks)}
                           disabled={drow.is_absent}
-                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                          className={`w-full rounded-lg border px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400 ${
+                            !drow.is_absent &&
+                            drow.marks.trim() !== "" &&
+                            parseFloat(drow.marks) > parseFloat(grid.default_max_marks)
+                              ? "border-red-400 bg-red-50 text-red-700"
+                              : "border-slate-200"
+                          }`}
                           placeholder={drow.is_absent ? "AB" : "—"}
                           value={drow.marks}
                           onChange={(e) => updateDraft(s.student_id, "marks", e.target.value)}

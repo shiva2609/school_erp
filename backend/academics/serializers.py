@@ -3,10 +3,12 @@ from rest_framework import serializers
 from academics.models import AcademicSubject, Assessment, AssessmentSubject
 
 class MarkRowSerializer(serializers.Serializer):
-    student_id = serializers.UUIDField()
-    marks_obtained = serializers.DecimalField(max_digits=7, decimal_places=2)
-    max_marks = serializers.DecimalField(max_digits=7, decimal_places=2, required=False, allow_null=True)
-    remarks = serializers.CharField(required=False, allow_blank=True, max_length=200)
+    student_id     = serializers.UUIDField()
+    marks_obtained = serializers.DecimalField(
+        max_digits=7, decimal_places=2, required=False, allow_null=True
+    )
+    is_absent      = serializers.BooleanField(required=False, default=False)
+    remarks        = serializers.CharField(required=False, allow_blank=True, max_length=200)
 
 
 class BulkExamMarksSerializer(serializers.Serializer):
@@ -57,7 +59,9 @@ class AssessmentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'academic_year', 'academic_year_name',
             'grade', 'grade_display',
-            'start_date', 'end_date', 'is_active',
+            'start_date', 'end_date',
+            'status',       # DRAFT / ACTIVE / LOCKED
+            'is_active',
             'subject_count', 'created_at', 'updated_at',
         ]
         read_only_fields = [
