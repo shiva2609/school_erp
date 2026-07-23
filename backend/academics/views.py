@@ -35,7 +35,7 @@ def _collect_teaching_pairs(user):
         )
         for a in qs:
             key = (str(a.class_section_id), str(a.subject_id))
-            if key in seen:
+            if key in seen or a.subject is None:
                 continue
             seen.add(key)
             cs = a.class_section
