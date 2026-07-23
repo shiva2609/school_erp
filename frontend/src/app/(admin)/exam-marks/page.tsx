@@ -146,7 +146,7 @@ export default function ExamMarksPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get("subjects/", { params: { branch_id: bid } });
+        const res = await api.get("academics/subjects/", { params: { branch_id: bid } });
         if (!cancelled) setSubjects(unwrapList(res));
       } catch {
         if (!cancelled) {

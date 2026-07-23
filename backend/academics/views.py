@@ -156,7 +156,7 @@ def _resolve_assessment_class_subject(user, assessment_id, class_section_id, sub
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, AcademicDomainPermission])
 def teacher_marks_grid(request):
-    exam_term_id = request.query_params.get('exam_term_id')
+    exam_term_id = request.query_params.get('assessment_id') or request.query_params.get('exam_term_id')
     class_section_id = request.query_params.get('class_section_id')
     subject_id = request.query_params.get('subject_id')
     if not exam_term_id or not class_section_id or not subject_id:
