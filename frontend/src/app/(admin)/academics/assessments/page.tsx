@@ -34,6 +34,7 @@ interface Assessment {
   end_date: string;
   is_active: boolean;
   subject_count: number;
+  status: 'DRAFT' | 'ACTIVE' | 'LOCKED';
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -41,6 +42,29 @@ function fmt(d: string) {
   if (!d) return '';
   const date = new Date(d);
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function renderStatusBadge(status: string | undefined) {
+  const s = status || 'DRAFT';
+  if (s === 'ACTIVE') {
+    return (
+      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+        Active
+      </span>
+    );
+  }
+  if (s === 'LOCKED') {
+    return (
+      <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+        Locked
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+      Draft
+    </span>
+  );
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -196,6 +220,7 @@ export default function AssessmentsPage() {
                         <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                           {a.subject_count} subject{a.subject_count !== 1 ? 's' : ''}
                         </span>
+                        {renderStatusBadge(a.status)}
                       </div>
                     </div>
                   </div>

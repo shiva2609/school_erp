@@ -30,11 +30,35 @@ interface Assessment {
   end_date: string;
   is_active: boolean;
   subject_count: number;
+  status: 'DRAFT' | 'ACTIVE' | 'LOCKED';
 }
 
 function fmt(d: string | null) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function renderStatusBadge(status: string | undefined) {
+  const s = status || 'DRAFT';
+  if (s === 'ACTIVE') {
+    return (
+      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+        Active
+      </span>
+    );
+  }
+  if (s === 'LOCKED') {
+    return (
+      <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+        Locked
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+      Draft
+    </span>
+  );
 }
 
 function fmtTime(t: string | null) {
@@ -119,6 +143,7 @@ export default function AssessmentDetailPage() {
               <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
                 {assessment.subject_count} subject{assessment.subject_count !== 1 ? 's' : ''}
               </span>
+              {renderStatusBadge(assessment.status)}
             </div>
           </div>
           <div className="flex items-center gap-2">
