@@ -104,12 +104,15 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
                     models.Q(teacher_assignments__staff__user=user, teacher_assignments__academic_year__is_active=True)
                 ).distinct()
             
-        # Filter for primary teacher only (used by Attendance)
+        # Filter for class teacher or second class teacher (used by Attendance)
         teacher_only = self.request.query_params.get('teacher_only')
         if teacher_only == 'true' and role == 'TEACHER':
             qs = qs.filter(
                 models.Q(class_teacher=user) |
-                models.Q(teacher_assignments__staff__user=user, teacher_assignments__role='CLASS_TEACHER')
+                models.Q(
+                    teacher_assignments__staff__user=user,
+                    teacher_assignments__role__in=['CLASS_TEACHER', 'SECOND_CLASS_TEACHER']
+                )
             ).distinct()
             
         # Filter for any assigned teacher (used by Homework)

@@ -38,7 +38,10 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 class_section__branch=self.request.user.branch
             ).filter(
                 Q(class_section__class_teacher=self.request.user) |
-                Q(class_section__teacher_assignments__staff__user=self.request.user, class_section__teacher_assignments__role='CLASS_TEACHER')
+                Q(
+                    class_section__teacher_assignments__staff__user=self.request.user,
+                    class_section__teacher_assignments__role__in=['CLASS_TEACHER', 'SECOND_CLASS_TEACHER']
+                )
             ).distinct()
             
         return qs
@@ -73,14 +76,26 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                     "success": False,
                     "error": "You cannot mark attendance for another branch."
                 }, status=status.HTTP_403_FORBIDDEN)
+            sibling_cs_ids = ClassSection.objects.filter(
+                tenant=class_section.tenant,
+                branch=class_section.branch,
+                grade=class_section.grade,
+                section=class_section.section,
+            ).values_list('id', flat=True)
+
+            from staff.models import TeacherAssignment
             is_class_teacher = (
-                class_section.class_teacher == request.user or
-                class_section.teacher_assignments.filter(staff__user=request.user, role='CLASS_TEACHER').exists()
+                ClassSection.objects.filter(id__in=sibling_cs_ids, class_teacher=request.user).exists() or
+                TeacherAssignment.objects.filter(
+                    staff__user=request.user,
+                    class_section_id__in=sibling_cs_ids,
+                    role__in=['CLASS_TEACHER', 'SECOND_CLASS_TEACHER']
+                ).exists()
             )
             if not is_class_teacher:
                 return Response({
                     "success": False, 
-                    "error": "Only the Primary Class Teacher can mark attendance for this class."
+                    "error": "Only the assigned Class Teacher or Second Class Teacher can mark attendance for this class."
                 }, status=status.HTTP_403_FORBIDDEN)
 
         date = data['date']
