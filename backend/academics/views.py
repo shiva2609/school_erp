@@ -98,7 +98,7 @@ def teacher_marks_context(request):
         assessments = list(
             Assessment.objects.filter(tenant=user.tenant, is_active=True)
             .order_by('start_date')
-            .values('id', 'name', 'start_date', 'end_date', 'branch_id', 'academic_year_id', 'grade')
+            .values('id', 'name', 'start_date', 'end_date', 'branch_id', 'academic_year_id', 'grade', 'status')
         )
     return Response({
         'success': True,
