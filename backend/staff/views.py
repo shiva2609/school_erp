@@ -254,25 +254,45 @@ class StaffViewSet(viewsets.ModelViewSet):
             for ext in existing_assignments:
                 ext_sub_id = str(ext.subject_id) if ext.subject_id else None
                 if (str(ext.class_section_id), ext.role, ext_sub_id) not in requested_keys:
-                    # If we are deleting a CLASS_TEACHER role, sync ClassSection
-                    if ext.role == 'CLASS_TEACHER' and staff_user:
-                        ClassSection.objects.filter(id=ext.class_section_id, class_teacher=staff_user).update(class_teacher=None)
                     ext.delete()
 
             # 3. Create or Update requested assignments
+            validation_errors = []
             for item in assignments_payload:
                 cs_id = item.get('class_section_id')
                 role = item.get('role', 'SUBJECT_TEACHER')
                 sub_id = item.get('subject_id') if role == 'SUBJECT_TEACHER' else None
-                
+
+                # Phase 2 fix: validate that the selected class section belongs to
+                # the submitted academic year. Without this check, an admin could
+                # accidentally pick a stale section UUID from a previous year,
+                # causing the teacher's class to never show up in the attendance dropdown.
+                try:
+                    cs_obj = ClassSection.objects.get(
+                        id=cs_id, tenant=request.user.tenant
+                    )
+                    if str(cs_obj.academic_year_id) != str(academic_year_id):
+                        validation_errors.append({
+                            'class_section_id': str(cs_id),
+                            'error': (
+                                f'Class section "{cs_obj.display_name}" belongs to a '
+                                f'different academic year. Please select a section from '
+                                f'the correct year.'
+                            ),
+                        })
+                        continue
+                except ClassSection.DoesNotExist:
+                    validation_errors.append({
+                        'class_section_id': str(cs_id),
+                        'error': 'Class section not found.',
+                    })
+                    continue
+
                 # Check constraints before creating/updating
                 if role == 'CLASS_TEACHER':
                     TeacherAssignment.objects.filter(
                         class_section_id=cs_id, academic_year_id=academic_year_id, role='CLASS_TEACHER'
                     ).exclude(staff_id=staff_id).delete()
-                    
-                    if staff_user:
-                        ClassSection.objects.filter(id=cs_id).update(class_teacher=staff_user)
                         
                 elif role == 'SECOND_CLASS_TEACHER':
                     TeacherAssignment.objects.filter(
@@ -295,7 +315,8 @@ class StaffViewSet(viewsets.ModelViewSet):
             {
                 "success": True,
                 "count": len(created_assignments),
-                "message": f"Successfully updated assignments.",
+                "message": "Successfully updated assignments.",
+                "errors": validation_errors,
             },
             status=status.HTTP_200_OK,
         )

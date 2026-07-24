@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/axios';
 import DateInput from '@/components/DateInput';
@@ -13,6 +14,8 @@ interface ClassSection { id: string; display_name: string; }
 
 export default function AttendancePage() {
   const { selectedBranch } = useBranch();
+  const searchParams = useSearchParams();
+  const preClassId = searchParams.get('class_id');
   const { data: classes } = useApi<ClassSection[]>(`/classes/?teacher_only=true&branch_id=${selectedBranch}`);
   const [selectedClass, setSelectedClass] = useState('');
   // Get local date string YYYY-MM-DD without UTC shift
@@ -29,12 +32,16 @@ export default function AttendancePage() {
   const [result, setResult] = useState<{ saved: number } | null>(null);
   const [hasExistingRecords, setHasExistingRecords] = useState(false);
 
-  // Auto-select if only one class is available (typical for teachers)
+  // 4A: Pre-select class from ?class_id URL param (set by the dashboard "Pending" link).
+  // Also auto-select if only one class returned (typical for class teachers).
   useEffect(() => {
-    if (classes && classes.length === 1 && !selectedClass) {
+    if (!classes) return;
+    if (preClassId && classes.find(c => c.id === preClassId) && !selectedClass) {
+      fetchData(preClassId, date);
+    } else if (classes.length === 1 && !selectedClass) {
       fetchData(classes[0].id, date);
     }
-  }, [classes]);
+  }, [classes, preClassId]);
 
   // Refetch when date changes (if a class is already selected)
   useEffect(() => {
@@ -102,10 +109,9 @@ export default function AttendancePage() {
   };
 
   const statusColors: Record<string, string> = {
-    PRESENT: 'bg-emerald-500', 
-    ABSENT: 'bg-rose-500', 
-    LATE: 'bg-amber-500', 
-    HALF_DAY: 'bg-slate-500',
+    PRESENT: 'bg-emerald-500',
+    ABSENT: 'bg-rose-500',
+    // LATE and HALF_DAY removed — no longer used in this UI (4D fix).
   };
 
   const attendanceStats = {
@@ -179,6 +185,16 @@ export default function AttendancePage() {
         <div className="space-y-4">{[1,2,3,4].map(i => <div key={i} className="h-16 bg-white border rounded-2xl animate-pulse" />)}</div>
       ) : students.length > 0 ? (
         <div className="space-y-4">
+          {/* 4B: Warn teacher when they are editing already-submitted attendance */}
+          {hasExistingRecords && (
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-amber-700 text-xs font-medium">
+              <AlertCircle size={14} className="shrink-0 text-amber-500" />
+              <span>
+                Attendance already submitted for this date. Any changes you save will <strong>overwrite</strong> the existing records.
+              </span>
+            </div>
+          )}
+
           <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl shadow-xl shadow-slate-200">
               <div className="flex items-center gap-2">
                  <Zap size={14} className="text-amber-400" />

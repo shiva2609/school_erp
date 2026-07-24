@@ -288,7 +288,7 @@ export default function TeacherDashboardPage() {
                         </div>
                       ) : (
                         <Link 
-                          href="/attendance"
+                          href={`/attendance?class_id=${att.class_id}`}
                           className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 text-[10px] font-black uppercase px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
                         >
                           <Clock size={10} /> Pending

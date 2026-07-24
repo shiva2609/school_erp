@@ -17,7 +17,9 @@ class AttendanceRecordSerializer(serializers.ModelSerializer):
 
 class BulkAttendanceItemSerializer(serializers.Serializer):
     student_id = serializers.UUIDField()
-    status = serializers.ChoiceField(choices=['PRESENT', 'ABSENT', 'LATE', 'HALF_DAY', 'ON_LEAVE'])
+    # 3F fix: LATE, HALF_DAY, and ON_LEAVE removed from the UI and API.
+    # Only PRESENT and ABSENT are valid statuses going forward.
+    status = serializers.ChoiceField(choices=['PRESENT', 'ABSENT'])
     remarks = serializers.CharField(required=False, allow_blank=True, default='')
 
 
@@ -38,6 +40,5 @@ class AttendanceSummarySerializer(serializers.Serializer):
     total_days = serializers.IntegerField()
     present_days = serializers.IntegerField()
     absent_days = serializers.IntegerField()
-    late_days = serializers.IntegerField()
-    half_days = serializers.IntegerField()
+    # late_days and half_days removed — these statuses are no longer used.
     attendance_percentage = serializers.FloatField()

@@ -220,7 +220,8 @@ export default function ParentDashboard({ user }: { user: any }) {
   });
 
   const attendanceRate = attendance.length > 0 
-    ? Math.round((attendance.filter(a => ['PRESENT', 'LATE', 'HALF_DAY'].includes(a.status?.toUpperCase())).length / attendance.length) * 100) 
+    // 4C fix: count only PRESENT records. LATE and HALF_DAY are retired from the system.
+    ? Math.round((attendance.filter(a => a.status?.toUpperCase() === 'PRESENT').length / attendance.length) * 100) 
     : 0;
   const pendingHw = homework.filter(h => new Date(h.due_date) >= new Date()).length;
 

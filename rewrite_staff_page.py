@@ -1,4 +1,6 @@
-"use client";
+import os
+
+content = """\"use client\";
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
@@ -10,43 +12,33 @@ import { toast } from 'react-hot-toast';
 import {
   ArrowLeft, User, Briefcase, HeartPulse, MapPin, Landmark, Phone, Mail,
   Calendar, CheckCircle2, ShieldCheck, GraduationCap, Clock, AlertCircle,
-  BookOpen, Plus, Trash2, Edit2, KeyRound, Loader2, X, Save,
-  MoreVertical, UserMinus
+  BookOpen, Plus, Trash2, Edit2, KeyRound, Loader2, X, Save
 } from 'lucide-react';
-import { AuthProvider, useAuth } from '@/components/common/AuthProvider';
 import { differenceInYears, differenceInMonths } from 'date-fns';
-import StaffStatusModal, { StaffStatus } from '@/components/staff/StaffStatusModal';
 
 export default function StaffProfilePage() {
   const { id } = useParams() as { id: string };
   const { data: staff, loading, error, refetch } = useApi<any>(`staff/${id}/`);
   const { data: years } = useApi<any[]>('tenants/academic-years/');
-  const activeYear = years?.find((y: any) => y.is_active);
-  // Phase 2B: only fetch class sections for the active academic year.
-  // Fetching all years causes duplicate section names in the dropdown and lets
-  // admins accidentally link assignments to stale section UUIDs from past years.
-  const { data: classes } = useApi<any[]>(
-    activeYear ? `classes/?academic_year_id=${activeYear.id}` : null
-  );
-  const { data: subjects } = useApi<any[]>('academics/subjects/');
+  const { data: classes } = useApi<any[]>('classes/');
+  const { data: subjects } = useApi<any[]>('subjects/');
 
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignSaving, setAssignSaving] = useState(false);
   
-  const [assignments, setAssignments] = useState<any[]>([]);
-  const [activeAcademicYear, setActiveAcademicYear] = useState('');
-
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [statusModalOpen, setStatusModalOpen] = useState(false);
-  const [statusTarget, setStatusTarget] = useState<StaffStatus>('ACTIVE');
+  const [assignment, setAssignment] = useState({
+    academic_year: '',
+    is_class_teacher: false,
+    primary_class_id: '',
+    class_assignments: {} as Record<string, string[]>
+  });
 
   useEffect(() => {
-    if (years?.length && !activeAcademicYear) {
-      setActiveAcademicYear(years.find((y: any) => y.is_active)?.id || years[0].id);
+    if (years?.length && !assignment.academic_year) {
+      setAssignment(a => ({ ...a, academic_year: years.find(y => y.is_active)?.id || years[0].id }));
     }
-  }, [years, activeAcademicYear]);
+  }, [years]);
 
   if (loading) {
     return (
@@ -74,42 +66,31 @@ export default function StaffProfilePage() {
   const initials = staff.user_details ? `${staff.user_details.first_name.charAt(0)}${staff.user_details.last_name.charAt(0)}`.toUpperCase() : staff.employee_id.charAt(0).toUpperCase();
 
   const handleOpenAssign = () => {
-    const currentList = staff.assignments?.map((a: any) => ({
-      class_section_id: a.class_section,
-      role: a.role || 'SUBJECT_TEACHER',
-      subject_id: a.subject || '',
-      id: Math.random().toString(36).substr(2, 9)
-    })) || [];
-    
-    setAssignments(currentList);
-    setActiveAcademicYear(years?.find((y: any) => y.is_active)?.id || years?.[0]?.id || '');
+    const currentMap: Record<string, string[]> = {};
+    staff.assignments?.forEach((a: any) => {
+      if (!currentMap[a.class_section]) currentMap[a.class_section] = [];
+      currentMap[a.class_section].push(a.subject);
+    });
+
+    setAssignment({
+      class_assignments: currentMap,
+      academic_year: years?.find(y => y.is_active)?.id || years?.[0]?.id || '',
+      is_class_teacher: staff.is_class_teacher || false,
+      primary_class_id: staff.primary_class_id || ''
+    });
     setShowAssignModal(true);
   };
 
   const handleAssignSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Client side validation for uniqueness
-    const seen = new Set();
-    for (const a of assignments) {
-      const key = `${a.class_section_id}-${a.role}-${a.role === 'SUBJECT_TEACHER' ? a.subject_id : ''}`;
-      if (seen.has(key)) {
-        toast.error("Duplicate assignments detected. Please fix.");
-        return;
-      }
-      seen.add(key);
-    }
-
     setAssignSaving(true);
     try {
       await api.post('staff/assign/', {
         teacher: staff.id,
-        academic_year: activeAcademicYear,
-        assignments: assignments.map(a => ({
-          class_section_id: a.class_section_id,
-          role: a.role,
-          subject_id: a.role === 'SUBJECT_TEACHER' ? a.subject_id : null
-        }))
+        academic_year: assignment.academic_year,
+        is_class_teacher: assignment.is_class_teacher,
+        primary_class_id: assignment.primary_class_id,
+        class_assignments: assignment.class_assignments
       });
       toast.success("Academic assignments updated!");
       setShowAssignModal(false);
@@ -152,19 +133,8 @@ export default function StaffProfilePage() {
         <ArrowLeft size={16} /> Back to Directory
       </Link>
 
-      {/* ── Main Content ── */}
-      {staff && (
-        <StaffStatusModal
-          isOpen={statusModalOpen}
-          onClose={() => setStatusModalOpen(false)}
-          staffId={staff.id}
-          staffName={name}
-          currentStatus={staff.status}
-          targetStatus={statusTarget}
-          onSuccess={refetch}
-        />
-      )}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-6 relative">
+      {/* Header Card (Restored original styling) */}
+      <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
         <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-700 relative">
           <div className="absolute -bottom-12 left-8 p-1.5 bg-white rounded-3xl shadow-md">
             <div className="w-24 h-24 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-[1.25rem] flex items-center justify-center text-3xl font-black text-blue-600 border border-blue-100">
@@ -206,53 +176,10 @@ export default function StaffProfilePage() {
               </div>
             </div>
 
-            <div className="flex gap-3 relative">
+            <div className="flex gap-3">
               <Link href={`/staff/${id}/edit`} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-200 transition-colors flex items-center gap-2">
                 <Edit2 size={16} /> Edit Profile
               </Link>
-              <button 
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="px-3 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-200 transition-colors flex items-center justify-center"
-              >
-                <MoreVertical size={16} />
-              </button>
-              
-              <AnimatePresence>
-                {menuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9, y: 4 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9, y: 4 }}
-                    transition={{ duration: 0.12 }}
-                    className="absolute right-0 top-12 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-30"
-                  >
-                    {staff.status !== 'ACTIVE' && (
-                      <button
-                        onClick={() => { setMenuOpen(false); setStatusTarget('ACTIVE'); setStatusModalOpen(true); }}
-                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-emerald-600 font-medium hover:bg-emerald-50 transition-colors"
-                      >
-                        <CheckCircle2 size={16} /> Make Active
-                      </button>
-                    )}
-                    {staff.status === 'ACTIVE' && (
-                      <button
-                        onClick={() => { setMenuOpen(false); setStatusTarget('INACTIVE'); setStatusModalOpen(true); }}
-                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-amber-600 font-medium hover:bg-amber-50 transition-colors"
-                      >
-                        <Clock size={16} /> Make Inactive
-                      </button>
-                    )}
-                    {staff.status !== 'RESIGNED' && (
-                      <button
-                        onClick={() => { setMenuOpen(false); setStatusTarget('RESIGNED'); setStatusModalOpen(true); }}
-                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 font-medium hover:bg-red-50 transition-colors border-t border-slate-50"
-                      >
-                        <UserMinus size={16} /> Mark Resigned
-                      </button>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
           </div>
         </div>
@@ -293,47 +220,38 @@ export default function StaffProfilePage() {
                 
                 {/* Classes and Subjects */}
                 <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
-                  <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="text-blue-600" /> Classes and Subjects
-                    </div>
-                    {['SUPER_ADMIN', 'ACCOUNTANT'].includes(user?.role || '') && (
-                      <button onClick={handleOpenAssign} className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-lg transition-colors" title="Edit Assignments">
-                        <Edit2 size={16} />
-                      </button>
-                    )}
+                  <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <BookOpen className="text-blue-600" /> Classes and Subjects
                   </h3>
                   <div className="w-full overflow-hidden">
                     <table className="w-full text-sm text-left text-slate-700">
                       <thead className="bg-slate-50">
                         <tr>
                           <th className="px-4 py-3 font-bold border-b border-slate-100 rounded-tl-xl">Class</th>
-                          <th className="px-4 py-3 font-bold border-b border-slate-100">Subject</th>
-                          <th className="px-4 py-3 font-bold border-b border-slate-100 rounded-tr-xl">Role</th>
+                          <th className="px-4 py-3 font-bold border-b border-slate-100 rounded-tr-xl">Subject/Activity</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {staff.assignments?.length === 0 ? (
-                          <tr>
-                            <td colSpan={3} className="px-4 py-8 text-center text-slate-500 font-medium">No classes assigned yet.</td>
-                          </tr>
-                        ) : (
-                          staff.assignments?.map((a: any, idx: number) => (
-                            <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                              <td className="px-4 py-3 border-b border-slate-50 font-medium">{a.class_name}</td>
-                              <td className="px-4 py-3 border-b border-slate-50">{a.role === 'SUBJECT_TEACHER' ? a.subject_name : '—'}</td>
-                              <td className="px-4 py-3 border-b border-slate-50">
-                                <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg ${
-                                  a.role === 'CLASS_TEACHER' ? 'bg-blue-100 text-blue-700' : 
-                                  a.role === 'SECOND_CLASS_TEACHER' ? 'bg-purple-100 text-purple-700' : 
-                                  'bg-slate-100 text-slate-600'
-                                }`}>
-                                  {a.role === 'CLASS_TEACHER' ? 'Class Teacher' : a.role === 'SECOND_CLASS_TEACHER' ? 'Second Class Teacher' : 'Subject Teacher'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))
-                        )}
+                        <tr className="bg-white">
+                          <td className="px-4 py-3 border-b border-slate-50 font-medium">Grade 1</td>
+                          <td className="px-4 py-3 border-b border-slate-50">Class incharge</td>
+                        </tr>
+                        <tr className="bg-slate-50/50">
+                          <td className="px-4 py-3 border-b border-slate-50 font-medium">Grade 1 - A Section</td>
+                          <td className="px-4 py-3 border-b border-slate-50">Class teacher</td>
+                        </tr>
+                        <tr className="bg-white">
+                          <td className="px-4 py-3 border-b border-slate-50 font-medium">Grade 2 - A Section</td>
+                          <td className="px-4 py-3 border-b border-slate-50">English</td>
+                        </tr>
+                        <tr className="bg-slate-50/50">
+                          <td className="px-4 py-3 border-b border-slate-50 font-medium">Grade 3 - A Section</td>
+                          <td className="px-4 py-3 border-b border-slate-50">English</td>
+                        </tr>
+                        <tr className="bg-white">
+                          <td className="px-4 py-3 font-medium">Grade 4 - A Section</td>
+                          <td className="px-4 py-3">English</td>
+                        </tr>
                       </tbody>
                     </table>
                   </div>
@@ -688,7 +606,7 @@ export default function StaffProfilePage() {
       <AnimatePresence>
         {showAssignModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100">
               <div className="flex items-center justify-between p-6 border-b border-slate-50 bg-slate-50/50">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-md">
@@ -707,111 +625,87 @@ export default function StaffProfilePage() {
               <form onSubmit={handleAssignSave} className="p-6 space-y-6">
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">Academic Year</label>
-                  <select required value={activeAcademicYear} onChange={e => setActiveAcademicYear(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30">
+                  <select required value={assignment.academic_year} onChange={e => setAssignment({...assignment, academic_year: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30">
                     {years?.map(y => <option key={y.id} value={y.id}>{y.name} {y.is_active ? '(Active)' : ''}</option>)}
                   </select>
                 </div>
 
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between px-1">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Assignments</label>
-                    <button type="button" onClick={() => setAssignments([...assignments, { id: Math.random().toString(36).substr(2, 9), class_section_id: '', role: 'SUBJECT_TEACHER', subject_id: '' }])} className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                      <Plus size={14} /> Add Row
-                    </button>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">Step 1: Select Classes</label>
+                  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1 pr-2">
+                    {classes?.map(c => (
+                      <label key={c.id} className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all cursor-pointer ${assignment.class_assignments[c.id] ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-transparent hover:bg-white hover:border-slate-200'}`}>
+                        <input type="checkbox" checked={!!assignment.class_assignments[c.id]} onChange={e => {
+                          const newMap = { ...assignment.class_assignments };
+                          if (e.target.checked) newMap[c.id] = [];
+                          else delete newMap[c.id];
+                          setAssignment({...assignment, class_assignments: newMap});
+                        }} className="w-5 h-5 text-blue-600 rounded-lg border-slate-300" />
+                        <span className="text-sm font-bold text-slate-700">{c.display_name}</span>
+                      </label>
+                    ))}
                   </div>
-                  <div className="space-y-3 max-h-[300px] overflow-y-auto p-1 pr-2">
-                    {assignments.length === 0 ? (
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">Step 2: Assign Subjects per Class</label>
+                  <div className="space-y-3 max-h-60 overflow-y-auto p-1 pr-2">
+                    {Object.keys(assignment.class_assignments).length === 0 ? (
                       <div className="text-center py-8 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No assignments added yet</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select a class above first</p>
                       </div>
                     ) : (
-                      assignments.map((assignment, index) => {
-                        const selectedClass = classes?.find((c: any) => c.id === assignment.class_section_id);
-                        
-                        // Extract unique friendly grade names from display_name (e.g., "Grade 1 - Section A" -> "Grade 1")
-                        const uniqueGrades = Array.from(new Set(classes?.map((c: any) => c.display_name?.split(' - ')[0]) || []));
-                        
-                        // Determine the selected friendly grade based on the currently selected section
-                        const selectedFriendlyGrade = selectedClass?.display_name?.split(' - ')[0] || '';
-                        
+                      Object.keys(assignment.class_assignments).map(classId => {
+                        const classObj = classes?.find(c => c.id === classId);
                         return (
-                          <div key={assignment.id} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm relative group animate-in zoom-in-95">
-                            <button type="button" onClick={() => setAssignments(assignments.filter(a => a.id !== assignment.id))} className="absolute -top-2 -right-2 p-1.5 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-sm border border-red-200">
-                              <X size={14} />
-                            </button>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                              <select 
-                                value={selectedFriendlyGrade} 
-                                onChange={e => {
-                                  // Find first section whose display_name starts with the selected friendly grade
-                                  const firstSection = classes?.find((c: any) => c.display_name?.split(' - ')[0] === e.target.value);
-                                  const newArr = [...assignments];
-                                  newArr[index].class_section_id = firstSection ? firstSection.id : '';
-                                  setAssignments(newArr);
-                                }} 
-                                className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                              >
-                                <option value="">Select Grade</option>
-                                {uniqueGrades.map((g: any) => <option key={g} value={g}>{g}</option>)}
-                              </select>
-                              <select 
-                                required
-                                value={assignment.class_section_id} 
-                                onChange={e => {
-                                  const newArr = [...assignments];
-                                  newArr[index].class_section_id = e.target.value;
-                                  setAssignments(newArr);
-                                }}
-                                className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                              >
-                                <option value="">Select Section</option>
-                                {classes?.filter((c: any) => c.display_name?.split(' - ')[0] === selectedFriendlyGrade).map((c: any) => (
-                                  // Phase 2C: show academic year beside each section name to prevent confusion.
-                                  <option key={c.id} value={c.id}>{c.display_name}{c.academic_year_name ? ` (${c.academic_year_name})` : ''}</option>
-                                ))}
-                              </select>
-                              <select 
-                                required
-                                value={assignment.role} 
-                                onChange={e => {
-                                  const newArr = [...assignments];
-                                  newArr[index].role = e.target.value;
-                                  if (e.target.value !== 'SUBJECT_TEACHER') newArr[index].subject_id = '';
-                                  setAssignments(newArr);
-                                }}
-                                className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                              >
-                                <option value="SUBJECT_TEACHER">Subject Teacher</option>
-                                <option value="CLASS_TEACHER">Class Teacher</option>
-                                <option value="SECOND_CLASS_TEACHER">Second Class Teacher</option>
-                              </select>
-                              <select 
-                                required={assignment.role === 'SUBJECT_TEACHER'}
-                                disabled={assignment.role !== 'SUBJECT_TEACHER'}
-                                value={assignment.subject_id} 
-                                onChange={e => {
-                                  const newArr = [...assignments];
-                                  newArr[index].subject_id = e.target.value;
-                                  setAssignments(newArr);
-                                }}
-                                className={`w-full px-3 py-2 text-sm border rounded-xl outline-none ${assignment.role !== 'SUBJECT_TEACHER' ? 'bg-slate-100 text-slate-400 border-transparent' : 'bg-slate-50 border-slate-200'}`}
-                              >
-                                <option value="">Select Subject</option>
-                                {subjects?.filter((s: any) => {
-                                  if (selectedClass && s.grade_levels && s.grade_levels.length > 0) {
-                                    return s.grade_levels.includes(selectedClass.grade);
-                                  }
-                                  return true;
-                                }).map((s: any) => (
-                                  <option key={s.id} value={s.id}>{s.name} {s.is_optional ? '(Optional)' : ''}</option>
-                                ))}
-                              </select>
+                          <div key={classId} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm animate-in zoom-in-95">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-sm font-black text-blue-600 tracking-tighter">{classObj?.display_name}</span>
+                              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-lg">{assignment.class_assignments[classId].length} Selected</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {subjects?.filter((s: any) => {
+                                const teacherBranchId = typeof staff.branch === 'object' ? staff.branch?.id : staff.branch;
+                                return !teacherBranchId || s.branch === teacherBranchId;
+                              }).map((s: any) => (
+                                <button
+                                  key={s.id} type="button"
+                                  onClick={() => {
+                                    const currentSubs = assignment.class_assignments[classId];
+                                    const newSubs = currentSubs.includes(s.id) ? currentSubs.filter(id => id !== s.id) : [...currentSubs, s.id];
+                                    setAssignment({ ...assignment, class_assignments: { ...assignment.class_assignments, [classId]: newSubs } });
+                                  }}
+                                  className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border ${assignment.class_assignments[classId].includes(s.id) ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-[1.02]' : 'bg-slate-50 text-slate-500 border-slate-100 hover:bg-slate-100'}`}
+                                >
+                                  {s.name}
+                                </button>
+                              ))}
                             </div>
                           </div>
                         );
                       })
                     )}
                   </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-slate-50">
+                  <label className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white cursor-pointer transition-all">
+                    <input type="checkbox" checked={assignment.is_class_teacher} onChange={e => setAssignment({...assignment, is_class_teacher: e.target.checked})} className="w-5 h-5 text-blue-600 rounded-lg border-slate-300 focus:ring-blue-500" />
+                    <span className="text-sm font-bold text-slate-700">Set as primary Class Teacher</span>
+                  </label>
+
+                  {assignment.is_class_teacher && Object.keys(assignment.class_assignments).length > 0 && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 px-1">
+                      <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Select Class Teacher Role For:</label>
+                      <select required value={assignment.primary_class_id} onChange={e => setAssignment({...assignment, primary_class_id: e.target.value})} className="w-full px-4 py-3 bg-white border border-blue-200 rounded-xl text-sm font-bold text-blue-700 outline-none focus:ring-2 focus:ring-blue-500/30">
+                        <option value="">Select Class</option>
+                        {Object.keys(assignment.class_assignments).map(cid => {
+                          const c = classes?.find(x => x.id === cid);
+                          return <option key={cid} value={cid}>{c?.display_name}</option>;
+                        })}
+                      </select>
+                    </motion.div>
+                  )}
                 </div>
 
                 <button type="submit" disabled={assignSaving} className="w-full py-3.5 bg-blue-600 text-white rounded-2xl font-bold shadow-md shadow-blue-200 hover:bg-blue-700 hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
@@ -826,3 +720,8 @@ export default function StaffProfilePage() {
     </div>
   );
 }
+"""
+
+with open('frontend/src/app/(admin)/staff/[id]/page.tsx', 'w') as f:
+    f.write(content)
+

@@ -95,7 +95,8 @@ def teacher_dashboard(request):
             absent_count = 0
             if marked_today:
                 absent_count = records.filter(status='ABSENT').count()
-                present_count = records.filter(status__in=['PRESENT', 'LATE', 'HALF_DAY']).count()
+                # 3B fix: LATE/HALF_DAY removed from UI — count PRESENT only.
+                present_count = records.filter(status='PRESENT').count()
 
             attendance_status.append({
                 'class_id': str(cs.id),
@@ -137,16 +138,20 @@ def teacher_dashboard(request):
     except Exception as e:
         logger.warning(f"Homework query failed: {e}")
 
-    # 4. Today's absentees across assigned classes
+    # 4. Today's absentees — scoped to CLASS_TEACHER and SECOND_CLASS_TEACHER classes only.
+    # 3B fix: previously used all assigned_classes (including SUBJECT_TEACHER assignments),
+    # causing subject teachers to see absentees from every class they teach in.
     today_absentees = 0
     try:
         from attendance.models import AttendanceRecord
-        class_ids = [c['id'] for c in assigned_classes]
-        today_absentees = AttendanceRecord.objects.filter(
-            student__class_section_id__in=class_ids,
-            date=today,
-            status='ABSENT'
-        ).count()
+        # Re-use the attendance_status list which is already correctly scoped to form classes.
+        attendance_class_ids = [a['class_id'] for a in attendance_status]
+        if attendance_class_ids:
+            today_absentees = AttendanceRecord.objects.filter(
+                class_section_id__in=attendance_class_ids,
+                date=today,
+                status='ABSENT'
+            ).count()
     except Exception as e:
         logger.warning(f"Absentee query failed: {e}")
 
