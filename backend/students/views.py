@@ -167,7 +167,7 @@ class ClassSectionViewSet(viewsets.ModelViewSet):
                     "details": details
                 }, status=400)
 
-            students = Student.objects.filter(class_section=section, status='ACTIVE', academic_year__is_active=True)
+            students = Student.objects.filter(class_section=section, status='ACTIVE')
             serializer = StudentListSerializer(students, many=True)
             return Response({'success': True, 'data': serializer.data})
         except Exception as outer_e:
