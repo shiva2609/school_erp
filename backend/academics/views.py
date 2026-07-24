@@ -284,7 +284,13 @@ def teacher_marks_bulk_save(request):
 
     default_max = config.max_marks
 
-    student_ids = {str(s.id) for s in Student.objects.filter(class_section=cs, status='ACTIVE')}
+    sibling_cs_ids = ClassSection.objects.filter(
+        tenant=cs.tenant,
+        branch=cs.branch,
+        grade=cs.grade,
+        section=cs.section,
+    ).values_list('id', flat=True)
+    student_ids = {str(s.id) for s in Student.objects.filter(class_section_id__in=sibling_cs_ids, status='ACTIVE')}
     errors = []
     saved = 0
 
@@ -367,7 +373,21 @@ def teacher_marks_publish(request):
         cs = ClassSection.objects.filter(pk=class_section_id, tenant=request.user.tenant).first()
         if not exam or not cs:
             return Response({'success': False, 'error': 'Assessment or class section not found.'}, status=404)
-        subjects = AcademicSubject.objects.filter(exam_results__assessment=exam, exam_results__student__class_section=cs).distinct()
+        
+        sibling_cs_ids = ClassSection.objects.filter(
+            tenant=cs.tenant,
+            branch=cs.branch,
+            grade=cs.grade,
+            section=cs.section,
+        ).values_list('id', flat=True)
+        subjects = AcademicSubject.objects.filter(exam_results__assessment=exam, exam_results__student__class_section_id__in=sibling_cs_ids).distinct()
+
+    sibling_cs_ids = ClassSection.objects.filter(
+        tenant=cs.tenant,
+        branch=cs.branch,
+        grade=cs.grade,
+        section=cs.section,
+    ).values_list('id', flat=True)
 
     published_count = 0
     from students.models import ParentStudentRelation
@@ -378,7 +398,7 @@ def teacher_marks_publish(request):
         # Calculate ranks for this subject
         results = list(ExamResult.objects.filter(
             assessment=exam, 
-            student__class_section=cs, 
+            student__class_section_id__in=sibling_cs_ids, 
             subject=sub,
         ).exclude(
             marks_obtained__isnull=True, 

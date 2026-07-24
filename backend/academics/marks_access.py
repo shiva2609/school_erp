@@ -49,8 +49,15 @@ def can_enter_exam_marks(user, class_section, subject) -> bool:
     if not tp:
         return False
 
+    sibling_cs_ids = ClassSection.objects.filter(
+        tenant=class_section.tenant,
+        branch=class_section.branch,
+        grade=class_section.grade,
+        section=class_section.section,
+    ).values_list('id', flat=True)
+
     return TeacherAssignment.objects.filter(
         staff=tp,
-        class_section=class_section,
+        class_section_id__in=sibling_cs_ids,
         subject=subject,
     ).exists()
