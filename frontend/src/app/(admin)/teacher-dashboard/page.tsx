@@ -29,6 +29,8 @@ interface AttendanceStatus {
   class_id: string;
   class_name: string;
   marked_today: boolean;
+  present_count?: number;
+  absent_count?: number;
 }
 
 interface DashboardData {
@@ -274,9 +276,16 @@ export default function TeacherDashboardPage() {
                     <div key={att.class_id} className="flex items-center justify-between px-4 py-3">
                       <p className="text-sm font-bold text-slate-900">{att.class_name}</p>
                       {att.marked_today ? (
-                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase px-2.5 py-1 rounded-full">
-                          <CheckCircle2 size={10} /> Done
-                        </span>
+                        <div className="flex items-center gap-3">
+                          {att.present_count !== undefined && att.absent_count !== undefined && (
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              P: <span className="text-emerald-600 font-bold">{att.present_count}</span> | A: <span className="text-rose-600 font-bold">{att.absent_count}</span>
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase px-2.5 py-1 rounded-full">
+                            <CheckCircle2 size={10} /> Done
+                          </span>
+                        </div>
                       ) : (
                         <Link 
                           href="/attendance"

@@ -37,8 +37,9 @@ def teacher_dashboard(request):
     attendance_status = []
 
     if teacher_profile:
+        # Get assigned classes (distinct) for display
         assignments = TeacherAssignment.objects.filter(
-                staff=teacher_profile,
+            staff=teacher_profile,
             academic_year__is_active=True,
             class_section__academic_year__is_active=True
         ).select_related('class_section').values(
@@ -62,19 +63,47 @@ def teacher_dashboard(request):
                 'is_class_teacher': a['role'] == 'CLASS_TEACHER',
             })
 
-            # Check if attendance marked today for this class
-            from attendance.models import AttendanceRecord
-            marked_today = False
-            if student_count > 0:
-                marked_today = AttendanceRecord.objects.filter(
-                    class_section_id=cs_id, date=today
-                ).exists()
+        # Get classes where the teacher is Primary Class Teacher or Second Class Teacher
+        from students.models import ClassSection, Student
+        from attendance.models import AttendanceRecord
+        
+        attendance_classes = ClassSection.objects.filter(
+            Q(class_teacher=user) |
+            Q(teacher_assignments__staff=teacher_profile, teacher_assignments__role__in=['CLASS_TEACHER', 'SECOND_CLASS_TEACHER']),
+            academic_year__is_active=True
+        ).distinct()
 
-                attendance_status.append({
-                    'class_id': str(cs_id),
-                    'class_name': cs_name,
-                    'marked_today': marked_today,
-                })
+        for cs in attendance_classes:
+            sibling_cs_ids = ClassSection.objects.filter(
+                tenant=cs.tenant,
+                branch=cs.branch,
+                grade=cs.grade,
+                section=cs.section,
+            ).values_list('id', flat=True)
+
+            student_count = Student.objects.filter(
+                class_section_id__in=sibling_cs_ids, status='ACTIVE'
+            ).count()
+
+            # Check if attendance marked today for any sibling section
+            records = AttendanceRecord.objects.filter(
+                class_section_id__in=sibling_cs_ids, date=today
+            )
+            marked_today = records.exists()
+
+            present_count = 0
+            absent_count = 0
+            if marked_today:
+                absent_count = records.filter(status='ABSENT').count()
+                present_count = records.filter(status__in=['PRESENT', 'LATE', 'HALF_DAY']).count()
+
+            attendance_status.append({
+                'class_id': str(cs.id),
+                'class_name': cs.display_name or str(cs),
+                'marked_today': marked_today,
+                'present_count': present_count,
+                'absent_count': absent_count,
+            })
 
     # 2. Today's timetable schedule
     today_schedule = []
