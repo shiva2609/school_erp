@@ -127,9 +127,11 @@ export default function ExamMarksPage() {
     loadContext();
   }, [user, loadContext]);
 
-  const loadClasses = useCallback(async () => {
+  const loadClasses = useCallback(async (academicYearId?: string) => {
     try {
-      const res = await api.get("classes/");
+      const params: Record<string, string> = {};
+      if (academicYearId) params.academic_year_id = academicYearId;
+      const res = await api.get("classes/", { params });
       setClasses(unwrapList(res));
     } catch {
       toast.error("Could not load classes.");
@@ -137,11 +139,14 @@ export default function ExamMarksPage() {
     }
   }, []);
 
+  // For admin/principal users (no assignments): reload classes whenever the
+  // selected assessment changes so classes are filtered to the matching academic year.
   useEffect(() => {
     if (!user || assignments.length > 0) return;
     if (!ACADEMIC_MARKS_ROLES.has(user.role)) return;
-    loadClasses();
-  }, [user, assignments.length, loadClasses]);
+    const selectedAssessment = assessments.find((ex) => ex.id === assessmentId);
+    loadClasses(selectedAssessment?.academic_year_id as string | undefined);
+  }, [user, assignments.length, assessmentId, assessments, loadClasses]);
 
   useEffect(() => {
     if (assignments.length > 0) return;
@@ -416,17 +421,8 @@ export default function ExamMarksPage() {
                         );
                         if (!selectedAssessment) return true;
 
-                        // Filter by Grade
+                        // Filter only by grade — backend validates academic year on save
                         if (selectedAssessment.grade && a.class_grade !== selectedAssessment.grade) {
-                          return false;
-                        }
-
-                        // Filter by Academic Year
-                        if (
-                          selectedAssessment.academic_year_id &&
-                          a.academic_year_id &&
-                          String(a.academic_year_id) !== String(selectedAssessment.academic_year_id)
-                        ) {
                           return false;
                         }
 
@@ -464,21 +460,11 @@ export default function ExamMarksPage() {
                             (ex) => ex.id === assessmentId
                           );
                           if (!selectedAssessment) return true;
-
-                          // Filter by Grade
+                          // Filter by grade — classes are already pre-filtered by academic year
+                          // via the loadClasses(academicYearId) call when assessment changes
                           if (selectedAssessment.grade && c.grade !== selectedAssessment.grade) {
                             return false;
                           }
-
-                          // Filter by Academic Year
-                          if (
-                            selectedAssessment.academic_year_id &&
-                            c.academic_year &&
-                            String(c.academic_year) !== String(selectedAssessment.academic_year_id)
-                          ) {
-                            return false;
-                          }
-
                           return true;
                         })
                         .map((c: any) => (
