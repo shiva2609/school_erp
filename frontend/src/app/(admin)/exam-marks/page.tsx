@@ -504,7 +504,14 @@ export default function ExamMarksPage() {
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/80">
-          <h2 className="text-sm font-bold text-slate-800">Students</h2>
+          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <span>Students</span>
+            {grid && grid.students && (
+              <span className="bg-slate-200 text-slate-600 text-xs px-2 py-0.5 rounded-full font-semibold">
+                {grid.students.length}
+              </span>
+            )}
+          </h2>
           <button
             type="button"
             onClick={handleSave}
