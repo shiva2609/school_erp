@@ -127,11 +127,9 @@ export default function ExamMarksPage() {
     loadContext();
   }, [user, loadContext]);
 
-  const loadClasses = useCallback(async (academicYearId?: string) => {
+  const loadClasses = useCallback(async () => {
     try {
-      const params: Record<string, string> = {};
-      if (academicYearId) params.academic_year_id = academicYearId;
-      const res = await api.get("classes/", { params });
+      const res = await api.get("classes/");
       setClasses(unwrapList(res));
     } catch {
       toast.error("Could not load classes.");
@@ -139,14 +137,11 @@ export default function ExamMarksPage() {
     }
   }, []);
 
-  // For admin/principal users (no assignments): reload classes whenever the
-  // selected assessment changes so classes are filtered to the matching academic year.
   useEffect(() => {
     if (!user || assignments.length > 0) return;
     if (!ACADEMIC_MARKS_ROLES.has(user.role)) return;
-    const selectedAssessment = assessments.find((ex) => ex.id === assessmentId);
-    loadClasses(selectedAssessment?.academic_year_id as string | undefined);
-  }, [user, assignments.length, assessmentId, assessments, loadClasses]);
+    loadClasses();
+  }, [user, assignments.length, loadClasses]);
 
   useEffect(() => {
     if (assignments.length > 0) return;

@@ -133,11 +133,9 @@ def _resolve_assessment_class_subject(user, assessment_id, class_section_id, sub
             {'success': False, 'error': 'Assessment and class section must belong to the same branch.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    if str(cs.academic_year_id) != str(exam.academic_year_id):
-        return None, Response(
-            {'success': False, 'error': 'Assessment must match the class academic year.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    # NOTE: academic_year_id check removed — assessments and class sections are created through
+    # different admin flows and their academic_year_id fields frequently diverge in practice.
+    # Branch + grade validation is the correct semantic constraint for marks entry.
     if cs.grade != exam.grade:
         return None, Response(
             {'success': False, 'error': 'Assessment grade must match class section grade.'},
