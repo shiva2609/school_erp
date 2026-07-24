@@ -172,10 +172,23 @@ def teacher_marks_grid(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    students = Student.objects.filter(class_section=cs, status='ACTIVE').order_by('roll_number', 'first_name')
+    # Find ALL ClassSections with the same branch/grade/section across all academic years.
+    # Students may be enrolled under different ClassSection UUIDs (one per academic year)
+    # even though they are conceptually in the same physical class (e.g. "Grade 2 - Section A").
+    sibling_cs_ids = ClassSection.objects.filter(
+        tenant=cs.tenant,
+        branch=cs.branch,
+        grade=cs.grade,
+        section=cs.section,
+    ).values_list('id', flat=True)
+
+    students = Student.objects.filter(
+        class_section_id__in=sibling_cs_ids,
+        status='ACTIVE',
+    ).order_by('roll_number', 'first_name')
     results = {
         str(r.student_id): r
-        for r in ExamResult.objects.filter(assessment=exam, subject=sub, student__class_section=cs).select_related(
+        for r in ExamResult.objects.filter(assessment=exam, subject=sub, student__class_section_id__in=sibling_cs_ids).select_related(
             'student'
         )
     }
