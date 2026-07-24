@@ -199,7 +199,7 @@ export default function AttendancePage() {
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">adm: {s.admission_no}</span>
                   </div>
                   <div className="flex gap-1 mt-2 md:mt-0">
-                    {['PRESENT', 'ABSENT', 'LATE', 'HALF_DAY'].map(st => (
+                    {['PRESENT', 'ABSENT'].map(st => (
                       <button 
                         key={st} 
                         onClick={() => setRecords({...records, [s.id]: st})}
