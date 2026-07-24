@@ -410,15 +410,27 @@ export default function ExamMarksPage() {
                     <option value="">Select class &amp; subject…</option>
                     {assignments
                       .filter((a) => {
-                        // Phase 5: Only show class+subject combos that match the
-                        // selected assessment's grade. If no assessment is chosen,
-                        // show all assignments so the teacher can pick either way.
                         if (!assessmentId) return true;
                         const selectedAssessment = assessments.find(
                           (ex) => ex.id === assessmentId
                         );
-                        if (!selectedAssessment?.grade) return true;
-                        return a.class_grade === selectedAssessment.grade;
+                        if (!selectedAssessment) return true;
+
+                        // Filter by Grade
+                        if (selectedAssessment.grade && a.class_grade !== selectedAssessment.grade) {
+                          return false;
+                        }
+
+                        // Filter by Academic Year
+                        if (
+                          selectedAssessment.academic_year_id &&
+                          a.academic_year_id &&
+                          String(a.academic_year_id) !== String(selectedAssessment.academic_year_id)
+                        ) {
+                          return false;
+                        }
+
+                        return true;
                       })
                       .map((a) => {
                         const key = `${a.class_section_id}::${a.subject_id}`;
@@ -445,11 +457,35 @@ export default function ExamMarksPage() {
                       }}
                     >
                       <option value="">Select class…</option>
-                      {classes.map((c: any) => (
-                        <option key={c.id} value={c.id}>
-                          {c.display_name || `${c.grade}-${c.section}`}
-                        </option>
-                      ))}
+                      {classes
+                        .filter((c: any) => {
+                          if (!assessmentId) return true;
+                          const selectedAssessment = assessments.find(
+                            (ex) => ex.id === assessmentId
+                          );
+                          if (!selectedAssessment) return true;
+
+                          // Filter by Grade
+                          if (selectedAssessment.grade && c.grade !== selectedAssessment.grade) {
+                            return false;
+                          }
+
+                          // Filter by Academic Year
+                          if (
+                            selectedAssessment.academic_year_id &&
+                            c.academic_year &&
+                            String(c.academic_year) !== String(selectedAssessment.academic_year_id)
+                          ) {
+                            return false;
+                          }
+
+                          return true;
+                        })
+                        .map((c: any) => (
+                          <option key={c.id} value={c.id}>
+                            {c.display_name || `${c.grade}-${c.section}`}
+                          </option>
+                        ))}
                     </select>
                   </div>
                   <div>
