@@ -49,6 +49,8 @@ export default function StaffEditPage() {
     // 3. HR & Access
     status: 'ACTIVE',
     requires_portal_access: false,
+    email: '',
+    password: '',
 
     // 4. Personal
     blood_group: '',
@@ -100,6 +102,8 @@ export default function StaffEditPage() {
         experience_years: staff.experience_years || '',
         status: staff.status || 'ACTIVE',
         requires_portal_access: ud?.is_active || false,
+        email: ud?.email && !ud.email.endsWith('@noemail.local') ? ud.email : '',
+        password: '',
         blood_group: staff.blood_group || '',
         religion: staff.religion || '',
         marital_status: staff.marital_status || 'SINGLE',
@@ -144,11 +148,19 @@ export default function StaffEditPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
+    if (formData.requires_portal_access && !formData.email) {
+      toast.error("Email is required for portal access");
+      setActiveSection('hr');
+      return;
+    }
+
     setLoading(true);
     try {
       const payload: any = { ...formData };
       // Remove empty strings for nullable fields (but keep required ones)
-      const keepEmpty = ['mobile', 'personal_email', 'current_address', 'permanent_address', 'city', 'state', 'pincode', 'status', 'requires_portal_access'];
+      const keepEmpty = ['mobile', 'personal_email', 'current_address', 'permanent_address', 'city', 'state', 'pincode', 'status', 'requires_portal_access', 'email', 'password'];
       Object.keys(payload).forEach(key => {
         if (payload[key] === '' && !keepEmpty.includes(key)) {
           delete payload[key];
@@ -410,6 +422,46 @@ export default function StaffEditPage() {
                       </div>
                     </label>
                   </div>
+
+                  <AnimatePresence>
+                    {formData.requires_portal_access && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }} 
+                        animate={{ opacity: 1, height: 'auto' }} 
+                        exit={{ opacity: 0, height: 0 }} 
+                        className="col-span-2 grid grid-cols-2 gap-5 pt-4"
+                      >
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Email (Username) <span className="text-red-500">*</span></label>
+                          <div className="relative">
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input 
+                              type="email" 
+                              required={formData.requires_portal_access} 
+                              value={formData.email} 
+                              onChange={setField('email')} 
+                              className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" 
+                              placeholder="employee@school.com" 
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Reset Password</label>
+                          <div className="relative">
+                            <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input 
+                              type="text" 
+                              value={formData.password} 
+                              onChange={setField('password')} 
+                              placeholder="Leave blank to keep current" 
+                              className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" 
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-400">User will be prompted to change on first login.</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             </motion.div>
