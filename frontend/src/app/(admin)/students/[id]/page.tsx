@@ -29,7 +29,7 @@ export default function StudentProfilePage() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawData, setWithdrawData] = useState({
-    leaving_date: new Date().toISOString().split('T')[0],
+    leaving_date: new Date().toLocaleDateString('en-CA'),
     leaving_reason: '',
     target_branch_id: '',
   });
@@ -479,7 +479,7 @@ export default function StudentProfilePage() {
     try {
       await api.post('/fees/invoices/generate-transport/', {
         academic_year_id: student.academic_year,
-        month: new Date().toISOString().slice(0, 7),
+        month: new Date().toLocaleDateString('en-CA').slice(0, 7),
         student_id: student.id
       });
       refetch();

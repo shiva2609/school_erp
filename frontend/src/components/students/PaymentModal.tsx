@@ -25,7 +25,7 @@ export default function PaymentModal({ invoice, onClose, onSuccess }: PaymentMod
   const [formData, setFormData] = useState({
     amount: invoice.outstanding_amount.toString(),
     payment_mode: 'CASH',
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: new Date().toLocaleDateString('en-CA'),
     reference_number: '',
     bank_name: ''
   });

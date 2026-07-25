@@ -76,7 +76,7 @@ export default function PayAdmissionPage() {
         tuition_payment: tuitionPayment,
         payment_mode: paymentMode,
         reference_number: referenceNumber || undefined,
-        payment_date: new Date().toISOString().split('T')[0],
+        payment_date: new Date().toLocaleDateString('en-CA'),
       });
 
       setResult(res.data.data);

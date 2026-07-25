@@ -104,7 +104,7 @@ export default function FeesPage() {
         invoice_id: invoiceId,
         amount: payAmount,
         payment_mode: payMode,
-        payment_date: new Date().toISOString().split('T')[0],
+        payment_date: new Date().toLocaleDateString('en-CA'),
       });
       setShowPayForm(null);
       setPayAmount('');

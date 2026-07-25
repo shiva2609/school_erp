@@ -44,7 +44,7 @@ export default function OtherIncomePage() {
   const [oiCategoryOther, setOiCategoryOther] = useState('');
   const [oiAmount, setOiAmount] = useState('');
   const [oiDescription, setOiDescription] = useState('');
-  const [oiDate, setOiDate] = useState(new Date().toISOString().split('T')[0]);
+  const [oiDate, setOiDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [oiSaving, setOiSaving] = useState(false);
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export default function OtherIncomePage() {
       setOiCategoryOther('');
       setOiAmount('');
       setOiDescription('');
-      setOiDate(new Date().toISOString().split('T')[0]);
+      setOiDate(new Date().toLocaleDateString('en-CA'));
       refetchManualIncome();
     } catch (err: any) {
       const d = err.response?.data;

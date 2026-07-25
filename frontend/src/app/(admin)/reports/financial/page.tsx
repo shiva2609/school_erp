@@ -18,7 +18,7 @@ interface FinancialPayload {
 function startEndOfMonth(d: Date) {
   const start = new Date(d.getFullYear(), d.getMonth(), 1);
   const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  const fmt = (x: Date) => x.toISOString().slice(0, 10);
+  const fmt = (x: Date) => x.toLocaleDateString('en-CA');
   return { startDate: fmt(start), endDate: fmt(end) };
 }
 

@@ -25,7 +25,7 @@ export default function CreateVendorBillPage() {
   const categories = Array.isArray(categoriesData) ? categoriesData : [];
 
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
-  const [billDate, setBillDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [billDate, setBillDate] = useState<string>(new Date().toLocaleDateString('en-CA'));
   const [paymentMode, setPaymentMode] = useState<string>('CASH');
   const [description, setDescription] = useState<string>('');
   
