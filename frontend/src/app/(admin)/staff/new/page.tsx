@@ -102,8 +102,37 @@ export default function StaffCreatePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
+    // Validate mandatory fields
+    const requiredFields = [
+      { field: 'first_name', label: 'First Name', section: 'profile' },
+      { field: 'last_name', label: 'Last Name', section: 'profile' },
+      { field: 'gender', label: 'Gender', section: 'profile' },
+      { field: 'category', label: 'Category', section: 'work' },
+      { field: 'joining_date', label: 'Joining Date', section: 'work' },
+      { field: 'experience_years', label: 'Years of Experience', section: 'work' },
+      { field: 'mobile', label: 'Primary Mobile', section: 'contact' },
+      { field: 'personal_email', label: 'Email', section: 'contact' },
+      { field: 'current_address', label: 'Current Address', section: 'contact' },
+      { field: 'permanent_address', label: 'Permanent Address', section: 'contact' },
+      { field: 'city', label: 'City', section: 'contact' },
+      { field: 'state', label: 'State', section: 'contact' },
+      { field: 'pincode', label: 'Pincode', section: 'contact' },
+    ];
+
+    for (const item of requiredFields) {
+      const val = formData[item.field as keyof typeof formData];
+      if (val === undefined || val === null || String(val).trim() === '') {
+        toast.error(`${item.label} is required.`);
+        setActiveSection(item.section);
+        return;
+      }
+    }
+
     if (formData.requires_portal_access && !formData.email) {
       toast.error("Email is required for portal access");
+      setActiveSection('login');
       return;
     }
     setLoading(true);

@@ -195,13 +195,13 @@ class StaffViewSet(viewsets.ModelViewSet):
         serializer.save(tenant=tenant, branch=branch)
 
     def perform_destroy(self, instance):
-        """Soft-delete: mark profile inactive; deactivate portal account if any."""
-        instance.status = 'INACTIVE'
-        instance.is_active = False
-        instance.save()
-        if instance.user:
-            instance.user.is_active = False
-            instance.user.save()
+        """Hard delete: delete staff profile and associated portal user account."""
+        from django.db import transaction
+        with transaction.atomic():
+            user = instance.user
+            instance.delete()
+            if user:
+                user.delete()
 
     # ── Custom Actions ──────────────────────────────────────
 

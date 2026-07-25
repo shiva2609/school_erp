@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/axios';
 import { useApi } from '@/lib/hooks';
 import Link from 'next/link';
@@ -19,6 +19,7 @@ import StaffStatusModal, { StaffStatus } from '@/components/staff/StaffStatusMod
 
 export default function StaffProfilePage() {
   const { id } = useParams() as { id: string };
+  const router = useRouter();
   const { data: staff, loading, error, refetch } = useApi<any>(`staff/${id}/`);
   const { data: years } = useApi<any[]>('tenants/academic-years/');
   const activeYear = years?.find((y: any) => y.is_active);
@@ -146,6 +147,21 @@ export default function StaffProfilePage() {
     tabs.push({ id: 'assignments', label: 'Academic Assignments', icon: BookOpen });
   }
 
+  const handleDeleteProfile = async () => {
+    setMenuOpen(false);
+    if (!window.confirm(`Are you sure you want to permanently delete the profile of ${name}? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      await api.delete(`staff/${id}/`);
+      toast.success("Staff profile permanently deleted!");
+      router.push('/staff');
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Error deleting staff profile");
+    }
+  };
+
   return (
     <div className="w-full px-4 md:px-8 space-y-6 pb-20">
       <Link href="/staff" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors mt-6">
@@ -250,6 +266,12 @@ export default function StaffProfilePage() {
                         <UserMinus size={16} /> Mark Resigned
                       </button>
                     )}
+                    <button
+                      onClick={handleDeleteProfile}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-rose-600 font-bold hover:bg-rose-50 transition-colors border-t border-slate-100"
+                    >
+                      <Trash2 size={16} /> Delete Profile
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>

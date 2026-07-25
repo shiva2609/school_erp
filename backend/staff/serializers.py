@@ -166,6 +166,32 @@ class StaffProfileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A user with this email already exists.")
         return email
 
+    def validate(self, attrs):
+        is_create = self.instance is None
+        required_fields = [
+            'first_name', 'last_name', 'gender', 'category', 
+            'joining_date', 'experience_years', 'mobile', 'personal_email', 
+            'current_address', 'permanent_address', 'city', 'state', 'pincode'
+        ]
+        
+        errors = {}
+        for field in required_fields:
+            if is_create:
+                if field not in attrs or attrs[field] in (None, ''):
+                    errors[field] = "This field is required."
+            else:
+                if field in attrs and attrs[field] in (None, ''):
+                    errors[field] = "This field cannot be empty."
+
+        requires_portal = attrs.get('requires_portal_access', False)
+        if requires_portal and not attrs.get('email'):
+            errors['email'] = "Email is required when portal access is enabled."
+            
+        if errors:
+            raise serializers.ValidationError(errors)
+            
+        return attrs
+
     def create(self, validated_data):
         requires_portal = validated_data.pop('requires_portal_access', False)
         email = validated_data.pop('email', None)
