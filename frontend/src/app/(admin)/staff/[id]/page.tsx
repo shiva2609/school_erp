@@ -71,8 +71,10 @@ export default function StaffProfilePage() {
     );
   }
 
-  const name = staff.user_details ? `${staff.user_details.first_name} ${staff.user_details.last_name}`.trim() : staff.employee_id;
-  const initials = staff.user_details ? `${staff.user_details.first_name.charAt(0)}${staff.user_details.last_name.charAt(0)}`.toUpperCase() : staff.employee_id.charAt(0).toUpperCase();
+  const name = staff.user_details ? `${staff.user_details.first_name || ''} ${staff.user_details.last_name || ''}`.trim() || staff.employee_id : staff.employee_id;
+  const initials = staff.user_details
+    ? `${(staff.user_details.first_name || '').charAt(0)}${(staff.user_details.last_name || '').charAt(0)}`.toUpperCase() || staff.employee_id.charAt(0).toUpperCase()
+    : staff.employee_id.charAt(0).toUpperCase();
 
   const handleOpenAssign = () => {
     const currentList = staff.assignments?.map((a: any) => ({

@@ -242,9 +242,10 @@ interface StaffCardProps {
   menuOpen: string | null;
   setMenuOpen: (id: string | null) => void;
   onStatusChange: (id: string, name: string, currentStatus: string, targetStatus: StaffStatus) => void;
+  onDelete: (id: string, name: string) => void;
 }
 
-function StaffCard({ member, menuOpen, setMenuOpen, onStatusChange }: StaffCardProps) {
+function StaffCard({ member, menuOpen, setMenuOpen, onStatusChange, onDelete }: StaffCardProps) {
   const name = getDisplayName(member);
   const initials = getInitials(member);
   const gradient = avatarGradient(member.id);
@@ -323,6 +324,12 @@ function StaffCard({ member, menuOpen, setMenuOpen, onStatusChange }: StaffCardP
                       <UserMinus size={14} /> Mark Resigned
                     </button>
                   )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setMenuOpen(null); onDelete(member.id, name); }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-rose-600 font-bold hover:bg-rose-50 border-t border-slate-100 transition-colors"
+                  >
+                    <Trash2 size={14} /> Delete Profile
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -400,9 +407,10 @@ function StaffCard({ member, menuOpen, setMenuOpen, onStatusChange }: StaffCardP
 interface StaffTableProps {
   members: StaffMember[];
   onStatusChange: (id: string, name: string, currentStatus: string, targetStatus: StaffStatus) => void;
+  onDelete: (id: string, name: string) => void;
 }
 
-function StaffTable({ members, onStatusChange }: StaffTableProps) {
+function StaffTable({ members, onStatusChange, onDelete }: StaffTableProps) {
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
 
   return (
@@ -521,6 +529,12 @@ function StaffTable({ members, onStatusChange }: StaffTableProps) {
                                 <UserMinus size={14} /> Mark Resigned
                               </button>
                             )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setMenuOpen(null); onDelete(m.id, name); }}
+                              className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-rose-600 font-bold hover:bg-rose-50 border-t border-slate-100 transition-colors"
+                            >
+                              <Trash2 size={14} /> Delete Profile
+                            </button>
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -614,6 +628,24 @@ export default function StaffManagementPage() {
     setStatusTarget(targetStatus);
     setStatusModalOpen(true);
   }, []);
+
+  const handleDelete = useCallback(async (id: string, name: string) => {
+    const ok = await confirm({
+      title: 'Delete Staff Profile',
+      message: `Are you sure you want to permanently delete the profile of ${name}? This action cannot be undone and will delete their system user account as well.`,
+      confirmText: 'Delete permanently',
+      isDestructive: true,
+    });
+    if (!ok) return;
+
+    try {
+      await api.delete(`staff/${id}/`);
+      toast.success("Staff profile permanently deleted!");
+      refetch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Error deleting staff profile");
+    }
+  }, [confirm, refetch]);
 
   // Close dropdown on outside click
   const handleBackdropClick = useCallback(() => setMenuOpen(null), []);
@@ -740,6 +772,7 @@ export default function StaffManagementPage() {
                 key={m.id}
                 member={m}
                 onStatusChange={handleStatusChange}
+                onDelete={handleDelete}
                 menuOpen={menuOpen}
                 setMenuOpen={id => { (event as any)?.stopPropagation?.(); setMenuOpen(id); }}
               />
@@ -747,7 +780,7 @@ export default function StaffManagementPage() {
           </AnimatePresence>
         </div>
       ) : (
-        <StaffTable members={filtered} onStatusChange={handleStatusChange} />
+        <StaffTable members={filtered} onStatusChange={handleStatusChange} onDelete={handleDelete} />
       )}
     </div>
   );
