@@ -48,13 +48,21 @@ api.interceptors.response.use(
   async (error) => {
     // If 401, we might want to trigger a refresh logic here or redirect to login.
     const originalRequest = error.config;
-    
-    // Do not intercept or retry 401s for login requests themselves
+
+    // Do not intercept or retry 401s for:
+    // 1. Login / MFA verify requests (expected to return 401 on bad credentials)
+    // 2. Requests that opt out via the X-Skip-Auth-Redirect header
+    //    (used by post-login /auth/me/ fetch to prevent blank-page redirect loop)
     if (
       originalRequest.url &&
       (originalRequest.url.includes('auth/login/') ||
         originalRequest.url.includes('auth/mfa/verify/'))
     ) {
+      return Promise.reject(error);
+    }
+
+    if (originalRequest.headers?.['X-Skip-Auth-Redirect'] === '1') {
+      // Caller handles the 401 itself — do NOT redirect
       return Promise.reject(error);
     }
 
