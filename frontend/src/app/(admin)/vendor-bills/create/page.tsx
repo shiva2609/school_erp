@@ -8,6 +8,7 @@ import { ArrowLeft, Save, Building2, User, Info, FileText, CheckCircle2, Printer
 import { toast } from 'react-hot-toast';
 import { useBranch } from '@/components/common/BranchContext';
 import { useConfirm } from '@/components/common/ConfirmProvider';
+import { formatLocalISODate } from '@/lib/dateUtils';
 import Modal from '@/components/common/Modal';
 
 export default function CreateVendorBillPage() {
@@ -25,7 +26,7 @@ export default function CreateVendorBillPage() {
   const categories = Array.isArray(categoriesData) ? categoriesData : [];
 
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
-  const [billDate, setBillDate] = useState<string>(new Date().toLocaleDateString('en-CA'));
+  const [billDate, setBillDate] = useState<string>(formatLocalISODate());
   const [paymentMode, setPaymentMode] = useState<string>('CASH');
   const [description, setDescription] = useState<string>('');
   

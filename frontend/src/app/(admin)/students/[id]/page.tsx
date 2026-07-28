@@ -18,6 +18,7 @@ import EditClassFeesModal from '@/components/students/EditClassFeesModal';
 import Modal from '@/components/common/Modal';
 import { useAuth } from '@/components/common/AuthProvider';
 import { toast } from 'react-hot-toast';
+import { formatLocalISODate } from '@/lib/dateUtils';
 
 export default function StudentProfilePage() {
   const { id } = useParams();
@@ -29,7 +30,7 @@ export default function StudentProfilePage() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawData, setWithdrawData] = useState({
-    leaving_date: new Date().toLocaleDateString('en-CA'),
+    leaving_date: formatLocalISODate(),
     leaving_reason: '',
     target_branch_id: '',
   });
@@ -479,7 +480,7 @@ export default function StudentProfilePage() {
     try {
       await api.post('/fees/invoices/generate-transport/', {
         academic_year_id: student.academic_year,
-        month: new Date().toLocaleDateString('en-CA').slice(0, 7),
+        month: formatLocalISODate().slice(0, 7),
         student_id: student.id
       });
       refetch();

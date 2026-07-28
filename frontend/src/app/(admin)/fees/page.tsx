@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { useBranch } from '@/components/common/BranchContext';
 import FloatingActionBar from '@/components/common/FloatingActionBar';
 import { useAuth } from '@/components/common/AuthProvider';
+import { formatLocalISODate } from '@/lib/dateUtils';
 
 const FEE_APPROVAL_REVIEW_ROLES = new Set(['SUPER_ADMIN', 'ZONAL_ADMIN']);
 
@@ -104,7 +105,7 @@ export default function FeesPage() {
         invoice_id: invoiceId,
         amount: payAmount,
         payment_mode: payMode,
-        payment_date: new Date().toLocaleDateString('en-CA'),
+        payment_date: formatLocalISODate(),
       });
       setShowPayForm(null);
       setPayAmount('');

@@ -6,6 +6,7 @@ import api from '@/lib/axios';
 import { useBranch } from '@/components/common/BranchContext';
 import { useAuth } from '@/components/common/AuthProvider';
 import toast from 'react-hot-toast';
+import { formatLocalISODate } from '@/lib/dateUtils';
 
 type DashboardRow = { category: string; total: string | number };
 
@@ -18,8 +19,7 @@ interface FinancialPayload {
 function startEndOfMonth(d: Date) {
   const start = new Date(d.getFullYear(), d.getMonth(), 1);
   const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  const fmt = (x: Date) => x.toLocaleDateString('en-CA');
-  return { startDate: fmt(start), endDate: fmt(end) };
+  return { startDate: formatLocalISODate(start), endDate: formatLocalISODate(end) };
 }
 
 function formatInr(n: string | number) {

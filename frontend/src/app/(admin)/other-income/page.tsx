@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { useBranch } from '@/components/common/BranchContext';
 import { RotateCcw, Wallet, Landmark, CreditCard, FileText, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/components/common/AuthProvider';
+import { formatLocalISODate } from '@/lib/dateUtils';
 
 const DEFAULT_OTHER_INCOME_PRESETS = [
   'Uniforms',
@@ -44,7 +45,7 @@ export default function OtherIncomePage() {
   const [oiCategoryOther, setOiCategoryOther] = useState('');
   const [oiAmount, setOiAmount] = useState('');
   const [oiDescription, setOiDescription] = useState('');
-  const [oiDate, setOiDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [oiDate, setOiDate] = useState(formatLocalISODate());
   const [oiSaving, setOiSaving] = useState(false);
 
   useEffect(() => {
@@ -88,7 +89,7 @@ export default function OtherIncomePage() {
       setOiCategoryOther('');
       setOiAmount('');
       setOiDescription('');
-      setOiDate(new Date().toLocaleDateString('en-CA'));
+      setOiDate(formatLocalISODate());
       refetchManualIncome();
     } catch (err: any) {
       const d = err.response?.data;

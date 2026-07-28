@@ -7,6 +7,7 @@ import api from '@/lib/axios';
 import { useApi } from '@/lib/hooks';
 import { Receipt, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { formatLocalISODate } from '@/lib/dateUtils';
 
 const PAYMENT_MODES = ['CASH', 'UPI', 'CHEQUE', 'NEFT', 'RTGS', 'DD', 'ONLINE'] as const;
 
@@ -76,7 +77,7 @@ export default function PayAdmissionPage() {
         tuition_payment: tuitionPayment,
         payment_mode: paymentMode,
         reference_number: referenceNumber || undefined,
-        payment_date: new Date().toLocaleDateString('en-CA'),
+        payment_date: formatLocalISODate(),
       });
 
       setResult(res.data.data);

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { X, CreditCard, Calendar, Hash, Building, CheckCircle2, AlertCircle, Download, FileText, Printer } from 'lucide-react';
 import api from '@/lib/axios';
 import { toast } from 'react-hot-toast';
+import { formatLocalISODate } from '@/lib/dateUtils';
 
 interface PaymentModalProps {
   invoice: {
@@ -25,7 +26,7 @@ export default function PaymentModal({ invoice, onClose, onSuccess }: PaymentMod
   const [formData, setFormData] = useState({
     amount: invoice.outstanding_amount.toString(),
     payment_mode: 'CASH',
-    payment_date: new Date().toLocaleDateString('en-CA'),
+    payment_date: formatLocalISODate(),
     reference_number: '',
     bank_name: ''
   });
