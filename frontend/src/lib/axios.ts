@@ -61,8 +61,10 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (originalRequest.headers?.['X-Skip-Auth-Redirect'] === '1') {
-      // Caller handles the 401 itself — do NOT redirect
+    if (originalRequest._skipAuthRedirect) {
+      // Caller handles the 401 itself — do NOT redirect.
+      // NOTE: This is a client-side axios config flag, NOT an HTTP header.
+      // Never use a custom header for this — it would break CORS preflight.
       return Promise.reject(error);
     }
 

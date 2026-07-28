@@ -48,7 +48,7 @@ export default function LoginPage() {
       // BUG FIX: Fetch /me with { _skipRedirectOn401: true } so the axios interceptor
       // does NOT redirect to /login on 401 here — it would cause a blank-page flash
       // immediately after a successful login if the session cookie hasn't propagated yet.
-      const me = await api.get('auth/me/', { headers: { 'X-Skip-Auth-Redirect': '1' } });
+      const me = await api.get('auth/me/', { _skipAuthRedirect: true } as object);
       const u = me.data?.data;
       const dest = postLoginUrl(u?.role ?? '', u?.tenant ?? null);
 
@@ -83,7 +83,7 @@ export default function LoginPage() {
         mfa_challenge: mfaChallenge,
         code: mfaCode.replace(/\s/g, ''),
       });
-      const me = await api.get('auth/me/', { headers: { 'X-Skip-Auth-Redirect': '1' } });
+      const me = await api.get('auth/me/', { _skipAuthRedirect: true } as object);
       const u = me.data?.data;
       const dest = postLoginUrl(u?.role ?? '', u?.tenant ?? null);
       setIsRedirecting(true);
