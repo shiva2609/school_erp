@@ -17,6 +17,9 @@ interface StudentFormData {
   religion: string;
   caste_category: string;
   aadhar_number: string;
+  government_assigned_number: string;
+  books_status: string;
+  books_amount_paid: string | number;
   mother_tongue: string;
   identification_mark_1: string;
   identification_mark_2: string;
@@ -89,7 +92,8 @@ const DEFAULT_FORM_DATA: StudentFormData = {
   // Identity
   first_name: '', last_name: '', date_of_birth: '', gender: 'MALE',
   blood_group: 'UNKNOWN', nationality: 'Indian', religion: '', 
-  caste_category: 'OC', aadhar_number: '', mother_tongue: '',
+  caste_category: 'OC', aadhar_number: '', government_assigned_number: '', 
+  books_status: 'NOT_TAKEN', books_amount_paid: '', mother_tongue: '',
   identification_mark_1: '', identification_mark_2: '', health_status: '',
   
   // Organization
@@ -248,8 +252,8 @@ export default function StudentForm({
 
   const goToNextTab = () => {
     const tabs = isEdit 
-      ? ['personal', 'parents', 'address', 'admission', 'academic']
-      : ['personal', 'parents', 'address', 'admission', 'academic', 'fees'];
+      ? ['personal', 'parents', 'address', 'admission', 'academic', 'other']
+      : ['personal', 'parents', 'address', 'admission', 'academic', 'other', 'fees'];
     const nextIndex = tabs.indexOf(activeTab) + 1;
     if (nextIndex < tabs.length) {
       setActiveTab(tabs[nextIndex]);
@@ -300,6 +304,12 @@ export default function StudentForm({
       }
     }
 
+    if (formData.books_status === 'TAKEN' && (!formData.books_amount_paid || Number(formData.books_amount_paid) < 0)) {
+      toast.error('Books Amount Paid is required and cannot be negative when Books Status is Taken.');
+      setActiveTab('other');
+      return;
+    }
+
     setSaving(true);
     try {
       await onSubmit(formData);
@@ -316,6 +326,7 @@ export default function StudentForm({
     { id: 'address', label: 'Address', icon: MapPin },
     { id: 'admission', label: 'Admission', icon: GraduationCap },
     { id: 'academic', label: 'Academic', icon: FileText },
+    { id: 'other', label: 'Other', icon: FileText },
     { id: 'fees', label: 'Fees', icon: IndianRupee }
   ].filter(t => !isEdit || t.id !== 'fees');
 
@@ -420,6 +431,12 @@ export default function StudentForm({
                   }
                   className="esms-input"
                 />
+              </div>
+              <div className="lg:col-span-2 space-y-1.5">
+                <label className="esms-label">Government Assigned Number</label>
+                <input placeholder="Enter number" value={formData.government_assigned_number}
+                  onChange={e => setFormData(prev => ({...prev, government_assigned_number: e.target.value}))}
+                  className="esms-input" />
               </div>
               <div className="lg:col-span-2 space-y-1.5">
                 <label className="esms-label">Identification Mark 1</label>
@@ -747,6 +764,32 @@ export default function StudentForm({
                 <label className="esms-label">Staff Contact</label>
                 <input value={formData.admission_staff_phone} onChange={e => setFormData(prev => ({...prev, admission_staff_phone: e.target.value}))}
                   className="esms-input" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'other' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest border-l-4 border-indigo-600 pl-3">Books Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                  <label className="esms-label">Books Status <span className="text-red-500">*</span></label>
+                  <select value={formData.books_status} onChange={e => setFormData(prev => ({...prev, books_status: e.target.value, books_amount_paid: e.target.value === 'NOT_TAKEN' ? '' : prev.books_amount_paid}))}
+                    className="esms-input">
+                    <option value="NOT_TAKEN">Not Taken</option>
+                    <option value="TAKEN">Taken</option>
+                  </select>
+                </div>
+                {formData.books_status === 'TAKEN' && (
+                  <div className="space-y-1.5">
+                    <label className="esms-label">Books Amount Paid <span className="text-red-500">*</span></label>
+                    <input type="number" min="0" step="0.01" required placeholder="Enter amount" value={formData.books_amount_paid}
+                      onChange={e => setFormData(prev => ({...prev, books_amount_paid: e.target.value}))}
+                      className="esms-input" />
+                  </div>
+                )}
               </div>
             </div>
           </div>

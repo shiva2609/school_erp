@@ -10,7 +10,7 @@ import {
   ChevronLeft, Edit2, LogOut, Shield, GraduationCap,
   Building2, Hash, CreditCard, Activity, FileText,
   AlertCircle, CheckCircle2, Clock, Trash2, Plus, ArrowRightLeft, History,
-  UserMinus, UserPlus, Loader2, Download, RotateCcw
+  UserMinus, UserPlus, Loader2, Download, RotateCcw, IndianRupee
 } from 'lucide-react';
 import StudentForm from '@/components/students/StudentForm';
 import PaymentModal from '@/components/students/PaymentModal';
@@ -496,6 +496,7 @@ export default function StudentProfilePage() {
     { id: 'history', label: 'Year History', icon: History },
     { id: 'parents', label: 'Parents', icon: Shield },
     { id: 'address', label: 'Address & Contact', icon: MapPin },
+    { id: 'other', label: 'Other', icon: BookOpen },
     { id: 'fees', label: 'Fees & Finance', icon: CreditCard },
   ];
 
@@ -691,6 +692,7 @@ export default function StudentProfilePage() {
                   <InfoTag label="Religion" value={student.religion} icon={Shield} />
                   <InfoTag label="Caste Category" value={student.caste_category} icon={Shield} />
                   <InfoTag label="Aadhaar Number" value={student.aadhar_number} icon={Hash} />
+                  <InfoTag label="Govt Assigned Number" value={student.government_assigned_number} icon={Hash} />
                   <InfoTag label="Mother Tongue" value={student.mother_tongue} icon={BookOpen} />
                 </div>
               </div>
@@ -918,6 +920,20 @@ export default function StudentProfilePage() {
                   <InfoTag label="Contact Person" value={student.emergency_contact_name} icon={User} />
                   <InfoTag label="Relation" value={student.emergency_contact_relation} icon={Shield} />
                   <InfoTag label="Phone Number" value={student.emergency_contact_phone} icon={Phone} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'other' && (
+            <div className="space-y-10 animate-in fade-in slide-in-from-right-4">
+              <div>
+                <SectionHeader title="Books Info" icon={BookOpen} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InfoTag label="Books Status" value={student.books_status === 'TAKEN' ? 'Taken' : 'Not Taken'} icon={Activity} />
+                  {student.books_status === 'TAKEN' && (
+                    <InfoTag label="Amount Paid" value={`₹${student.books_amount_paid}`} icon={IndianRupee} />
+                  )}
                 </div>
               </div>
             </div>

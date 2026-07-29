@@ -49,6 +49,10 @@ RELATION_TYPE = [
     ("FATHER", "Father"), ("MOTHER", "Mother"), ("GUARDIAN", "Guardian"),
     ("SIBLING", "Sibling"), ("OTHER", "Other"),
 ]
+BOOKS_STATUS_CHOICES = [
+    ('NOT_TAKEN', 'Not Taken'),
+    ('TAKEN', 'Taken'),
+]
 
 
 # ─── ClassSection ────────────────────────────────────────────────
@@ -240,6 +244,7 @@ class Student(models.Model):
     religion = models.CharField(max_length=100, blank=True, null=True)
     caste_category = models.CharField(max_length=10, choices=CASTE_CHOICES, blank=True, null=True)
     aadhar_number = models.CharField(max_length=12, blank=True, null=True)
+    government_assigned_number = models.CharField(max_length=100, blank=True, null=True)
     mother_tongue = models.CharField(max_length=50, blank=True, null=True)
     identification_mark_1 = models.CharField(max_length=255, blank=True, null=True)
     identification_mark_2 = models.CharField(max_length=255, blank=True, null=True)
@@ -307,6 +312,9 @@ class Student(models.Model):
     fixed_deposit_marked_paid_at = models.DateTimeField(null=True, blank=True)
     # Source
     application = models.ForeignKey(AdmissionApplication, on_delete=models.SET_NULL, null=True, blank=True, related_name='enrolled_student')
+    # Books Info
+    books_status = models.CharField(max_length=20, choices=BOOKS_STATUS_CHOICES, default='NOT_TAKEN')
+    books_amount_paid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     # Audit
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_students')
     created_at = models.DateTimeField(auto_now_add=True)

@@ -151,6 +151,17 @@ class StudentSerializer(serializers.ModelSerializer):
         if not self.instance and not attrs.get('grade'):
             raise serializers.ValidationError({"grade": ["This field is required."]})
             
+        # Books Info validation
+        books_status = attrs.get('books_status', getattr(self.instance, 'books_status', 'NOT_TAKEN'))
+        books_amount = attrs.get('books_amount_paid', getattr(self.instance, 'books_amount_paid', None))
+        
+        if books_status == 'TAKEN':
+            if books_amount is None or books_amount < 0:
+                raise serializers.ValidationError({"books_amount_paid": "Amount paid is required and cannot be negative when books are taken."})
+        elif books_status == 'NOT_TAKEN':
+            # Ensure amount is cleared if status is reverted
+            attrs['books_amount_paid'] = None
+            
         return attrs
 
     def get_proposed_fee(self, obj):
