@@ -835,6 +835,22 @@ export const reportsRegistry: ReportCategory[] = [
           { key: 'grand_total_paid', label: 'Total Collections', render: (_v: any, row: any) => `₹${Number(row.grand_total_paid || 0).toLocaleString('en-IN')}` },
           { key: 'grand_total_outstanding', label: 'Total Bal.', render: (_v: any, row: any) => `₹${Number(row.grand_total_outstanding || 0).toLocaleString('en-IN')}` },
         ]
+      },
+      {
+        id: 'books-report',
+        categoryId: 'payments',
+        title: 'Books',
+        description: 'Books status and amount paid per student — filter by class, section, or books status.',
+        apiEndpoint: 'reports/payments/books-report/',
+        exportKey: 'PAYMENTS_BOOKS_REPORT',
+        filters: { showDateRange: false, showClassSection: true, showAcademicYear: true },
+        columns: [
+          { key: 'admission_number', label: 'Admission No.' },
+          { key: 'student_name', label: 'Student Name', render: (_v: any, row: any) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || '-' },
+          { key: 'class', label: 'Class', render: (_v: any, row: any) => `${row.class_section__grade || ''}-${row.class_section__section || ''}`.replace(/-$/, '') },
+          { key: 'books_status', label: 'Books Status', render: (_v: any, row: any) => row.books_status === 'TAKEN' ? 'Taken' : 'Not Taken' },
+          { key: 'books_amount_paid', label: 'Amount Paid', render: (_v: any, row: any) => row.books_status === 'TAKEN' ? `₹${Number(row.books_amount_paid || 0).toLocaleString('en-IN')}` : '—' },
+        ]
       }
     ]
   },

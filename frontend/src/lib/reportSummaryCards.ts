@@ -108,6 +108,12 @@ export const reportSummaryCardsByExportKey: Record<string, SummaryCardConfig[]> 
   ACADEMICS_ID_CARDS: [{ key: 'record_count', label: 'Students', format: 'number' }],
 
   STAFF_ATTENDANCE: [{ key: 'record_count', label: 'Attendance rows', format: 'number' }],
+
+  PAYMENTS_BOOKS_REPORT: [
+    { key: 'total_students', label: 'Total Students', format: 'number' },
+    { key: 'books_taken_count', label: 'Books Taken', format: 'number' },
+    { key: 'total_books_amount', label: 'Total Amount Collected', format: 'currency' },
+  ],
 };
 
 export function getSummaryCardsForExportKey(exportKey: string): SummaryCardConfig[] {

@@ -613,4 +613,34 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
             ])
         return headers, rows
 
+    if report_type == 'PAYMENTS_BOOKS_REPORT':
+        from students.models import Student
+        qs = Student.objects.filter(tenant=bundle.tenant, status='ACTIVE')
+        if bundle.branch_id:
+            qs = qs.filter(branch_id=bundle.branch_id)
+        if bundle.academic_year_id:
+            qs = qs.filter(academic_year_id=bundle.academic_year_id)
+        if bundle.class_id:
+            qs = qs.filter(class_section__grade=bundle.class_id)
+        if bundle.section_id:
+            qs = qs.filter(class_section_id=bundle.section_id)
+        qs = qs.values(
+            'admission_number', 'first_name', 'last_name',
+            'class_section__grade', 'class_section__section',
+            'books_status', 'books_amount_paid',
+        ).order_by('class_section__grade', 'class_section__section', 'first_name')
+        headers = ['Admission No.', 'First Name', 'Last Name', 'Grade', 'Section', 'Books Status', 'Amount Paid']
+        rows = []
+        for row in qs.iterator(chunk_size=500):
+            rows.append([
+                _cell(row['admission_number']),
+                _cell(row['first_name']),
+                _cell(row['last_name']),
+                _cell(row['class_section__grade']),
+                _cell(row['class_section__section']),
+                'Taken' if row['books_status'] == 'TAKEN' else 'Not Taken',
+                str(row['books_amount_paid']) if row['books_amount_paid'] is not None else '0',
+            ])
+        return headers, rows
+
     return None

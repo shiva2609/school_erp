@@ -597,3 +597,57 @@ class PaymentsReportViewSet(viewsets.ViewSet):
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
         return paginator.get_paginated_response(page, summary=summary, footer_totals=footer_totals)
+
+    @action(detail=False, methods=['get'], url_path='books-report')
+    def books_report(self, request):
+        from students.models import Student
+        from django.db.models import Sum, Q
+        from decimal import Decimal
+
+        filters = BaseReportFilter(request, request.user)
+
+        qs = Student.objects.filter(
+            tenant=request.user.tenant,
+            status='ACTIVE',
+        )
+        if filters.branch_id:
+            qs = qs.filter(branch_id=filters.branch_id)
+        if filters.academic_year_id:
+            qs = qs.filter(academic_year_id=filters.academic_year_id)
+        if filters.class_id:
+            qs = qs.filter(class_section__grade=filters.class_id)
+        if filters.section_id:
+            qs = qs.filter(class_section_id=filters.section_id)
+
+        # Optional: filter by books_status
+        books_status = request.query_params.get('books_status')
+        if books_status and books_status != 'ALL':
+            qs = qs.filter(books_status=books_status)
+
+        total_books_amount = qs.filter(books_status='TAKEN').aggregate(
+            total=Sum('books_amount_paid')
+        )['total'] or Decimal('0')
+        total_students = qs.count()
+        books_taken_count = qs.filter(books_status='TAKEN').count()
+
+        summary = {
+            'total_students': str(total_students),
+            'books_taken_count': str(books_taken_count),
+            'total_books_amount': str(total_books_amount),
+        }
+
+        data = list(qs.values(
+            'admission_number',
+            'first_name',
+            'last_name',
+            'class_section__grade',
+            'class_section__section',
+            'books_status',
+            'books_amount_paid',
+        ).order_by('class_section__grade', 'class_section__section', 'first_name'))
+
+        footer_totals = {'books_amount_paid': str(total_books_amount)}
+
+        paginator = ReportPagination()
+        page = paginator.paginate_queryset(data, request, view=self)
+        return paginator.get_paginated_response(page, summary=summary, footer_totals=footer_totals)
