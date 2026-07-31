@@ -112,7 +112,7 @@ export const reportSummaryCardsByExportKey: Record<string, SummaryCardConfig[]> 
   PAYMENTS_BOOKS_REPORT: [
     { key: 'total_students', label: 'Total Students', format: 'number' },
     { key: 'books_taken_count', label: 'Books Taken', format: 'number' },
-    { key: 'total_books_amount', label: 'Total Amount Collected', format: 'currency' },
+    { key: 'total_books_amount', label: 'Total Amount Collected', format: 'inr' },
   ],
 };
 
