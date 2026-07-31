@@ -262,7 +262,7 @@ export default function StudentForm({
 
   const handleActualSubmit = async () => {
     if (!isEdit && activeTab !== 'fees') return;
-    if (isEdit && activeTab !== 'academic') return;
+    if (isEdit && activeTab !== 'other') return;
 
     if (!isEdit) {
       if (!formData.class_section) {
@@ -916,7 +916,7 @@ export default function StudentForm({
             Cancel
           </button>
           <div className="flex gap-4">
-            {(!isEdit && activeTab !== 'fees') || (isEdit && activeTab !== 'academic') ? (
+            {(!isEdit && activeTab !== 'fees') || (isEdit && activeTab !== 'other') ? (
               <button 
                 type="button" 
                 onClick={goToNextTab}
