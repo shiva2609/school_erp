@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -34,6 +34,18 @@ export default function LoginPage() {
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
   });
+
+  useEffect(() => {
+    // Auto-refresh the page once to clear out any stale cache, state, or CSRF tokens.
+    // This solves issues where users are on an old frontend build or have stale cookies.
+    if (typeof window !== 'undefined') {
+      const hasRefreshed = sessionStorage.getItem('loginRefreshed');
+      if (!hasRefreshed) {
+        sessionStorage.setItem('loginRefreshed', 'true');
+        window.location.reload();
+      }
+    }
+  }, []);
 
   const onSubmit = async (data: LoginFormValues) => {
     setServerError('');
