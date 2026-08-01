@@ -26,6 +26,7 @@ export type ReportConfig = {
     showSpecialFeePaymentFilter?: boolean;
     showGroupBy?: boolean;
     groupByOptions?: { value: string; label: string }[];
+    showBillCategory?: boolean;
   };
   /** Offer “Download PDF” (uses tenant document template + `?file=pdf`). */
   offerPdfDownload?: boolean;
@@ -501,36 +502,38 @@ export const reportsRegistry: ReportCategory[] = [
         id: 'expenses',
         categoryId: 'payments',
         title: 'Expenses',
-        description: 'List of expenses by date range; narrow by expense type or vendor name',
+        description: 'List of vendor bills by date range; filter by Commute Bills or Vendor Bills',
         apiEndpoint: 'reports/payments/expenses/',
         exportKey: 'PAYMENTS_EXPENSES',
         filters: {
           showDateRange: true,
           showClassSection: false,
           showAcademicYear: false,
-          showExpenseTypeSearch: true,
-          showVendorNameSearch: true,
+          showBillCategory: true,
         },
         columns: [
           { key: 'voucher_number', label: 'Voucher No.', render: (v: any) => (v != null && v !== '' ? String(v) : '—') },
+          { key: 'bill_id', label: 'Bill ID', render: (v: any) => v || '—' },
           {
-            key: 'category__name',
-            label: 'Expense type',
-            render: (_v: any, row: any) =>
+            key: 'category',
+            label: 'Bill Type',
+            render: (v: any) =>
               React.createElement(
                 'span',
                 {
                   className:
-                    'inline-flex px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium whitespace-normal',
+                    v === 'COMMUTE'
+                      ? 'inline-flex px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium'
+                      : 'inline-flex px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium',
                 },
-                row['category__name'] || '—',
+                v === 'COMMUTE' ? 'Commute Bill' : 'Vendor Bill',
               ),
           },
-          { key: 'title', label: 'Description' },
           { key: 'vendor__name', label: 'Vendor', render: (_v: any, row: any) => row['vendor__name'] || '—' },
+          { key: 'description', label: 'Description', render: (v: any) => v || '—' },
           {
-            key: 'expense_date',
-            label: 'Payment date',
+            key: 'payment_date',
+            label: 'Payment Date',
             render: (v: any) =>
               v
                 ? new Date(String(v) + 'T12:00:00').toLocaleDateString('en-IN', {
@@ -556,9 +559,9 @@ export const reportsRegistry: ReportCategory[] = [
               return v ? labels[String(v)] || String(v) : '—';
             },
           },
-          { key: 'amount', label: 'Amount', render: (_v: any, row: any) => `₹${Number(row.amount || 0).toLocaleString('en-IN')}` },
+          { key: 'net_amount', label: 'Amount', render: (_v: any, row: any) => `₹${Number(row.net_amount || 0).toLocaleString('en-IN')}` },
           { key: 'status', label: 'Status' },
-        ]
+        ],
       },
       {
         id: 'fee-balances-teachers',

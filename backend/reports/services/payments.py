@@ -504,6 +504,39 @@ class PaymentsService:
         return qs.order_by('-expense_date')
 
     @staticmethod
+    def get_vendor_bills_report(filters):
+        """Query VendorBill for the expenses report (replaces legacy Expense model query).
+
+        BUG-FIX: payment_date is nullable (bills may not have been paid yet).
+        Filtering directly on payment_date would silently drop all unpaid bills
+        (NULL >= date is always FALSE in SQL). We use Coalesce(payment_date, bill_date)
+        as the effective date so every bill is matched by whichever date is available.
+        """
+        from django.db.models.functions import Coalesce
+        from django.db.models import F, DateField
+        from expenses.models import VendorBill
+
+        qs = VendorBill.objects.select_related('vendor')
+        qs = BaseReportService.apply_branch_scope(qs, filters)
+
+        # Annotate effective_date = payment_date if set, otherwise fall back to bill_date
+        qs = qs.annotate(
+            effective_date=Coalesce('payment_date', 'bill_date', output_field=DateField())
+        )
+
+        # Date range filter on the effective date
+        if filters.start_date:
+            qs = qs.filter(effective_date__gte=filters.start_date)
+        if filters.end_date:
+            qs = qs.filter(effective_date__lte=filters.end_date)
+
+        # Bill category filter: COMMUTE or GENERAL (None = all)
+        if getattr(filters, 'bill_category', None):
+            qs = qs.filter(category=filters.bill_category)
+
+        return qs.order_by('-effective_date', '-created_at')
+
+    @staticmethod
     def get_income_vs_expenses(filters):
         qs = TransactionLog.objects.all()
         qs = BaseReportService.apply_branch_scope(qs, filters)

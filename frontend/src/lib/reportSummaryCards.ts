@@ -27,7 +27,10 @@ export const reportSummaryCardsByExportKey: Record<string, SummaryCardConfig[]> 
   PAYMENTS_DAILY_COLLECTIONS: [{ key: 'total_amount', label: 'Total collected', format: 'inr' }],
   PAYMENTS_RECEIPTS: [{ key: 'total_amount', label: 'Total receipt amount', format: 'inr' }],
   PAYMENTS_DELETED_RECEIPTS: [{ key: 'total_amount', label: 'Total (refunded)', format: 'inr' }],
-  PAYMENTS_EXPENSES: [{ key: 'total_amount', label: 'Total expenses', format: 'inr' }],
+  PAYMENTS_EXPENSES: [
+    { key: 'total_amount', label: 'Total expenses', format: 'inr' },
+    { key: 'total_bills', label: 'No. of bills', format: 'number' },
+  ],
   PAYMENTS_OTHER_INCOME: [{ key: 'total_amount', label: 'Total other income', format: 'inr' }],
   PAYMENTS_DELETED_OTHER_INCOME: [{ key: 'total_amount', label: 'Total adjustments', format: 'inr' }],
   PAYMENTS_CHEQUES: [{ key: 'total_amount', label: 'Total cheque amount', format: 'inr' }],

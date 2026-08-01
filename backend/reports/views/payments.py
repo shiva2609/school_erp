@@ -364,17 +364,35 @@ class PaymentsReportViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path='expenses')
     def expenses(self, request):
+        from decimal import Decimal
+        from django.db.models import Sum, Count
+        from ..summary import _s
+
         filters = BaseReportFilter(request, request.user)
-        qs = PaymentsService.get_expenses(filters)
-        summary = expense_amount_total(qs)
+        qs = PaymentsService.get_vendor_bills_report(filters)
+
+        # Aggregates across the full (filtered) queryset — not just current page
+        agg = qs.aggregate(
+            total_amount=Sum('net_amount'),
+            total_bills=Count('id'),
+        )
+        summary = {
+            'total_amount': _s(agg['total_amount']),
+            'total_bills': str(agg['total_bills'] or 0),
+        }
+        footer_totals = {'net_amount': _s(agg['total_amount'])}
+
         data = qs.values(
-            'id', 'voucher_number', 'title', 'amount', 'category__name',
-            'vendor__name', 'expense_date', 'payment_mode', 'status',
+            'id', 'voucher_number', 'bill_id', 'category',
+            'vendor__name', 'description',
+            'bill_date', 'payment_date',
+            'total_amount', 'tds_amount', 'net_amount',
+            'payment_mode', 'status',
         )
         paginator = ReportPagination()
         page = paginator.paginate_queryset(data, request, view=self)
         return paginator.get_paginated_response(
-            page, summary=summary, footer_totals=footer_amount_column(qs)
+            page, summary=summary, footer_totals=footer_totals
         )
 
     @action(detail=False, methods=['get'], url_path='fee-balances-teachers')

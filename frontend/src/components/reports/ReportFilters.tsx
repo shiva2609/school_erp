@@ -25,6 +25,8 @@ interface ReportFiltersProps {
   showSpecialFeePaymentFilter?: boolean;
   showGroupBy?: boolean;
   groupByOptions?: { value: string; label: string }[];
+  /** Dropdown: All / Commute Bills / Vendor Bills — sends `bill_category` query param. */
+  showBillCategory?: boolean;
   customButtonLabel?: string;
   onCustomSubmit?: (filters: any) => void;
 }
@@ -48,6 +50,7 @@ export default function ReportFilters({
   showSpecialFeePaymentFilter = false,
   showGroupBy = false,
   groupByOptions = [],
+  showBillCategory = false,
   customButtonLabel,
   onCustomSubmit,
 }: ReportFiltersProps) {
@@ -73,6 +76,7 @@ export default function ReportFilters({
     fixed_deposit_payment: '',
     special_fee_payment: '',
     group_by: groupByOptions.length > 0 ? groupByOptions[0].value : '',
+    bill_category: '',
   });
 
   const [branches, setBranches] = useState<any[]>([]);
@@ -505,6 +509,21 @@ export default function ReportFilters({
                 <option key={v.id} value={v.name} />
               ))}
             </datalist>
+          </div>
+        )}
+
+        {showBillCategory && (
+          <div className="flex flex-col gap-1.5 min-w-[170px]">
+            <label className="text-xs font-semibold text-slate-500 uppercase">Bill Type</label>
+            <select
+              className={selectClass}
+              value={filters.bill_category}
+              onChange={(e) => handleChange('bill_category', e.target.value)}
+            >
+              <option value="">All Bills</option>
+              <option value="GENERAL">Vendor Bills</option>
+              <option value="COMMUTE">Commute Bills</option>
+            </select>
           </div>
         )}
 

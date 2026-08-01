@@ -63,6 +63,8 @@ class BaseReportFilter:
         self.vendor_name = _vn or None
         self.exam_id = _optional_uuid_param(request.query_params.get('exam_id'))
         self.group_by = (request.query_params.get('group_by') or 'gender').lower()
+        _bc = (request.query_params.get('bill_category') or '').strip().upper()
+        self.bill_category = _bc if _bc in ('GENERAL', 'COMMUTE') else None
 
     def _get_branch_id(self):
         from accounts.utils import get_validated_branch_id
