@@ -53,17 +53,21 @@ def _collect_teaching_pairs(user):
     return out
 
 
-def _assessments_for_branches(tenant, branch_ids, grades=None):
+def _assessments_for_branches(tenant, branch_ids, grades=None, statuses=None):
     """
     Return active assessments for the given branch IDs.
     If `grades` is provided (a set/list of grade strings), only return
     assessments whose grade is in that set — used to scope teacher view.
+    If `statuses` is provided (e.g. ['ACTIVE', 'LOCKED']), filter by status —
+    teachers should never see DRAFT assessments since marks entry is blocked for them.
     """
     if not branch_ids:
         return []
     qs = Assessment.objects.filter(tenant=tenant, branch_id__in=branch_ids, is_active=True)
     if grades:
         qs = qs.filter(grade__in=grades)
+    if statuses:
+        qs = qs.filter(status__in=statuses)
     return list(
         qs.order_by('start_date').values(
             'id', 'name', 'start_date', 'end_date',
@@ -92,8 +96,11 @@ def teacher_marks_context(request):
     ):
         branch_ids = [str(user.branch_id)]
     # TEACHERS: filter by their grades. Admins/principals see all branch assessments.
+    # Teachers also only see ACTIVE or LOCKED assessments — DRAFT means admin is still
+    # configuring subjects/marks and marks entry is not yet open.
     grade_filter = teacher_grades if (role == 'TEACHER' and teacher_grades) else None
-    assessments = _assessments_for_branches(user.tenant, branch_ids, grades=grade_filter)
+    status_filter = ['ACTIVE', 'LOCKED'] if role == 'TEACHER' else None
+    assessments = _assessments_for_branches(user.tenant, branch_ids, grades=grade_filter, statuses=status_filter)
     if not assessments and role in ('SUPER_ADMIN', 'OWNER'):
         assessments = list(
             Assessment.objects.filter(tenant=user.tenant, is_active=True)
