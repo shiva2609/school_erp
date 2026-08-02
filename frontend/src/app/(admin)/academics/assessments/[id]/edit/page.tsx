@@ -75,6 +75,15 @@ export default function EditAssessmentPage() {
   }, [assessment]);
 
   // Load subjects from branch + merge with existing assessment subjects
+  const existingSubjectsRef = React.useRef<ExistingSubject[] | null>(null);
+
+  // Keep ref in sync with the latest existingSubjects
+  useEffect(() => {
+    if (existingSubjects) {
+      existingSubjectsRef.current = Array.isArray(existingSubjects) ? existingSubjects : [];
+    }
+  }, [existingSubjects]);
+
   const loadSubjects = useCallback(async (branchId: string) => {
     if (!branchId) return;
     try {
@@ -84,7 +93,23 @@ export default function EditAssessmentPage() {
         ...(data?.subjects || []).map((s: any) => ({ id: s.id, name: s.name, is_optional: false, checked: false, max_marks: '', min_marks: '', exam_date: '', exam_time: '' })),
         ...(data?.optional_subjects || []).map((s: any) => ({ id: s.id, name: s.name, is_optional: true, checked: false, max_marks: '', min_marks: '', exam_date: '', exam_time: '' })),
       ];
-      setSubjects(all);
+      // Immediately merge existing assessment subjects so checked state is never lost
+      const existing = existingSubjectsRef.current || [];
+      const merged = all.map(s => {
+        const match = existing.find(e => e.subject === s.id);
+        if (match) {
+          return {
+            ...s,
+            checked: true,
+            max_marks: match.max_marks,
+            min_marks: match.min_marks,
+            exam_date: match.exam_date || '',
+            exam_time: match.exam_time || '',
+          };
+        }
+        return s;
+      });
+      setSubjects(merged);
     } catch {
       toast.error('Failed to load subjects');
     }
@@ -94,25 +119,31 @@ export default function EditAssessmentPage() {
     if (selectedBranch) loadSubjects(selectedBranch);
   }, [selectedBranch]);
 
-  // Merge existing subject data once both are loaded
+  // Merge existing subject data once both are loaded — handles the case where
+  // existingSubjects arrives after loadSubjects has already run
   useEffect(() => {
     if (!existingSubjects || subjects.length === 0) return;
     const existing = Array.isArray(existingSubjects) ? existingSubjects : [];
-    setSubjects(prev => prev.map(s => {
-      const match = existing.find(e => e.subject === s.id);
-      if (match) {
-        return {
-          ...s,
-          checked: true,
-          max_marks: match.max_marks,
-          min_marks: match.min_marks,
-          exam_date: match.exam_date || '',
-          exam_time: match.exam_time || '',
-        };
-      }
-      return s;
-    }));
-  }, [existingSubjects, subjects.length]);
+    setSubjects(prev => {
+      // Only apply if there are still unchecked subjects that should be checked
+      const hasUnmerged = existing.some(e => prev.find(s => s.id === e.subject && !s.checked));
+      if (!hasUnmerged) return prev; // already merged, avoid unnecessary re-render
+      return prev.map(s => {
+        const match = existing.find(e => e.subject === s.id);
+        if (match) {
+          return {
+            ...s,
+            checked: true,
+            max_marks: match.max_marks,
+            min_marks: match.min_marks,
+            exam_date: match.exam_date || '',
+            exam_time: match.exam_time || '',
+          };
+        }
+        return s;
+      });
+    });
+  }, [existingSubjects]);
 
   const updateSubject = (id: string, field: keyof SubjectRow, value: string | boolean) => {
     setSubjects(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
