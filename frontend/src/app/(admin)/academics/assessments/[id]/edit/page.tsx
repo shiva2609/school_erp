@@ -1,15 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/axios';
 import { useApi } from '@/lib/hooks';
-import { useBranch } from '@/components/common/BranchContext';
 import { ClipboardList } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 
-interface ClassSection { id: string; display_name: string; academic_year: string; }
 interface SubjectRow {
   id: string;
   name: string;
@@ -45,15 +43,9 @@ interface Assessment {
 export default function EditAssessmentPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { selectedBranch } = useBranch();
 
   const { data: assessment, loading: aLoading } = useApi<Assessment>(`academics/assessments/${id}/`);
-  const { data: existingSubjects } = useApi<ExistingSubject[]>(`academics/assessments/${id}/subjects/`);
-
-  const csUrl = selectedBranch
-    ? `classes/?branch_id=${selectedBranch}`
-    : null;
-  const { data: classes } = useApi<ClassSection[]>(csUrl, [selectedBranch]);
+  const { data: existingSubjects, loading: sLoading } = useApi<ExistingSubject[]>(`academics/assessments/${id}/subjects/`);
 
   // Form state
   const [examName, setExamName] = useState('');
@@ -64,7 +56,7 @@ export default function EditAssessmentPage() {
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Pre-fill when assessment loads
+  // Pre-fill assessment header fields
   useEffect(() => {
     if (assessment) {
       setExamName(assessment.name);
@@ -74,79 +66,26 @@ export default function EditAssessmentPage() {
     }
   }, [assessment]);
 
-  // Load subjects from branch + merge with existing assessment subjects
-  const existingSubjectsRef = React.useRef<ExistingSubject[] | null>(null);
-
-  // Keep ref in sync with the latest existingSubjects
+  // Build subject rows directly from the assessment's own saved subjects.
+  // Do NOT call subjects-for-class here — that endpoint returns all branch
+  // subjects regardless of grade, so wrong subjects appear for edit.
   useEffect(() => {
-    if (existingSubjects) {
-      existingSubjectsRef.current = Array.isArray(existingSubjects) ? existingSubjects : [];
-    }
+    if (!existingSubjects) return;
+    const rows: SubjectRow[] = (Array.isArray(existingSubjects) ? existingSubjects : []).map(e => ({
+      id: e.subject,
+      name: e.subject_name,
+      is_optional: e.subject_is_optional,
+      checked: true,
+      max_marks: e.max_marks ?? '',
+      min_marks: e.min_marks ?? '',
+      exam_date: e.exam_date ?? '',
+      exam_time: e.exam_time ?? '',
+    }));
+    setSubjects(rows);
   }, [existingSubjects]);
 
-  const loadSubjects = useCallback(async (branchId: string) => {
-    if (!branchId) return;
-    try {
-      const res = await api.get(`academics/subjects-for-class/?branch_id=${branchId}`);
-      const data = res.data?.data;
-      const all: SubjectRow[] = [
-        ...(data?.subjects || []).map((s: any) => ({ id: s.id, name: s.name, is_optional: false, checked: false, max_marks: '', min_marks: '', exam_date: '', exam_time: '' })),
-        ...(data?.optional_subjects || []).map((s: any) => ({ id: s.id, name: s.name, is_optional: true, checked: false, max_marks: '', min_marks: '', exam_date: '', exam_time: '' })),
-      ];
-      // Immediately merge existing assessment subjects so checked state is never lost
-      const existing = existingSubjectsRef.current || [];
-      const merged = all.map(s => {
-        const match = existing.find(e => e.subject === s.id);
-        if (match) {
-          return {
-            ...s,
-            checked: true,
-            max_marks: match.max_marks,
-            min_marks: match.min_marks,
-            exam_date: match.exam_date || '',
-            exam_time: match.exam_time || '',
-          };
-        }
-        return s;
-      });
-      setSubjects(merged);
-    } catch {
-      toast.error('Failed to load subjects');
-    }
-  }, []);
-
-  useEffect(() => {
-    if (selectedBranch) loadSubjects(selectedBranch);
-  }, [selectedBranch]);
-
-  // Merge existing subject data once both are loaded — handles the case where
-  // existingSubjects arrives after loadSubjects has already run
-  useEffect(() => {
-    if (!existingSubjects || subjects.length === 0) return;
-    const existing = Array.isArray(existingSubjects) ? existingSubjects : [];
-    setSubjects(prev => {
-      // Only apply if there are still unchecked subjects that should be checked
-      const hasUnmerged = existing.some(e => prev.find(s => s.id === e.subject && !s.checked));
-      if (!hasUnmerged) return prev; // already merged, avoid unnecessary re-render
-      return prev.map(s => {
-        const match = existing.find(e => e.subject === s.id);
-        if (match) {
-          return {
-            ...s,
-            checked: true,
-            max_marks: match.max_marks,
-            min_marks: match.min_marks,
-            exam_date: match.exam_date || '',
-            exam_time: match.exam_time || '',
-          };
-        }
-        return s;
-      });
-    });
-  }, [existingSubjects]);
-
-  const updateSubject = (id: string, field: keyof SubjectRow, value: string | boolean) => {
-    setSubjects(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
+  const updateSubject = (subjectId: string, field: keyof SubjectRow, value: string | boolean) => {
+    setSubjects(prev => prev.map(s => s.id === subjectId ? { ...s, [field]: value } : s));
   };
 
   const visibleSubjects = subjects.filter(s => activeTab === 'subjects' ? !s.is_optional : s.is_optional);
@@ -193,7 +132,7 @@ export default function EditAssessmentPage() {
     }
   };
 
-  if (aLoading) {
+  if (aLoading || sLoading) {
     return <div className="animate-pulse space-y-4 max-w-4xl"><div className="h-8 bg-slate-100 rounded w-48" /><div className="h-64 bg-slate-100 rounded-2xl" /></div>;
   }
 
@@ -261,7 +200,7 @@ export default function EditAssessmentPage() {
           </div>
         </div>
 
-        {/* Radio + Subject table (same as add page) */}
+        {/* Subject tabs */}
         <div className="flex items-center gap-6">
           {(['subjects', 'optional'] as const).map(tab => (
             <label key={tab} className="flex items-center gap-2 cursor-pointer">
