@@ -386,6 +386,7 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
         return headers, rows
 
     if report_type == 'PAYMENTS_EXPENSES':
+        from decimal import Decimal
         qs = PaymentsService.get_vendor_bills_report(bundle).values(
             'id', 'voucher_number', 'bill_id', 'category',
             'vendor__name', 'description',
@@ -400,6 +401,10 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
             'Payment Mode', 'Status',
         ]
         rows = []
+        total_amount_sum = Decimal('0.00')
+        tds_amount_sum = Decimal('0.00')
+        net_amount_sum = Decimal('0.00')
+        
         for row in qs.iterator(chunk_size=500):
             bill_type = 'Commute Bill' if row['category'] == 'COMMUTE' else 'Vendor Bill'
             rows.append([
@@ -416,6 +421,27 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
                 _cell(row['net_amount']),
                 _cell(row['payment_mode']),
                 _cell(row['status']),
+            ])
+            total_amount_sum += Decimal(str(row['total_amount'] or '0.00'))
+            tds_amount_sum += Decimal(str(row['tds_amount'] or '0.00'))
+            net_amount_sum += Decimal(str(row['net_amount'] or '0.00'))
+            
+        if rows:
+            rows.append([''] * len(headers))
+            rows.append([
+                'Total',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                total_amount_sum,
+                tds_amount_sum,
+                net_amount_sum,
+                '',
+                '',
             ])
         return headers, rows
 
