@@ -123,7 +123,7 @@ def _resolve_assessment_class_subject(user, assessment_id, class_section_id, sub
             {'success': False, 'error': 'Assessment not found.'},
             status=status.HTTP_404_NOT_FOUND,
         )
-    cs = ClassSection.objects.filter(pk=class_section_id, tenant=user.tenant).select_related('branch').first()
+    cs = ClassSection.objects.filter(pk=class_section_id, tenant=user.tenant).select_related('branch', 'tenant').first()
     if not cs:
         return None, Response(
             {'success': False, 'error': 'Class section not found.'},
@@ -179,77 +179,85 @@ def teacher_marks_grid(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Find ALL ClassSections with the same branch/grade/section across all academic years.
-    # Students may be enrolled under different ClassSection UUIDs (one per academic year)
-    # even though they are conceptually in the same physical class (e.g. "Grade 2 - Section A").
-    sibling_cs_ids = ClassSection.objects.filter(
-        tenant=cs.tenant,
-        branch=cs.branch,
-        grade=cs.grade,
-        section=cs.section,
-    ).values_list('id', flat=True)
+    try:
+        # Materialize to a plain list so the same queryset is not evaluated twice
+        # as a subquery (which causes cursor-reuse errors on some DB backends).
+        sibling_cs_ids = list(ClassSection.objects.filter(
+            tenant=cs.tenant,
+            branch=cs.branch,
+            grade=cs.grade,
+            section=cs.section,
+        ).values_list('id', flat=True))
 
-    students = Student.objects.filter(
-        class_section_id__in=sibling_cs_ids,
-        status='ACTIVE',
-    ).order_by('roll_number', 'first_name')
-    results = {
-        str(r.student_id): r
-        for r in ExamResult.objects.filter(assessment=exam, subject=sub, student__class_section_id__in=sibling_cs_ids).select_related(
-            'student'
-        )
-    }
-    config = AssessmentSubject.objects.filter(
-        assessment=exam, subject=sub
-    ).first()
+        students = Student.objects.filter(
+            class_section_id__in=sibling_cs_ids,
+            status='ACTIVE',
+        ).order_by('roll_number', 'first_name')
+        results = {
+            str(r.student_id): r
+            for r in ExamResult.objects.filter(
+                assessment=exam,
+                subject=sub,
+                student__class_section_id__in=sibling_cs_ids,
+            ).select_related('student')
+        }
+        config = AssessmentSubject.objects.filter(
+            assessment=exam, subject=sub
+        ).first()
 
-    if not config:
-        return Response(
-            {'success': False, 'error': 'Accountant has not configured max marks for this subject yet.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-        
-    default_max = config.max_marks
+        if not config:
+            return Response(
+                {'success': False, 'error': 'Accountant has not configured max marks for this subject yet.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-    rows = []
-    for st in students:
-        r = results.get(str(st.id))
-        # Phase 2 source-fix: return numeric or None — never empty string.
-        # This ensures the frontend can safely detect 0 vs no-mark.
-        marks_val = None
-        if r and not r.is_absent and r.marks_obtained is not None:
-            marks_val = float(r.marks_obtained)
-        rows.append({
-            'student_id': str(st.id),
-            'admission_number': st.admission_number or '',
-            'first_name': st.first_name,
-            'last_name': st.last_name or '',
-            'roll_number': st.roll_number,
-            'result_id': str(r.id) if r else None,
-            'marks_obtained': marks_val,
-            'is_absent': r.is_absent if r else False,
-            'max_marks': float(r.max_marks) if r else float(default_max),
-            'percentage': float(r.percentage) if r and r.percentage is not None else None,
-            'grade': r.grade if r else '',
-            'is_published': r.is_published if r else False,
-            'remarks': r.remarks if r else '',
+        default_max = config.max_marks
+
+        rows = []
+        for st in students:
+            r = results.get(str(st.id))
+            marks_val = None
+            if r and not r.is_absent and r.marks_obtained is not None:
+                marks_val = float(r.marks_obtained)
+            rows.append({
+                'student_id': str(st.id),
+                'admission_number': st.admission_number or '',
+                'first_name': st.first_name,
+                'last_name': st.last_name or '',
+                'roll_number': st.roll_number,
+                'result_id': str(r.id) if r else None,
+                'marks_obtained': marks_val,
+                'is_absent': r.is_absent if r else False,
+                # Guard against legacy NULL max_marks in ExamResult
+                'max_marks': float(r.max_marks) if (r and r.max_marks is not None) else float(default_max),
+                'percentage': float(r.percentage) if r and r.percentage is not None else None,
+                'grade': r.grade if r else '',
+                'is_published': r.is_published if r else False,
+                'remarks': r.remarks if r else '',
+            })
+
+        return Response({
+            'success': True,
+            'data': {
+                'exam_term': {'id': str(exam.id), 'name': exam.name, 'academic_year_id': str(exam.academic_year_id)},
+                'class_section': {
+                    'id': str(cs.id),
+                    'display_name': cs.display_name,
+                    'grade': cs.grade,
+                    'section': cs.section,
+                },
+                'subject': {'id': str(sub.id), 'name': sub.name, 'code': ''},
+                'default_max_marks': str(default_max),
+                'students': rows,
+            },
         })
 
-    return Response({
-        'success': True,
-        'data': {
-            'exam_term': {'id': str(exam.id), 'name': exam.name, 'academic_year_id': str(exam.academic_year_id)},
-            'class_section': {
-                'id': str(cs.id),
-                'display_name': cs.display_name,
-                'grade': cs.grade,
-                'section': cs.section,
-            },
-            'subject': {'id': str(sub.id), 'name': sub.name, 'code': ''},
-            'default_max_marks': str(default_max),
-            'students': rows,
-        },
-    })
+    except Exception as exc:
+        logger.exception('teacher_marks_grid error: assessment=%s cs=%s sub=%s', exam_term_id, class_section_id, subject_id)
+        return Response(
+            {'success': False, 'error': f'Server error loading marks grid: {exc}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @api_view(['POST'])
