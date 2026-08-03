@@ -386,20 +386,36 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
         return headers, rows
 
     if report_type == 'PAYMENTS_EXPENSES':
-        qs = PaymentsService.get_expenses(bundle).values(
-            'id', 'voucher_number', 'title', 'amount', 'category__name',
-            'vendor__name', 'expense_date', 'payment_mode', 'status',
+        qs = PaymentsService.get_vendor_bills_report(bundle).values(
+            'id', 'voucher_number', 'bill_id', 'category',
+            'vendor__name', 'description',
+            'bill_date', 'payment_date',
+            'total_amount', 'tds_amount', 'net_amount',
+            'payment_mode', 'status',
         )
         headers = [
-            'ID', 'Voucher no.', 'Title', 'Amount', 'Category', 'Vendor',
-            'Expense date', 'Payment mode', 'Status',
+            'ID', 'Voucher no.', 'Bill ID', 'Bill Type', 'Vendor',
+            'Description', 'Bill Date', 'Payment Date',
+            'Total Amount', 'TDS Amount', 'Net Amount',
+            'Payment Mode', 'Status',
         ]
         rows = []
         for row in qs.iterator(chunk_size=500):
+            bill_type = 'Commute Bill' if row['category'] == 'COMMUTE' else 'Vendor Bill'
             rows.append([
-                str(row['id']), _cell(row['voucher_number']), _cell(row['title']), _cell(row['amount']),
-                _cell(row['category__name']), _cell(row['vendor__name']), _cell(row['expense_date']),
-                _cell(row['payment_mode']), _cell(row['status']),
+                str(row['id']),
+                _cell(row['voucher_number']),
+                _cell(row['bill_id']),
+                bill_type,
+                _cell(row['vendor__name']),
+                _cell(row['description']),
+                _cell(row['bill_date']),
+                _cell(row['payment_date']),
+                _cell(row['total_amount']),
+                _cell(row['tds_amount']),
+                _cell(row['net_amount']),
+                _cell(row['payment_mode']),
+                _cell(row['status']),
             ])
         return headers, rows
 
