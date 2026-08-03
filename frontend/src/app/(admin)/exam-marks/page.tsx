@@ -88,6 +88,7 @@ export default function ExamMarksPage() {
 
   const [gridLoading, setGridLoading] = useState(false);
   const [grid, setGrid] = useState<GridPayload | null>(null);
+  const [gridError, setGridError] = useState<string | null>(null);
   const [draft, setDraft] = useState<
     Record<string, { marks: string; is_absent: boolean; remarks: string }>
   >({});
@@ -173,10 +174,12 @@ export default function ExamMarksPage() {
     if (!assessmentId || !classSectionId || !subjectId) {
       setGrid(null);
       setDraft({});
+      setGridError(null);
       return;
     }
     let cancelled = false;
     setGridLoading(true);
+    setGridError(null);
     (async () => {
       try {
         const res = await api.get("academics/marks/grid/", {
@@ -205,11 +208,19 @@ export default function ExamMarksPage() {
         if (!cancelled) {
           setGrid(null);
           setDraft({});
+          // Extract the most specific error message available from the response
+          const data = e?.response?.data;
           const msg =
-            e?.response?.data?.error ||
-            e?.response?.data?.detail ||
-            "Could not load marks grid.";
-          toast.error(typeof msg === "string" ? msg : "Could not load marks grid.");
+            (typeof data?.error === "string" ? data.error : null) ||
+            (typeof data?.detail === "string" ? data.detail : null) ||
+            (typeof data?.message === "string" ? data.message : null) ||
+            (data && typeof data === "object" && !Array.isArray(data)
+              ? Object.values(data).find((v) => typeof v === "string") as string | undefined
+              : null) ||
+            (e?.message !== "Network Error" ? e?.message : null) ||
+            "Could not load marks grid. Please try again or contact support.";
+          setGridError(String(msg));
+          toast.error(String(msg), { duration: 6000 });
         }
       } finally {
         if (!cancelled) setGridLoading(false);
@@ -529,8 +540,18 @@ export default function ExamMarksPage() {
             Loading roster…
           </div>
         ) : !grid ? (
-          <div className="p-12 text-center text-slate-400 text-sm">
-            Choose an assessment and class/subject to load students.
+          <div className="p-12 text-center text-sm">
+            {gridError ? (
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <span className="text-red-500 text-lg">⚠</span>
+                </div>
+                <p className="text-red-600 font-semibold max-w-sm">{gridError}</p>
+                <p className="text-slate-400 text-xs">Contact your accountant or admin if this issue persists.</p>
+              </div>
+            ) : (
+              <span className="text-slate-400">Choose an assessment and class/subject to load students.</span>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
