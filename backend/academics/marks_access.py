@@ -6,6 +6,7 @@ Timetable slots are a scheduling artefact and do NOT grant marks access.
 """
 from accounts.permissions import normalize_role, can_access_domain
 from staff.models import TeacherProfile, TeacherAssignment
+from students.models import ClassSection
 
 
 def can_enter_exam_marks(user, class_section, subject) -> bool:
