@@ -265,7 +265,7 @@ export default function FeeBalancesReportPage() {
     ...(classId ? { class_id: classId } : {}),
     ...(sectionId ? { section_id: sectionId } : {}),
     ...(statusFilter !== 'ALL' ? { status_filter: statusFilter } : {}),
-    ...(studentStatus !== 'ALL' ? { student_status: studentStatus } : {}),
+    student_status: studentStatus,
     ...(minAmount ? { min_amount: minAmount } : {}),
     ...(maxAmount ? { max_amount: maxAmount } : {}),
     ...(byPercentage ? { by_percentage: 'true' } : {}),
