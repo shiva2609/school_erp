@@ -348,7 +348,10 @@ export default function FeeBalancesReportPage() {
 
       <div>
         <h1 className="text-3xl font-bold font-sans tracking-tight text-slate-800">Fee Balances</h1>
-        <p className="text-sm text-slate-400 mt-1">Outstanding fee balances by class, section, or student</p>
+        <p className="text-sm text-slate-400 mt-1">
+          Outstanding fee balances by class, section, or student. <br/>
+          <strong>Note:</strong> Included: Core Tuition only. Excluded: Transport, Admission, Special Fees.
+        </p>
       </div>
 
       {/* Criteria */}
