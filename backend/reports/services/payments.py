@@ -108,6 +108,8 @@ class PaymentsService:
                 cf_qs = cf_qs.filter(student__class_section__grade=filters.class_id)
             if filters.section_id:
                 cf_qs = cf_qs.filter(student__class_section_id=filters.section_id)
+            if student_status and student_status != 'ALL':
+                cf_qs = cf_qs.filter(student__status=student_status)
             
             cf_ann = {
                 'old_dues': Coalesce(Sum('carry_forward_amount'), Value(Decimal('0')), output_field=DecimalField()),
