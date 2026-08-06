@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import api from "@/lib/axios";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
-import { ArrowLeft, BarChart2, Loader2, Save, Info, ChevronDown } from "lucide-react";
+import { ArrowLeft, BarChart2, Loader2, Save, Info, ChevronDown, Download } from "lucide-react";
 
 interface AssessmentMeta {
   id: string;
@@ -195,6 +195,104 @@ export default function ConsolidatedMarksPage() {
     }
   };
 
+  const exportToCsv = () => {
+    if (!assessment || !selectedSectionId || students.length === 0) return;
+
+    const currentSection = sections.find((s) => s.id === selectedSectionId);
+    const sectionName = currentSection ? currentSection.display_name : "Section";
+
+    const headers = [
+      "Roll No",
+      "Admission No",
+      "Student Name",
+      ...subjects.map((s) => `"${s.name} (Max: ${s.max_marks})"`),
+    ];
+
+    const csvRows = [headers.join(",")];
+
+    students.forEach((st) => {
+      const row = [
+        st.roll_number ?? "",
+        st.admission_number || "",
+        `"${st.first_name} ${st.last_name || ""}"`.trim(),
+      ];
+      subjects.forEach((sub) => {
+        const cell = draft[st.student_id]?.[sub.id];
+        if (cell) {
+          if (cell.is_absent) {
+            row.push("Absent");
+          } else {
+            row.push(cell.marks !== "" ? cell.marks : "");
+          }
+        } else {
+          row.push("");
+        }
+      });
+      csvRows.push(row.join(","));
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + csvRows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    const fileName = `${assessment.name.replace(/\s+/g, "_")}_${sectionName.replace(/\s+/g, "_")}_Marks.csv`;
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportToExcel = () => {
+    if (!assessment || !selectedSectionId || students.length === 0) return;
+
+    const currentSection = sections.find((s) => s.id === selectedSectionId);
+    const sectionName = currentSection ? currentSection.display_name : "Section";
+
+    const headers = [
+      "Roll No",
+      "Admission No",
+      "Student Name",
+      ...subjects.map((s) => `${s.name} (Max: ${s.max_marks})`),
+    ];
+
+    const data = students.map((st) => {
+      const row: Record<string, any> = {
+        "Roll No": st.roll_number ?? "",
+        "Admission No": st.admission_number || "",
+        "Student Name": `${st.first_name} ${st.last_name || ""}`.trim(),
+      };
+      subjects.forEach((sub) => {
+        const cell = draft[st.student_id]?.[sub.id];
+        if (cell) {
+          if (cell.is_absent) {
+            row[`${sub.name} (Max: ${sub.max_marks})`] = "Absent";
+          } else {
+            row[`${sub.name} (Max: ${sub.max_marks})`] =
+              cell.marks !== "" ? parseFloat(cell.marks) : "";
+          }
+        } else {
+          row[`${sub.name} (Max: ${sub.max_marks})`] = "";
+        }
+      });
+      return row;
+    });
+
+    import("xlsx")
+      .then((XLSX) => {
+        const worksheet = XLSX.utils.json_to_sheet(data, { header: headers });
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Marks");
+
+        const fileName = `${assessment.name.replace(/\s+/g, "_")}_${sectionName.replace(/\s+/g, "_")}_Marks.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+      })
+      .catch((err) => {
+        console.error("Failed to load xlsx library, falling back to CSV", err);
+        toast.error("Excel library failed to load. Exporting to CSV instead...");
+        exportToCsv();
+      });
+  };
+
   const isLocked = assessment?.status === "LOCKED";
   const isDraft = assessment?.status === "DRAFT";
   const canEdit = !isLocked && !isDraft;
@@ -263,15 +361,26 @@ export default function ConsolidatedMarksPage() {
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
           </div>
-          {selectedSectionId && students.length > 0 && canEdit && (
-            <button
-              onClick={saveAll}
-              disabled={saving}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm"
-            >
-              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-              {saving ? "Saving…" : "Save All Marks"}
-            </button>
+          {selectedSectionId && students.length > 0 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportToExcel}
+                className="flex items-center gap-2 bg-white text-slate-700 border border-slate-200 px-5 py-2 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
+              >
+                <Download size={15} />
+                Export Excel
+              </button>
+              {canEdit && (
+                <button
+                  onClick={saveAll}
+                  disabled={saving}
+                  className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm"
+                >
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                  {saving ? "Saving…" : "Save All Marks"}
+                </button>
+              )}
+            </div>
           )}
         </div>
         {selectedSectionId && (
@@ -380,19 +489,30 @@ export default function ConsolidatedMarksPage() {
               </tbody>
             </table>
           </div>
-          {canEdit && (
-            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/60">
-              <p className="text-xs text-slate-400">{students.length} student{students.length !== 1 ? "s" : ""} &bull; {subjects.length} subject{subjects.length !== 1 ? "s" : ""}</p>
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/60">
+            <p className="text-xs text-slate-400">
+              {students.length} student{students.length !== 1 ? "s" : ""} &bull; {subjects.length} subject{subjects.length !== 1 ? "s" : ""}
+            </p>
+            <div className="flex items-center gap-2">
               <button
-                onClick={saveAll}
-                disabled={saving}
-                className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm"
+                onClick={exportToExcel}
+                className="flex items-center gap-2 bg-white text-slate-700 border border-slate-200 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
               >
-                {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                {saving ? "Saving…" : "Save All Marks"}
+                <Download size={15} />
+                Export Excel
               </button>
+              {canEdit && (
+                <button
+                  onClick={saveAll}
+                  disabled={saving}
+                  className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm"
+                >
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                  {saving ? "Saving…" : "Save All Marks"}
+                </button>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>
