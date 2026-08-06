@@ -285,6 +285,7 @@ export const reportsRegistry: ReportCategory[] = [
         apiEndpoint: 'reports/academics/consolidated-marks/',
         exportKey: 'ACADEMICS_CONSOLIDATED_MARKS',
         filters: { showDateRange: false, showClassSection: true, showAcademicYear: true, showExam: true },
+        offerPdfDownload: true,
         columns: [
           { key: 'student', label: 'Student', render: (_v: any, row: any) => `${row.student__first_name || ''} ${row.student__last_name || ''}`.trim() || '-' },
           { key: 'adm', label: 'Adm. No.', render: (_v: any, row: any) => row.student__admission_number || '-' },

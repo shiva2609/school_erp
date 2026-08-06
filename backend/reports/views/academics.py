@@ -162,6 +162,8 @@ class AcademicsReportViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'], url_path='consolidated-marks')
     def consolidated_marks(self, request):
         filters = BaseReportFilter(request, request.user)
+        if request.query_params.get('file') == 'pdf':
+            return self._section_report_cards_pdf(filters)
         qs = AcademicsService.get_consolidated_marks_flat(filters)
         summary = simple_count_summary(qs)
         data = qs.values(
@@ -272,6 +274,11 @@ class AcademicsReportViewSet(viewsets.ViewSet):
         term = AcademicsService.get_assessment_for_print(filters)
         if not term:
             return Response({'error': 'Assessment not found.'}, status=404)
+        if getattr(term, 'status', None) != 'LOCKED':
+            return Response(
+                {'error': 'Report cards can only be generated when the assessment marks are LOCKED.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         template = _pick_document_template(filters.user.tenant, 'REPORT_CARD', filters.branch_id)
         if not template:
             return Response(
