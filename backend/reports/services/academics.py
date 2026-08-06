@@ -599,13 +599,26 @@ class AcademicsService:
             total_obt += r.marks_obtained
             total_max += r.max_marks
         pct = ''
+        overall_grade = ''
         if total_max > 0:
-            pct = str((total_obt / total_max * Decimal('100')).quantize(Decimal('0.01')))
+            percentage_val = (total_obt / total_max * Decimal('100'))
+            pct = str(percentage_val.quantize(Decimal('0.01')))
+            
+            from academics.models import GradeScale
+            scale = GradeScale.objects.filter(
+                branch=student.branch,
+                min_marks_percent__lte=percentage_val,
+                max_marks_percent__gte=percentage_val
+            ).first()
+            if scale:
+                overall_grade = scale.grade
+                
         base['subjects'] = subjects
         base['aggregate'] = {
             'total_marks': str(total_obt),
             'max_marks': str(total_max),
             'percentage': pct,
+            'grade': overall_grade,
         }
         return base
 
