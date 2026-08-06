@@ -11,7 +11,7 @@ from rest_framework.response import Response
 
 from accounts.permissions import normalize_role, IsAccountantOrAbove, IsTeacherOrAbove
 from academics.models import ExamResult, AcademicSubject, Assessment, AssessmentSubject
-from academics.marks_access import can_enter_exam_marks
+from academics.marks_access import can_enter_exam_marks, can_admin_enter_marks
 from academics.permissions import AcademicDomainPermission
 from academics.serializers import (
     BulkExamMarksSerializer,
@@ -766,4 +766,287 @@ def subjects_for_class(request):
             'subjects': [s for s in all_subjects if not s['is_optional']],
             'optional_subjects': [s for s in all_subjects if s['is_optional']],
         },
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Consolidated Marks — Accountant / Admin view across all subjects in a section
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, AcademicDomainPermission])
+def consolidated_marks_grid(request):
+    """
+    Return a cross-subject marks grid for a class section.
+    Accessible by ACCOUNTANT and above (not TEACHER — they use teacher_marks_grid).
+
+    Query params: assessment_id, class_section_id
+    Returns:
+      subjects: [{id, name, is_optional, max_marks, min_marks}]
+      students: [{student_id, admission_number, first_name, last_name, roll_number,
+                  marks: {subject_id: {marks_obtained, is_absent, remarks, result_id}}}]
+    """
+    user = request.user
+    assessment_id = request.query_params.get('assessment_id')
+    class_section_id = request.query_params.get('class_section_id')
+
+    if not assessment_id or not class_section_id:
+        return Response(
+            {'success': False, 'error': 'assessment_id and class_section_id are required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    exam = Assessment.objects.filter(pk=assessment_id, tenant=user.tenant).first()
+    if not exam:
+        return Response({'success': False, 'error': 'Assessment not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    cs = ClassSection.objects.filter(pk=class_section_id, tenant=user.tenant).select_related('branch', 'tenant').first()
+    if not cs:
+        return Response({'success': False, 'error': 'Class section not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if not can_admin_enter_marks(user, cs):
+        return Response(
+            {'success': False, 'error': 'You do not have permission to view consolidated marks.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    if str(exam.branch_id) != str(cs.branch_id):
+        return Response(
+            {'success': False, 'error': 'Assessment and class section must belong to the same branch.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if cs.grade != exam.grade:
+        return Response(
+            {'success': False, 'error': 'Assessment grade must match class section grade.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        # Subjects configured for this assessment (ordered by display_order)
+        assessment_subjects = list(
+            AssessmentSubject.objects.filter(assessment=exam)
+            .select_related('subject')
+            .order_by('subject__display_order', 'subject__name')
+        )
+
+        subjects_payload = [
+            {
+                'id': str(asub.subject_id),
+                'assessment_subject_id': str(asub.id),
+                'name': asub.subject.name,
+                'is_optional': asub.subject.is_optional,
+                'max_marks': str(asub.max_marks),
+                'min_marks': str(asub.min_marks),
+                'exam_date': asub.exam_date.isoformat() if asub.exam_date else None,
+            }
+            for asub in assessment_subjects
+        ]
+        subject_ids = [asub.subject_id for asub in assessment_subjects]
+
+        # All ACTIVE students in this section
+        students = list(
+            Student.objects.filter(class_section=cs, status='ACTIVE')
+            .order_by('roll_number', 'first_name')
+        )
+
+        # All ExamResult rows for this assessment + section (all subjects at once)
+        results_qs = ExamResult.objects.filter(
+            assessment=exam,
+            student__class_section=cs,
+            subject_id__in=subject_ids,
+        )
+        # Key: (student_id, subject_id)
+        results_map = {
+            (str(r.student_id), str(r.subject_id)): r
+            for r in results_qs
+        }
+
+        students_payload = []
+        for st in students:
+            marks_by_subject = {}
+            for sid in subject_ids:
+                r = results_map.get((str(st.id), str(sid)))
+                marks_val = None
+                if r and not r.is_absent and r.marks_obtained is not None:
+                    marks_val = float(r.marks_obtained)
+                marks_by_subject[str(sid)] = {
+                    'result_id': str(r.id) if r else None,
+                    'marks_obtained': marks_val,
+                    'is_absent': r.is_absent if r else False,
+                    'remarks': r.remarks if r else '',
+                }
+            students_payload.append({
+                'student_id': str(st.id),
+                'admission_number': st.admission_number or '',
+                'first_name': st.first_name,
+                'last_name': st.last_name or '',
+                'roll_number': st.roll_number,
+                'marks': marks_by_subject,
+            })
+
+        return Response({
+            'success': True,
+            'data': {
+                'assessment': {
+                    'id': str(exam.id),
+                    'name': exam.name,
+                    'status': exam.status,
+                    'grade': exam.grade,
+                    'start_date': exam.start_date.isoformat() if exam.start_date else None,
+                    'end_date': exam.end_date.isoformat() if exam.end_date else None,
+                },
+                'class_section': {
+                    'id': str(cs.id),
+                    'display_name': cs.display_name or str(cs),
+                    'grade': cs.grade,
+                    'section': cs.section,
+                },
+                'subjects': subjects_payload,
+                'students': students_payload,
+            },
+        })
+
+    except Exception as exc:
+        logger.exception('consolidated_marks_grid error: assessment=%s cs=%s', assessment_id, class_section_id)
+        return Response(
+            {'success': False, 'error': f'Server error loading consolidated marks: {exc}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, AcademicDomainPermission])
+def consolidated_marks_bulk_save(request):
+    """
+    Bulk-save marks across multiple subjects for a class section.
+    Accessible by ACCOUNTANT and above.
+
+    Body:
+      assessment_id: UUID
+      class_section_id: UUID
+      rows: [{student_id, subject_id, marks_obtained (null=clear), is_absent, remarks}]
+    """
+    user = request.user
+    assessment_id = request.data.get('assessment_id')
+    class_section_id = request.data.get('class_section_id')
+    rows_in = request.data.get('rows', [])
+
+    if not assessment_id or not class_section_id:
+        return Response(
+            {'success': False, 'error': 'assessment_id and class_section_id are required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    exam = Assessment.objects.filter(pk=assessment_id, tenant=user.tenant).first()
+    if not exam:
+        return Response({'success': False, 'error': 'Assessment not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    cs = ClassSection.objects.filter(pk=class_section_id, tenant=user.tenant).select_related('branch', 'tenant').first()
+    if not cs:
+        return Response({'success': False, 'error': 'Class section not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if not can_admin_enter_marks(user, cs):
+        return Response(
+            {'success': False, 'error': 'You do not have permission to edit consolidated marks.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    if exam.status == 'DRAFT':
+        return Response(
+            {'success': False, 'error': 'This assessment is still being configured. Marks entry is not open yet.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if exam.status == 'LOCKED':
+        return Response(
+            {'success': False, 'error': 'This assessment is locked. Results have been published and marks cannot be changed.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    # Build lookup: subject_id -> max_marks (from AssessmentSubject)
+    subject_configs = {
+        str(asub.subject_id): asub.max_marks
+        for asub in AssessmentSubject.objects.filter(assessment=exam)
+    }
+
+    # Valid student IDs in this section
+    student_ids = {
+        str(s.id)
+        for s in Student.objects.filter(class_section=cs, status='ACTIVE')
+    }
+
+    errors = []
+    saved = 0
+
+    with transaction.atomic():
+        for i, row in enumerate(rows_in):
+            sid = str(row.get('student_id', ''))
+            subject_id = str(row.get('subject_id', ''))
+            is_absent = bool(row.get('is_absent', False))
+            remarks = (row.get('remarks') or '')[:200]
+
+            # Parse marks_obtained — allow None / null / empty string to mean "clear"
+            raw_marks = row.get('marks_obtained')
+            if raw_marks is None or raw_marks == '':
+                marks = None
+            else:
+                try:
+                    from decimal import Decimal, InvalidOperation
+                    marks = Decimal(str(raw_marks))
+                except (InvalidOperation, ValueError, TypeError):
+                    errors.append({'index': i, 'student_id': sid, 'subject_id': subject_id,
+                                   'error': 'Invalid marks value.'})
+                    continue
+
+            if sid not in student_ids:
+                errors.append({'index': i, 'student_id': sid, 'error': 'Student not in this class or not active.'})
+                continue
+
+            if subject_id not in subject_configs:
+                errors.append({'index': i, 'subject_id': subject_id,
+                               'error': 'Subject not configured for this assessment.'})
+                continue
+
+            max_m = subject_configs[subject_id]
+
+            # Clear / delete existing result when not absent and no marks provided
+            if not is_absent and marks is None:
+                ExamResult.objects.filter(
+                    student_id=sid,
+                    assessment_id=exam.id,
+                    subject_id=subject_id,
+                ).delete()
+                saved += 1
+                continue
+
+            if not is_absent and marks is not None and (marks < 0 or marks > max_m):
+                errors.append({
+                    'index': i,
+                    'student_id': sid,
+                    'subject_id': subject_id,
+                    'error': f'Marks must be between 0 and {max_m}.',
+                })
+                continue
+
+            ExamResult.objects.update_or_create(
+                student_id=sid,
+                assessment_id=exam.id,
+                subject_id=subject_id,
+                defaults={
+                    'tenant_id': cs.tenant_id,
+                    'branch_id': cs.branch_id,
+                    'marks_obtained': None if is_absent else marks,
+                    'is_absent': is_absent,
+                    'max_marks': max_m,
+                    'remarks': remarks,
+                    'evaluator': user,
+                    'is_published': False,
+                    'subject_rank': None,
+                },
+            )
+            saved += 1
+
+    return Response({
+        'success': True,
+        'data': {'saved': saved, 'errors': errors},
     })

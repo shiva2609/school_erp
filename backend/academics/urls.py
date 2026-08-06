@@ -16,4 +16,7 @@ urlpatterns = [
     path('academics/report-card/', views.report_card, name='academics-report-card'),
     # NEW: helper endpoint for Add Exam form subject loading
     path('academics/subjects-for-class/', views.subjects_for_class, name='academics-subjects-for-class'),
+    # NEW: Consolidated marks endpoints (accountant / admin view across all subjects)
+    path('academics/marks/consolidated/', views.consolidated_marks_grid, name='academics-marks-consolidated'),
+    path('academics/marks/consolidated-bulk/', views.consolidated_marks_bulk_save, name='academics-marks-consolidated-bulk'),
 ]

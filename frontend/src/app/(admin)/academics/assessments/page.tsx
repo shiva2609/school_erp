@@ -5,7 +5,7 @@ import api from '@/lib/axios';
 import { useApi } from '@/lib/hooks';
 import { useBranch } from '@/components/common/BranchContext';
 import { useAuth } from '@/components/common/AuthProvider';
-import { ClipboardList, Plus, Eye, Pencil, Trash2, CalendarDays, BookOpen } from 'lucide-react';
+import { ClipboardList, Plus, Eye, Pencil, Trash2, CalendarDays, BookOpen, BarChart2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import { GRADE_DISPLAY, GRADE_ORDER } from '@/lib/grades';
@@ -237,6 +237,14 @@ export default function AssessmentsPage() {
                     >
                       <Pencil size={13} /> Edit
                     </Link>
+                    {(a.status === 'ACTIVE' || a.status === 'LOCKED') && (
+                      <Link
+                        href={`/academics/assessments/${a.id}/marks`}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                      >
+                        <BarChart2 size={13} /> Marks
+                      </Link>
+                    )}
                     <button
                       onClick={() => handleDelete(a)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
