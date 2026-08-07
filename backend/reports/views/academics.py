@@ -37,6 +37,38 @@ def _pick_document_template(tenant, doc_type: str, branch_id=None):
 class AcademicsReportViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, ReportAccessPermission]
 
+    @action(detail=False, methods=['get'], url_path='diagnose', permission_classes=[])
+    def diagnose(self, request):
+        from tenants.models import Branch
+        from academics.models import GradeScale, ExamResult
+        from students.models import Student
+        
+        branches_data = list(Branch.objects.values('id', 'name'))
+        scales_data = list(GradeScale.objects.values('branch__name', 'grade', 'min_marks_percent', 'max_marks_percent'))
+        
+        # Student 5-T
+        students = Student.objects.filter(class_section__grade='5', class_section__section='T')
+        results_data = []
+        for s in students:
+            results = ExamResult.objects.filter(student=s)
+            for r in results:
+                results_data.append({
+                    'student': f"{s.first_name} {s.last_name}",
+                    'subject': r.subject.name,
+                    'marks': str(r.marks_obtained),
+                    'max': str(r.max_marks),
+                    'percentage': str(r.percentage),
+                    'grade': r.grade,
+                    'branch_id_of_result': str(r.branch_id),
+                    'branch_name_of_result': r.branch.name if r.branch else 'None',
+                })
+        
+        return Response({
+            'branches': branches_data,
+            'scales': scales_data,
+            'results_5t': results_data,
+        })
+
     @action(detail=False, methods=['get'], url_path='exam-terms')
     def exam_terms(self, request):
         """
