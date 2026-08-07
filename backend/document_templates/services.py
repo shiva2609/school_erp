@@ -458,17 +458,25 @@ def generate_pdf_from_template(template, context_dict: dict) -> bytes:
 def generate_bulk_pdf_from_template(template, contexts: list) -> bytes:
     """One PDF with one page per context (same template, different merge data)."""
     bodies = []
-    for ctx in contexts:
+    extracted_styles = ""
+    for idx, ctx in enumerate(contexts):
         full = build_document_html(template, ctx)
+        if idx == 0:
+            # Extract styles from the first rendered document
+            styles_match = re.findall(r'<style[^>]*>(.*?)</style>', full, re.DOTALL | re.IGNORECASE)
+            extracted_styles = '\n'.join(styles_match)
         bodies.append(extract_body_html(full))
+        
     if template.type == 'ID_CARD':
         page_rule = '@page { size: 85.6mm 53.98mm; margin: 0; }'
     else:
         page_rule = '@page { size: A4; margin: 10mm; }'
+        
     combined = f"""<html><head><meta charset="utf-8"><style>
         {page_rule}
         .erp-doc-page {{ page-break-after: always; }}
         .erp-doc-page:last-child {{ page-break-after: auto; }}
+        {extracted_styles}
     </style></head><body>
     {''.join(f'<div class="erp-doc-page">{b}</div>' for b in bodies)}
     </body></html>"""
