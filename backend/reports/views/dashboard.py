@@ -118,7 +118,16 @@ class ReportingViewSet(viewsets.ViewSet):
         branch_id, zone_ids = self._branch_and_zone_scope(request)
         ay_id = self._get_academic_year_id(request)
 
-        qs = FeeInvoice.objects.filter(tenant=request.user.tenant)
+        qs = FeeInvoice.objects.filter(tenant=request.user.tenant, student__status='ACTIVE')
+        qs = qs.exclude(
+            invoice_number__startswith='ADM-'
+        ).exclude(
+            invoice_number__startswith='FDP-'
+        ).exclude(
+            invoice_number__startswith='SPF-'
+        ).exclude(
+            invoice_number__startswith='TRN-'
+        )
         qs = self._filter_fee_invoice_qs(qs, branch_id, zone_ids)
         if ay_id:
             qs = qs.filter(academic_year_id=ay_id)
@@ -132,7 +141,7 @@ class ReportingViewSet(viewsets.ViewSet):
         )
 
         # Query carry forward aggregates
-        cf_qs = FeeCarryForward.objects.filter(tenant=request.user.tenant)
+        cf_qs = FeeCarryForward.objects.filter(tenant=request.user.tenant, student__status='ACTIVE')
         if branch_id:
             cf_qs = cf_qs.filter(branch_id=branch_id)
         elif zone_ids is not None:
@@ -154,6 +163,7 @@ class ReportingViewSet(viewsets.ViewSet):
         cf_payments_qs = PaymentAllocation.objects.filter(
             allocation_type='PREVIOUS_YEAR_DUES',
             payment__status='COMPLETED',
+            carry_forward__student__status='ACTIVE',
         )
         if branch_id:
             cf_payments_qs = cf_payments_qs.filter(carry_forward__branch_id=branch_id)
@@ -168,7 +178,7 @@ class ReportingViewSet(viewsets.ViewSet):
         cf_collected_total = cf_payments_qs.aggregate(total=Sum('allocated_amount'))['total'] or Decimal('0.00')
 
         # Student count (active only, filtered by branch and AY)
-        student_qs = Student.objects.filter(tenant=request.user.tenant, status__in=['ACTIVE', 'PENDING_APPROVAL'])
+        student_qs = Student.objects.filter(tenant=request.user.tenant, status='ACTIVE')
         if branch_id:
             student_qs = student_qs.filter(branch_id=branch_id)
         elif zone_ids is not None:
@@ -207,6 +217,7 @@ class ReportingViewSet(viewsets.ViewSet):
             tenant=request.user.tenant,
             payment_date=timezone.now().date(),
             status='COMPLETED',
+            invoice__student__status='ACTIVE',
         )
         today_payments = self._filter_payment_qs(today_payments, branch_id, zone_ids)
         if ay_id:
@@ -217,7 +228,7 @@ class ReportingViewSet(viewsets.ViewSet):
         today_transport = today_payments.filter(invoice__invoice_number__startswith='TRN-').aggregate(total=Sum('amount'))['total'] or 0
 
         # Revenue received to date (current-year payments only — carry-forwards counted separately)
-        revenue_qs = Payment.objects.filter(tenant=request.user.tenant, status='COMPLETED')
+        revenue_qs = Payment.objects.filter(tenant=request.user.tenant, status='COMPLETED', invoice__student__status='ACTIVE')
         revenue_qs = self._filter_payment_qs(revenue_qs, branch_id, zone_ids)
         if ay_id:
             revenue_qs = revenue_qs.filter(invoice__academic_year_id=ay_id)
@@ -290,8 +301,19 @@ class ReportingViewSet(viewsets.ViewSet):
 
         qs = FeeInvoice.objects.filter(
             tenant=request.user.tenant, 
-            outstanding_amount__gt=0
+            outstanding_amount__gt=0,
+            student__status='ACTIVE'
         ).select_related('student', 'student__class_section')
+        
+        qs = qs.exclude(
+            invoice_number__startswith='ADM-'
+        ).exclude(
+            invoice_number__startswith='FDP-'
+        ).exclude(
+            invoice_number__startswith='SPF-'
+        ).exclude(
+            invoice_number__startswith='TRN-'
+        )
         
         if branch_id:
             qs = qs.filter(branch_id=branch_id)
@@ -412,13 +434,31 @@ class ReportingViewSet(viewsets.ViewSet):
         ay_id = self._get_academic_year_id(request)
         branch_id, zone_ids = self._branch_and_zone_scope(request)
 
-        inv_qs = FeeInvoice.objects.filter(tenant=request.user.tenant)
+        inv_qs = FeeInvoice.objects.filter(tenant=request.user.tenant, student__status='ACTIVE')
+        inv_qs = inv_qs.exclude(
+            invoice_number__startswith='ADM-'
+        ).exclude(
+            invoice_number__startswith='FDP-'
+        ).exclude(
+            invoice_number__startswith='SPF-'
+        ).exclude(
+            invoice_number__startswith='TRN-'
+        )
         inv_qs = self._filter_fee_invoice_qs(inv_qs, branch_id, zone_ids)
         if ay_id:
             inv_qs = inv_qs.filter(academic_year_id=ay_id)
         inv_qs = self._billable_fee_invoices(inv_qs)
 
-        pay_qs = Payment.objects.filter(tenant=request.user.tenant, status='COMPLETED')
+        pay_qs = Payment.objects.filter(tenant=request.user.tenant, status='COMPLETED', invoice__student__status='ACTIVE')
+        pay_qs = pay_qs.exclude(
+            invoice__invoice_number__startswith='ADM-'
+        ).exclude(
+            invoice__invoice_number__startswith='FDP-'
+        ).exclude(
+            invoice__invoice_number__startswith='SPF-'
+        ).exclude(
+            invoice__invoice_number__startswith='TRN-'
+        )
         pay_qs = self._filter_payment_qs(pay_qs, branch_id, zone_ids)
         if ay_id:
             pay_qs = pay_qs.filter(invoice__academic_year_id=ay_id)
@@ -570,6 +610,16 @@ class ReportingViewSet(viewsets.ViewSet):
             tenant=request.user.tenant,
             outstanding_amount__gt=0,
             due_date__lt=today,
+            student__status='ACTIVE'
+        )
+        qs = qs.exclude(
+            invoice_number__startswith='ADM-'
+        ).exclude(
+            invoice_number__startswith='FDP-'
+        ).exclude(
+            invoice_number__startswith='SPF-'
+        ).exclude(
+            invoice_number__startswith='TRN-'
         )
         if branch_id:
             qs = qs.filter(branch_id=branch_id)
