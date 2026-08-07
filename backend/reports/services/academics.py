@@ -570,6 +570,7 @@ class AcademicsService:
             'tenant_city': tenant.city or '',
             'tenant_state': tenant.state or '',
             'branch_name': branch.name if branch else '',
+            'branch_address': branch.address if branch else '',
             'exam': AcademicsService._exam_dict(assessment),
             'student': AcademicsService._student_card_dict(student),
             'subjects': subj_list,
