@@ -591,13 +591,14 @@ class AcademicsService:
         for r in results:
             subjects.append({
                 'name': r.subject.name if r.subject_id else '',
-                'marks_obtained': str(r.marks_obtained),
+                'marks_obtained': str(r.marks_obtained) if r.marks_obtained is not None else 'AB',
                 'max_marks': str(r.max_marks),
                 'percentage': str(r.percentage) if r.percentage is not None else '',
                 'grade': r.grade or '',
                 'remarks': r.remarks or '',
             })
-            total_obt += r.marks_obtained
+            if r.marks_obtained is not None:
+                total_obt += r.marks_obtained
             total_max += r.max_marks
         pct = ''
         overall_grade = ''
