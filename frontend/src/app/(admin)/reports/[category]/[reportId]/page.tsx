@@ -185,7 +185,22 @@ export default function DynamicReportPage({ params }: { params: Promise<{ catego
       });
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      const link = document.createElement('a');
+      link.href = url;
+      
+      let filename = 'Report.pdf';
+      const contentDisposition = res.headers['content-disposition'];
+      if (contentDisposition && contentDisposition.includes('filename=')) {
+        filename = contentDisposition.split('filename=')[1].replace(/['"]/g, '');
+      } else {
+        filename = `${config.title.replace(/\s+/g, '_')}.pdf`;
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e: any) {
       let message = 'Could not download PDF.';
       const data = e?.response?.data;
