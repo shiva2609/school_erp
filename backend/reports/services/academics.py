@@ -600,6 +600,7 @@ class AcademicsService:
             total_max += r.max_marks
         pct = ''
         overall_grade = ''
+        overall_remark = ''
         if total_max > 0:
             percentage_val = (total_obt / total_max * Decimal('100'))
             pct = str(percentage_val.quantize(Decimal('0.01')))
@@ -612,6 +613,7 @@ class AcademicsService:
             ).first()
             if scale:
                 overall_grade = scale.grade
+                overall_remark = scale.remarks
                 
         base['subjects'] = subjects
         base['aggregate'] = {
@@ -619,6 +621,7 @@ class AcademicsService:
             'max_marks': str(total_max),
             'percentage': pct,
             'grade': overall_grade,
+            'remark': overall_remark,
         }
         return base
 
