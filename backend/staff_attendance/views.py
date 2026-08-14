@@ -663,19 +663,19 @@ def admin_photo(request, pk, photo_type):
     photo_type is 'check_in' or 'check_out'.
     """
     from django.shortcuts import get_object_or_404
-    from django.http import HttpResponseRedirect
+    from django.core.files.storage import default_storage
     
     attendance = get_object_or_404(StaffAttendance, pk=pk, tenant=request.user.tenant)
     if getattr(request.user, 'branch_id', None) and attendance.branch_id != request.user.branch_id:
         return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
         
-    photo_field = attendance.check_in_photo if photo_type == 'check_in' else attendance.check_out_photo
-    if not photo_field:
+    photo_key = attendance.check_in_photo if photo_type == 'check_in' else attendance.check_out_photo
+    if not photo_key:
         return Response({'error': 'Photo not found'}, status=status.HTTP_404_NOT_FOUND)
         
-    # Return the underlying storage URL (which generates a presigned URL for S3)
+    # Generate a presigned URL using the default storage backend
     try:
-        url = photo_field.url
+        url = default_storage.url(photo_key)
         return Response({'url': url})
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
