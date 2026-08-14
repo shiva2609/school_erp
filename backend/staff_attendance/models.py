@@ -166,7 +166,7 @@ class StaffAttendance(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-date', 'staff__user__first_name']
+        ordering = ['-date', '-created_at']
         constraints = [
             # One attendance record per staff per day
             models.UniqueConstraint(

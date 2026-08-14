@@ -511,7 +511,7 @@ def mark_attendance(request):
             attendance = StaffAttendance.objects.filter(
                 staff=staff,
                 date=today,
-            ).select_for_update().first()
+            ).order_by().select_for_update().first()
 
             if action == 'CHECK_IN':
                 if attendance and attendance.check_in_at:
