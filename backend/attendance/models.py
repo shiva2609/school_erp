@@ -31,6 +31,10 @@ class AttendanceRecord(models.Model):
         return f"{self.student} - {self.date} - {self.status}"
 
 class StaffAttendanceRecord(models.Model):
+    """
+    DEPRECATED: Use staff_attendance.models.StaffAttendance instead.
+    This model is preserved temporarily for backward compatibility.
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='staff_attendance')
     staff = models.ForeignKey('staff.StaffProfile', on_delete=models.CASCADE, related_name='attendance_records')

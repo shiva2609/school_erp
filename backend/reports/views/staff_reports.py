@@ -17,9 +17,11 @@ class StaffReportViewSet(viewsets.ViewSet):
         summary = simple_count_summary(qs)
 
         data = qs.values(
-            'date', 'status', 'staff__employee_id',
+            'id', 'date', 'status', 'staff__employee_id',
             'staff__user__first_name', 'staff__user__last_name',
-            'staff__branch__name', 'remarks'
+            'staff__branch__name', 'remarks',
+            'check_in_at', 'check_out_at',
+            'check_in_photo', 'check_out_photo'
         )
         
         paginator = ReportPagination()

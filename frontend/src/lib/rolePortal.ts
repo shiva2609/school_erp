@@ -26,6 +26,8 @@ export function getPostLoginPath(role: string, tenantId?: string | null): string
       return '/teacher-dashboard';
     case 'PARENT':
       return '/parent';
+    case 'ATTENDANCE_DEVICE':
+      return '/attendance-device';
     case 'CHIEF_ACCOUNTANT':
     case 'ZONAL_ADMIN':
     case 'PRINCIPAL':

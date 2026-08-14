@@ -4,7 +4,7 @@ PLATFORM_OWNER_ROLES = {'OWNER'}
 TENANT_FULL_ACCESS_ROLES = {'SUPER_ADMIN'}
 TENANT_FINANCE_ROLES = {'CHIEF_ACCOUNTANT'}
 ZONE_SCOPED_ROLES = {'ZONAL_ADMIN'}
-BRANCH_SCOPED_ROLES = {'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT', 'TEACHER', 'STAFF', 'STUDENT', 'PARENT'}
+BRANCH_SCOPED_ROLES = {'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT', 'TEACHER', 'STAFF', 'ATTENDANCE_DEVICE', 'STUDENT', 'PARENT'}
 
 # Single source of truth for role hierarchy across the entire system.
 # Higher number = more privilege. Used by has_min_role() for permission checks.
@@ -20,6 +20,7 @@ ROLE_HIERARCHY = {
     'STAFF': 30,
     'STUDENT': 20,
     'PARENT': 10,
+    'ATTENDANCE_DEVICE': 5,
 }
 
 
@@ -121,3 +122,24 @@ class IsParentOrAbove(permissions.BasePermission):
     def has_permission(self, request, view):
         return has_min_role(request.user, 'PARENT')
 
+
+class IsAttendanceDevice(permissions.BasePermission):
+    """Only ATTENDANCE_DEVICE role users can access device endpoints."""
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        return normalize_role(getattr(request.user, 'role', None)) == 'ATTENDANCE_DEVICE'
+
+
+class CanUseStaffAttendance(permissions.BasePermission):
+    """
+    Any active staff member with portal access and an active StaffProfile.
+    Not filtered by teaching/non-teaching category.
+    """
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        profile = getattr(request.user, 'staff_profile', None)
+        if not profile:
+            return False
+        return profile.status == 'ACTIVE' and profile.branch is not None

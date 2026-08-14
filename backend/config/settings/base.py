@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'announcements',
     'reports',
     'staff',
+    'staff_attendance',
     'transport',
     'academics',
     'inventory',
@@ -256,6 +257,10 @@ CELERY_BEAT_SCHEDULE = {
     },
     'publish-scheduled-announcements': {
         'task': 'announcements.tasks.publish_scheduled_announcements',
+        'schedule': crontab(minute='*/5'),
+    },
+    'cleanup-expired-attendance-tokens': {
+        'task': 'staff_attendance.tasks.cleanup_expired_tokens',
         'schedule': crontab(minute='*/5'),
     },
 }

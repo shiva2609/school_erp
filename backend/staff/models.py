@@ -159,16 +159,17 @@ class StaffProfile(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        if not self.employee_id and self.branch:
+        if not self.employee_id and self.branch and self.tenant:
             with transaction.atomic():
                 counter, _ = StaffIdCounter.objects.select_for_update().get_or_create(branch=self.branch)
                 counter.last_seq += 1
                 counter.save()
-                branch_code = self.branch.branch_code.strip().upper()
+                tenant_prefix = self.tenant.admission_no_prefix.strip().upper() if self.tenant.admission_no_prefix else ''
                 staff_code = self.branch.staff_code.strip().upper() if self.branch.staff_code else '01'
-                self.employee_id = f"{branch_code}{staff_code}{counter.last_seq:03d}"
+                self.employee_id = f"{tenant_prefix}{staff_code}{counter.last_seq:03d}"
                 
         super().save(*args, **kwargs)
+
 
     def __str__(self):
         name = "Unknown"

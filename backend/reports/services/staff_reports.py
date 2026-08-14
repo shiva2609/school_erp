@@ -1,10 +1,10 @@
-from attendance.models import StaffAttendanceRecord
+from staff_attendance.models import StaffAttendance
 from reports.services.base import BaseReportService
 
 class StaffReportsService:
     @staticmethod
     def get_staff_attendance(filters):
-        qs = StaffAttendanceRecord.objects.select_related('staff', 'staff__user', 'staff__branch')
+        qs = StaffAttendance.objects.select_related('staff', 'staff__user', 'staff__branch')
         
         # Branch isolation:
         qs = qs.filter(tenant=filters.user.tenant)
@@ -17,4 +17,3 @@ class StaffReportsService:
             qs = qs.filter(status=filters.status)
 
         return qs.order_by('-date')
-

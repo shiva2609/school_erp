@@ -873,7 +873,18 @@ export const reportsRegistry: ReportCategory[] = [
         description: 'Teacher and staff attendance records',
         apiEndpoint: 'reports/staff/attendance/',
         exportKey: 'STAFF_ATTENDANCE',
-        filters: { showDateRange: true, showClassSection: false, showAcademicYear: false },
+        filters: { 
+          showDateRange: true, 
+          showClassSection: false, 
+          showAcademicYear: false,
+          showStatus: true,
+          statusOptions: [
+            { value: 'CHECKED_IN', label: 'Checked In' },
+            { value: 'CHECKED_OUT', label: 'Checked Out' },
+            { value: 'ON_LEAVE', label: 'On Leave' },
+            { value: 'ABSENT', label: 'Absent' },
+          ]
+        },
         // Backend .values(): date, status, staff__employee_id, staff__user__first_name, staff__user__last_name, staff__branch__name, remarks
         columns: [
           { key: 'date', label: 'Date' },
@@ -881,6 +892,60 @@ export const reportsRegistry: ReportCategory[] = [
           { key: 'staff__employee_id', label: 'Employee ID' },
           { key: 'staff__branch__name', label: 'Branch' },
           { key: 'status', label: 'Status' },
+          { 
+            key: 'check_in_at', 
+            label: 'Check In', 
+            render: (_v: any, row: any) => {
+              if (!row.check_in_at) return '--';
+              const time = new Date(row.check_in_at).toLocaleTimeString();
+              if (row.check_in_photo) {
+                return (
+                  <button 
+                    onClick={async () => {
+                      try {
+                        const { default: api } = await import('@/lib/axios');
+                        const res = await api.get(`/api/v1/staff-attend/admin/photo/${row.id}/check_in/`);
+                        if (res.data.url) window.open(res.data.url, '_blank');
+                      } catch (e) {
+                        alert('Failed to load photo');
+                      }
+                    }}
+                    className="text-blue-600 hover:underline bg-transparent border-none p-0 cursor-pointer text-left"
+                  >
+                    {time} (Photo)
+                  </button>
+                );
+              }
+              return time;
+            }
+          },
+          { 
+            key: 'check_out_at', 
+            label: 'Check Out', 
+            render: (_v: any, row: any) => {
+              if (!row.check_out_at) return '--';
+              const time = new Date(row.check_out_at).toLocaleTimeString();
+              if (row.check_out_photo) {
+                return (
+                  <button 
+                    onClick={async () => {
+                      try {
+                        const { default: api } = await import('@/lib/axios');
+                        const res = await api.get(`/api/v1/staff-attend/admin/photo/${row.id}/check_out/`);
+                        if (res.data.url) window.open(res.data.url, '_blank');
+                      } catch (e) {
+                        alert('Failed to load photo');
+                      }
+                    }}
+                    className="text-blue-600 hover:underline bg-transparent border-none p-0 cursor-pointer text-left"
+                  >
+                    {time} (Photo)
+                  </button>
+                );
+              }
+              return time;
+            }
+          },
           { key: 'remarks', label: 'Remarks' }
         ]
       }

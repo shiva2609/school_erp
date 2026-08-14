@@ -43,6 +43,7 @@ const ROLE_RANKS: Record<string, number> = {
   ACCOUNTANT: 3,
   TEACHER: 3,
   PARENT: 4,
+  ATTENDANCE_DEVICE: 5,
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -55,6 +56,7 @@ const ROLE_LABELS: Record<string, string> = {
   ACCOUNTANT: 'Accountant',
   TEACHER: 'Teacher',
   PARENT: 'Parent',
+  ATTENDANCE_DEVICE: 'Attendance Device',
 };
 
 /** Home branch optional at signup (tenant- or zone-scoped roles). */

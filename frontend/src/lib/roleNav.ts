@@ -179,8 +179,9 @@ const masterNavigation: NavCategory[] = [
       {
         title: 'Attendance',
         items: [
+          { href: '/my-attendance', label: 'My Attendance', icon: ClipboardCheck, allowedRoles: ['OWNER', 'SUPER_ADMIN', 'CHIEF_ACCOUNTANT', 'ZONAL_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT', 'TEACHER', 'STAFF'] },
           { href: '#add-staff-attendance', label: 'Add Staff Attendance', isFuture: true, icon: ClipboardCheck, allowedRoles: SCHOOL_ADMINS },
-          { href: '#staff-attendance', label: 'Staff Attendance', isFuture: true, icon: ClipboardCheck, allowedRoles: SCHOOL_ADMINS },
+          { href: '#staff-attendance', label: 'Staff Attendance Report', isFuture: true, icon: ClipboardCheck, allowedRoles: SCHOOL_ADMINS },
         ]
       },
       {

@@ -223,6 +223,11 @@ class UserViewSet(viewsets.ModelViewSet):
         if normalize_role(target_role) == 'OWNER':
             raise PermissionDenied("Owner accounts cannot be created from user management.")
 
+        # Only OWNER and SUPER_ADMIN can create ATTENDANCE_DEVICE accounts
+        if normalize_role(target_role) == 'ATTENDANCE_DEVICE':
+            if creator_role not in ('OWNER', 'SUPER_ADMIN'):
+                raise PermissionDenied("Only Super Admin can create attendance device accounts.")
+
         creator_rank = self._get_rank(creator_role)
         target_rank = self._get_rank(target_role)
 

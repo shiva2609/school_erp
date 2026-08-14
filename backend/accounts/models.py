@@ -31,6 +31,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('BRANCH_ADMIN', 'Branch Admin (School Level)'),
         ('ACCOUNTANT', 'Accountant'),
         ('TEACHER', 'Teacher'),
+        ('ATTENDANCE_DEVICE', 'Attendance Device'),
         ('STUDENT', 'Student'),
         ('PARENT', 'Parent'),
     )
