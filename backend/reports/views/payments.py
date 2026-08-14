@@ -55,11 +55,14 @@ class PaymentsReportViewSet(viewsets.ViewSet):
             student_status=student_status,
         )
 
+        # ── Serialize rows ─────────────────────────────────────────────────────
+        serialized = [self._serialize_row(r, report_type, categories) for r in rows]
+
         # ── Build summary ──────────────────────────────────────────────────────
         from decimal import Decimal
-        total_net = sum(Decimal(str(r.get('net_amount') or 0)) for r in rows)
-        total_paid = sum(Decimal(str(r.get('paid_amount') or 0)) for r in rows)
-        total_outstanding = sum(Decimal(str(r.get('outstanding_amount') or 0)) for r in rows)
+        total_net = sum(Decimal(str(r.get('net_amount') or 0)) for r in serialized)
+        total_paid = sum(Decimal(str(r.get('paid_amount') or 0)) for r in serialized) + sum(Decimal(str(r.get('transport_paid') or 0)) for r in serialized)
+        total_outstanding = sum(Decimal(str(r.get('outstanding_amount') or 0)) for r in serialized)
         pct_outstanding = (total_outstanding / total_net * 100) if total_net else Decimal('0')
 
         summary = {
@@ -79,7 +82,6 @@ class PaymentsReportViewSet(viewsets.ViewSet):
             from django.http import HttpResponse
             from reports.export_utils import generate_csv_bytes, generate_pdf_bytes
 
-            serialized = [self._serialize_row(r, report_type, categories) for r in rows]
             cat_headers = [c.name.upper() for c in categories]
             cat_keys = [f'cat_{str(c.id).replace("-", "_")}' for c in categories]
             
@@ -101,7 +103,7 @@ class PaymentsReportViewSet(viewsets.ViewSet):
                     return str(val_str)
 
             if report_type == 'class':
-                headers = ['CLASS', 'TOTAL STUDENTS'] + cat_headers + ['OLD DUES', 'CONCESSION', 'TOTAL AMOUNT', 'TOTAL %', 'AMOUNT PAID', 'PAID %', 'BALANCE', 'BALANCE %']
+                headers = ['CLASS', 'TOTAL STUDENTS'] + cat_headers + ['OLD DUES', 'CONCESSION', 'TRANSPORT', 'TRANSPORT PAID', 'TOTAL AMOUNT', 'TOTAL %', 'AMOUNT PAID', 'PAID %', 'BALANCE', 'BALANCE %']
                 data_rows = []
                 for r in serialized:
                     row = [r.get('class', ''), r.get('total_students', 0)]
@@ -110,13 +112,15 @@ class PaymentsReportViewSet(viewsets.ViewSet):
                     row.extend([
                         r.get('old_dues', '0.00'),
                         r.get('concession_amount', '0.00'),
+                        r.get('transport_amount', '0.00'),
+                        r.get('transport_paid', '0.00'),
                         fmt_val(net),         '100%',
-                        fmt_val(r.get('paid_amount', '0.00')),        pct_str(r.get('paid_amount'), net),
+                        fmt_val(r.get('paid_amount', '0.00')),        pct_str(str(float(r.get('paid_amount') or 0) + float(r.get('transport_paid') or 0)), net),
                         fmt_val(r.get('outstanding_amount', '0.00')), pct_str(r.get('outstanding_amount'), net),
                     ])
                     data_rows.append(row)
             elif report_type == 'section':
-                headers = ['CLASS', 'SECTION', 'TOTAL STUDENTS'] + cat_headers + ['OLD DUES', 'CONCESSION', 'TOTAL AMOUNT', 'TOTAL %', 'AMOUNT PAID', 'PAID %', 'BALANCE', 'BALANCE %']
+                headers = ['CLASS', 'SECTION', 'TOTAL STUDENTS'] + cat_headers + ['OLD DUES', 'CONCESSION', 'TRANSPORT', 'TRANSPORT PAID', 'TOTAL AMOUNT', 'TOTAL %', 'AMOUNT PAID', 'PAID %', 'BALANCE', 'BALANCE %']
                 data_rows = []
                 for r in serialized:
                     row = [r.get('class', ''), r.get('section', ''), r.get('total_students', 0)]
@@ -125,8 +129,10 @@ class PaymentsReportViewSet(viewsets.ViewSet):
                     row.extend([
                         r.get('old_dues', '0.00'),
                         r.get('concession_amount', '0.00'),
+                        r.get('transport_amount', '0.00'),
+                        r.get('transport_paid', '0.00'),
                         fmt_val(net),         '100%',
-                        fmt_val(r.get('paid_amount', '0.00')),        pct_str(r.get('paid_amount'), net),
+                        fmt_val(r.get('paid_amount', '0.00')),        pct_str(str(float(r.get('paid_amount') or 0) + float(r.get('transport_paid') or 0)), net),
                         fmt_val(r.get('outstanding_amount', '0.00')), pct_str(r.get('outstanding_amount'), net),
                     ])
                     data_rows.append(row)
@@ -135,7 +141,7 @@ class PaymentsReportViewSet(viewsets.ViewSet):
                 headers = (
                     ['ADMISSION NO.', 'STUDENT NAME', 'CLASS', 'SECTION', 'CATEGORY', 'PARENT NAME', 'PARENT MOBILE']
                     + cat_headers
-                    + ['OLD DUES', 'CONCESSION',
+                    + ['OLD DUES', 'CONCESSION', 'TRANSPORT', 'TRANSPORT PAID',
                        'TOTAL AMOUNT', 'TOTAL %',
                        'AMOUNT PAID', 'PAID %',
                        'BALANCE', 'BALANCE %',
@@ -156,8 +162,10 @@ class PaymentsReportViewSet(viewsets.ViewSet):
                     row.extend([
                         r.get('old_dues', '0.00'),
                         r.get('concession_amount', '0.00'),
+                        r.get('transport_amount', '0.00'),
+                        r.get('transport_paid', '0.00'),
                         fmt_val(net),                                 '100%',
-                        fmt_val(r.get('paid_amount', '0.00')),        pct_str(r.get('paid_amount'), net),
+                        fmt_val(r.get('paid_amount', '0.00')),        pct_str(str(float(r.get('paid_amount') or 0) + float(r.get('transport_paid') or 0)), net),
                         fmt_val(r.get('outstanding_amount', '0.00')), pct_str(r.get('outstanding_amount'), net),
                         student_status_val,
                         inactive_reason_val,
@@ -186,13 +194,12 @@ class PaymentsReportViewSet(viewsets.ViewSet):
         # For student rows use standard pagination.
         if report_type in ('class', 'section'):
             return ReportPagination.get_unpaginated_response(
-                [self._serialize_row(r, report_type, categories) for r in rows],
+                serialized,
                 summary=summary,
                 footer_totals=self._footer(rows, categories),
             )
         else:
             paginator = ReportPagination()
-            serialized = [self._serialize_row(r, report_type, categories) for r in rows]
             page = paginator.paginate_queryset(serialized, request, view=self)
             return paginator.get_paginated_response(
                 page,
@@ -213,9 +220,11 @@ class PaymentsReportViewSet(viewsets.ViewSet):
         old_dues = Decimal(str(row.get('old_dues') or 0))
         concession = Decimal(str(row.get('concession_amount') or 0))
         paid = Decimal(str(row.get('paid_amount') or 0))
+        transport_amount = Decimal(str(row.get('transport_amount') or 0))
+        transport_paid = Decimal(str(row.get('transport_paid') or 0))
         
-        computed_net = cat_total + old_dues - concession
-        computed_outstanding = computed_net - paid
+        computed_net = cat_total + old_dues - concession + transport_amount
+        computed_outstanding = computed_net - (paid + transport_paid)
 
         base = {
             'net_amount': fmt(computed_net),
@@ -224,6 +233,8 @@ class PaymentsReportViewSet(viewsets.ViewSet):
             'concession_amount': fmt(concession),
             'gross_amount': fmt(row.get('gross_amount')),
             'old_dues': fmt(old_dues),
+            'transport_amount': fmt(transport_amount),
+            'transport_paid': fmt(transport_paid),
         }
 
         if report_type == 'class':
@@ -260,14 +271,16 @@ class PaymentsReportViewSet(viewsets.ViewSet):
             'concession_amount': str(sum(Decimal(str(r.get('concession_amount') or 0)) for r in rows)),
             'gross_amount': str(sum(Decimal(str(r.get('gross_amount') or 0)) for r in rows)),
             'old_dues': str(sum(Decimal(str(r.get('old_dues') or 0)) for r in rows)),
+            'transport_amount': str(sum(Decimal(str(r.get('transport_amount') or 0)) for r in rows)),
+            'transport_paid': str(sum(Decimal(str(r.get('transport_paid') or 0)) for r in rows)),
         }
         for cat in categories:
             safe_key = f'cat_{str(cat.id).replace("-", "_")}'
             result[safe_key] = str(sum(Decimal(str(r.get(safe_key) or 0)) for r in rows))
 
         cat_total = sum(Decimal(result[f'cat_{str(cat.id).replace("-", "_")}']) for cat in categories)
-        result['net_amount'] = str(cat_total + Decimal(result['old_dues']) - Decimal(result['concession_amount']))
-        result['outstanding_amount'] = str(Decimal(result['net_amount']) - Decimal(result['paid_amount']))
+        result['net_amount'] = str(cat_total + Decimal(result['old_dues']) - Decimal(result['concession_amount']) + Decimal(result['transport_amount']))
+        result['outstanding_amount'] = str(Decimal(result['net_amount']) - (Decimal(result['paid_amount']) + Decimal(result['transport_paid'])))
 
         return result
 

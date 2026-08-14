@@ -160,7 +160,9 @@ export default function FeeBalancesReportPage() {
         const ay = ayRes.data?.data ?? ayRes.data?.results ?? ayRes.data;
         setAcademicYears(Array.isArray(ay) ? ay : []);
         const cats = catRes.data?.data ?? catRes.data?.results ?? catRes.data;
-        const catList: FeeCategory[] = Array.isArray(cats) ? cats : [];
+        const catList: FeeCategory[] = (Array.isArray(cats) ? cats : []).filter(c => 
+          !c.name.toUpperCase().includes('TRANSPORT') && !c.name.toUpperCase().includes('ADMISSION')
+        );
         setFeeCategories(catList);
         setSelectedCategoryIds(catList.map((c: FeeCategory) => c.id));
       } catch {
@@ -210,8 +212,10 @@ export default function FeeBalancesReportPage() {
     for (const cat of cats) {
       cols.push({ key: `cat_${cat.id.replace(/-/g, '_')}`, label: cat.name, numeric: true });
     }
-    cols.push({ key: 'net_amount', label: 'Total Amount', numeric: true });
     cols.push({ key: 'concession_amount', label: 'Concession', numeric: true });
+    cols.push({ key: 'transport_amount', label: 'Transport', numeric: true });
+    cols.push({ key: 'transport_paid', label: 'Transport Paid', numeric: true });
+    cols.push({ key: 'net_amount', label: 'Total Amount', numeric: true });
     cols.push({ key: 'paid_amount', label: 'Amount Paid', numeric: true });
     cols.push({ key: 'outstanding_amount', label: 'Balance', numeric: true });
     if (rt === 'student') {
@@ -539,7 +543,7 @@ function FeeBalanceTable({ columns, data, loading, footerTotals, pagination, onP
     const v = row[col.key];
     if (col.numeric) {
       const pctSuffix = col.key === 'net_amount' ? '(100%)'
-        : col.key === 'paid_amount' ? `(${pctStr(row.paid_amount, row.net_amount)}%)`
+        : col.key === 'paid_amount' ? `(${pctStr(parseFloat(row.paid_amount || '0') + parseFloat(row.transport_paid || '0'), row.net_amount)}%)`
         : col.key === 'outstanding_amount' ? `(${pctStr(row.outstanding_amount, row.net_amount)}%)`
         : null;
       return (

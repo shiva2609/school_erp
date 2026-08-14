@@ -215,6 +215,8 @@ export default function FeeBalancesReportPage() {
     }
     cols.push({ key: 'old_dues', label: 'Old Dues', numeric: true });
     cols.push({ key: 'concession_amount', label: 'Concession', numeric: true });
+    cols.push({ key: 'transport_amount', label: 'Transport', numeric: true });
+    cols.push({ key: 'transport_paid', label: 'Transport Paid', numeric: true });
     cols.push({ key: 'net_amount', label: 'Total Amount', numeric: true });
     cols.push({ key: 'paid_amount', label: 'Amount Paid', numeric: true });
     cols.push({ key: 'outstanding_amount', label: 'Balance', numeric: true });
@@ -556,7 +558,7 @@ function FeeBalanceTable({ columns, data, loading, footerTotals, pagination, onP
     const v = row[col.key];
     if (col.numeric) {
       const pctSuffix = col.key === 'net_amount' ? '(100%)'
-        : col.key === 'paid_amount' ? `(${pctStr(row.paid_amount, row.net_amount)}%)`
+        : col.key === 'paid_amount' ? `(${pctStr(parseFloat(row.paid_amount || '0') + parseFloat(row.transport_paid || '0'), row.net_amount)}%)`
         : col.key === 'outstanding_amount' ? `(${pctStr(row.outstanding_amount, row.net_amount)}%)`
         : null;
       return (

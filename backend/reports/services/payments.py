@@ -96,6 +96,8 @@ class PaymentsService:
                     'concession_amount': row.get('concession_amount', Decimal('0')),
                     'paid_amount': row.get('paid_amount', Decimal('0')),
                     'outstanding_amount': row.get('outstanding_amount', Decimal('0')),
+                    'transport_amount': Decimal('0'),
+                    'transport_paid': Decimal('0'),
                 }
                 new_row['old_dues'] = Decimal('0')
                 rows.append(new_row)
@@ -138,7 +140,9 @@ class PaymentsService:
                         'concession_amount': Decimal('0'),
                         'paid_amount': Decimal('0'),
                         'outstanding_amount': Decimal('0'),
-                        'old_dues': Decimal('0')
+                        'old_dues': Decimal('0'),
+                        'transport_amount': Decimal('0'),
+                        'transport_paid': Decimal('0'),
                     }
                     rows_dict[k] = new_r
                     rows.append(new_r)
@@ -146,6 +150,52 @@ class PaymentsService:
                 rows_dict[k]['old_dues'] += row['old_dues']
                 rows_dict[k]['paid_amount'] += row['cf_paid']
                 rows_dict[k]['outstanding_amount'] += (row['old_dues'] - row['cf_paid'] - row['cf_written_off'])
+
+            # ── 1.7 Aggregate Transport Invoices ──────────────────────────────
+            from fees.models import FeeInvoice as FeeInvoiceModel
+            trn_qs = FeeInvoiceModel.objects.filter(
+                invoice_number__startswith='TRN-'
+            ).exclude(status='CANCELLED')
+            trn_qs = BaseReportService.apply_branch_scope(trn_qs, filters)
+            if hasattr(filters, 'academic_year_id') and filters.academic_year_id:
+                trn_qs = BaseReportService.apply_academic_year(trn_qs, filters.academic_year_id)
+            if filters.class_id:
+                trn_qs = trn_qs.filter(student__class_section__grade=filters.class_id)
+            if filters.section_id:
+                trn_qs = trn_qs.filter(student__class_section_id=filters.section_id)
+            if student_status and student_status != 'ALL':
+                trn_qs = trn_qs.filter(student__status=student_status)
+
+            trn_ann = {
+                'transport_amount': Coalesce(Sum('net_amount'), Value(Decimal('0')), output_field=DecimalField()),
+                'transport_paid': Coalesce(Sum('paid_amount'), Value(Decimal('0')), output_field=DecimalField()),
+            }
+            trn_totals = list(trn_qs.values(*group_fields).annotate(**trn_ann))
+
+            for row in trn_totals:
+                grade = row.get('student__class_section__grade')
+                section = row.get('student__class_section__section')
+                k = (grade, section) if report_type == 'section' else grade
+
+                if k not in rows_dict:
+                    new_r = {
+                        'class_section__grade': grade,
+                        'class_section__section': section,
+                        'total_students': 0,
+                        'gross_amount': Decimal('0'),
+                        'net_amount': Decimal('0'),
+                        'concession_amount': Decimal('0'),
+                        'paid_amount': Decimal('0'),
+                        'outstanding_amount': Decimal('0'),
+                        'old_dues': Decimal('0'),
+                        'transport_amount': Decimal('0'),
+                        'transport_paid': Decimal('0'),
+                    }
+                    rows_dict[k] = new_r
+                    rows.append(new_r)
+                
+                rows_dict[k]['transport_amount'] += row['transport_amount']
+                rows_dict[k]['transport_paid'] += row['transport_paid']
 
             # ── 2. Aggregate item-level totals (per category) ──────────────────
             categories = []
@@ -175,17 +225,30 @@ class PaymentsService:
                                 break
                         row[safe_key] = cat_total
 
-            # Apply min/max amount filter on paid_amount
+            # Apply min/max amount filter on paid_amount (including transport)
             if min_amount is not None or max_amount is not None:
                 filtered_rows = []
                 for row in rows:
-                    if by_percentage:
-                        net = row.get('net_amount') or Decimal('0')
-                        paid = row.get('paid_amount') or Decimal('0')
-                        pct = (paid / net * 100) if net else Decimal('0')
-                        val = pct
+                    cat_total = Decimal('0')
+                    if categories:
+                        cat_total = sum(Decimal(str(row.get(f'cat_{str(cat.id).replace("-", "_")}') or 0)) for cat in categories)
                     else:
-                        val = row.get('paid_amount') or Decimal('0')
+                        cat_total = row.get('net_amount') or Decimal('0')
+                        
+                    old_dues = row.get('old_dues') or Decimal('0')
+                    concession = row.get('concession_amount') or Decimal('0')
+                    paid = row.get('paid_amount') or Decimal('0')
+                    transport_amount = row.get('transport_amount') or Decimal('0')
+                    transport_paid = row.get('transport_paid') or Decimal('0')
+                    
+                    actual_net = cat_total + old_dues - concession + transport_amount
+                    actual_paid = paid + transport_paid
+                    
+                    if by_percentage:
+                        val = (actual_paid / actual_net * 100) if actual_net else Decimal('0')
+                    else:
+                        val = actual_paid
+                        
                     if min_amount is not None and val < Decimal(str(min_amount)):
                         continue
                     if max_amount is not None and val > Decimal(str(max_amount)):
@@ -245,35 +308,19 @@ class PaymentsService:
                         )
                     })
 
-            # Apply min/max paid_amount filter
-            if min_amount is not None and not by_percentage:
-                qs = qs.filter(paid_amount__gte=Decimal(str(min_amount)))
-            if max_amount is not None and not by_percentage:
-                qs = qs.filter(paid_amount__lte=Decimal(str(max_amount)))
+            # Apply min/max paid_amount filter logic has been moved to Python filtering below.
 
             qs = qs.order_by('student__class_section__grade', 'student__class_section__section', 'student__first_name')
 
-            if by_percentage and (min_amount is not None or max_amount is not None):
-                # Post-filter for percentage
-                raw = list(qs.values(
-                    'id', 'invoice_number', 'status', 'student_id',
-                    'student__admission_number', 'student__first_name', 'student__last_name',
-                    'student__class_section__grade', 'student__class_section__section',
-                    'student__caste_category', 'student__father_name', 'student__father_phone',
-                    'student__leaving_reason', 'student__status',
-                    'gross_amount', 'net_amount', 'concession_amount', 'paid_amount', 'outstanding_amount', 'due_date',
-                    *([f'cat_{str(c.id).replace("-", "_")}' for c in categories] if categories else []),
-                ))
-            else:
-                raw = list(qs.values(
-                    'id', 'invoice_number', 'status', 'student_id',
-                    'student__admission_number', 'student__first_name', 'student__last_name',
-                    'student__class_section__grade', 'student__class_section__section',
-                    'student__caste_category', 'student__father_name', 'student__father_phone',
-                    'student__leaving_reason', 'student__status',
-                    'gross_amount', 'net_amount', 'concession_amount', 'paid_amount', 'outstanding_amount', 'due_date',
-                    *([f'cat_{str(c.id).replace("-", "_")}' for c in categories] if categories else []),
-                ))
+            raw = list(qs.values(
+                'id', 'invoice_number', 'status', 'student_id',
+                'student__admission_number', 'student__first_name', 'student__last_name',
+                'student__class_section__grade', 'student__class_section__section',
+                'student__caste_category', 'student__father_name', 'student__father_phone',
+                'student__leaving_reason', 'student__status',
+                'gross_amount', 'net_amount', 'concession_amount', 'paid_amount', 'outstanding_amount', 'due_date',
+                *([f'cat_{str(c.id).replace("-", "_")}' for c in categories] if categories else []),
+            ))
 
             # ── 2.5 Aggregate FeeCarryForward for Student Level ────────────────
             from fees.models import FeeCarryForward
@@ -302,6 +349,8 @@ class PaymentsService:
             raw_dict = {}
             for r in raw:
                 r['old_dues'] = Decimal('0')
+                r['transport_amount'] = Decimal('0')
+                r['transport_paid'] = Decimal('0')
                 raw_dict[r['student_id']] = r
             
             for row in cf_totals:
@@ -325,6 +374,8 @@ class PaymentsService:
                         'paid_amount': Decimal('0'),
                         'outstanding_amount': Decimal('0'),
                         'old_dues': Decimal('0'),
+                        'transport_amount': Decimal('0'),
+                        'transport_paid': Decimal('0'),
                         'due_date': None,
                     }
                     raw_dict[sid] = new_r
@@ -334,15 +385,90 @@ class PaymentsService:
                 raw_dict[sid]['paid_amount'] += row['cf_paid']
                 raw_dict[sid]['outstanding_amount'] += (row['old_dues'] - row['cf_paid'] - row['cf_written_off'])
 
-            if by_percentage and (min_amount is not None or max_amount is not None):
+            # ── 2.7 Aggregate Transport Invoices for Student Level ──────────────
+            from fees.models import FeeInvoice as FeeInvoiceModel
+            trn_qs = FeeInvoiceModel.objects.filter(
+                invoice_number__startswith='TRN-'
+            ).exclude(status='CANCELLED')
+            trn_qs = BaseReportService.apply_branch_scope(trn_qs, filters)
+            if hasattr(filters, 'academic_year_id') and filters.academic_year_id:
+                trn_qs = BaseReportService.apply_academic_year(trn_qs, filters.academic_year_id)
+            if filters.class_id:
+                trn_qs = trn_qs.filter(student__class_section__grade=filters.class_id)
+            if filters.section_id:
+                trn_qs = trn_qs.filter(student__class_section_id=filters.section_id)
+            if student_status and student_status != 'ALL':
+                trn_qs = trn_qs.filter(student__status=student_status)
+
+            trn_ann = {
+                'transport_amount': Coalesce(Sum('net_amount'), Value(Decimal('0')), output_field=DecimalField()),
+                'transport_paid': Coalesce(Sum('paid_amount'), Value(Decimal('0')), output_field=DecimalField()),
+            }
+            trn_totals = list(trn_qs.values(
+                'student_id',
+                'student__admission_number', 'student__first_name', 'student__last_name',
+                'student__class_section__grade', 'student__class_section__section',
+                'student__caste_category', 'student__father_name', 'student__father_phone',
+                'student__leaving_reason', 'student__status',
+            ).annotate(**trn_ann))
+
+            for row in trn_totals:
+                sid = row['student_id']
+                if sid not in raw_dict:
+                    new_r = {
+                        'id': None, 'invoice_number': '', 'status': 'ACTIVE', 'student_id': sid,
+                        'student__admission_number': row['student__admission_number'],
+                        'student__first_name': row['student__first_name'],
+                        'student__last_name': row['student__last_name'],
+                        'student__class_section__grade': row['student__class_section__grade'],
+                        'student__class_section__section': row['student__class_section__section'],
+                        'student__caste_category': row['student__caste_category'],
+                        'student__father_name': row['student__father_name'],
+                        'student__father_phone': row['student__father_phone'],
+                        'student__leaving_reason': row['student__leaving_reason'],
+                        'student__status': row['student__status'],
+                        'gross_amount': Decimal('0'),
+                        'net_amount': Decimal('0'),
+                        'concession_amount': Decimal('0'),
+                        'paid_amount': Decimal('0'),
+                        'outstanding_amount': Decimal('0'),
+                        'old_dues': Decimal('0'),
+                        'transport_amount': Decimal('0'),
+                        'transport_paid': Decimal('0'),
+                        'due_date': None,
+                    }
+                    raw_dict[sid] = new_r
+                    raw.append(new_r)
+
+                raw_dict[sid]['transport_amount'] += row['transport_amount']
+                raw_dict[sid]['transport_paid'] += row['transport_paid']
+
+            if min_amount is not None or max_amount is not None:
                 filtered_rows = []
                 for row in raw:
-                    net = row.get('net_amount') or Decimal('0')
+                    cat_total = Decimal('0')
+                    if categories:
+                        cat_total = sum(Decimal(str(row.get(f'cat_{str(cat.id).replace("-", "_")}') or 0)) for cat in categories)
+                    else:
+                        cat_total = row.get('net_amount') or Decimal('0')
+                        
+                    old_dues = row.get('old_dues') or Decimal('0')
+                    concession = row.get('concession_amount') or Decimal('0')
                     paid = row.get('paid_amount') or Decimal('0')
-                    pct = (paid / net * 100) if net else Decimal('0')
-                    if min_amount is not None and pct < Decimal(str(min_amount)):
+                    transport_amount = row.get('transport_amount') or Decimal('0')
+                    transport_paid = row.get('transport_paid') or Decimal('0')
+                    
+                    actual_net = cat_total + old_dues - concession + transport_amount
+                    actual_paid = paid + transport_paid
+                    
+                    if by_percentage:
+                        val = (actual_paid / actual_net * 100) if actual_net else Decimal('0')
+                    else:
+                        val = actual_paid
+                        
+                    if min_amount is not None and val < Decimal(str(min_amount)):
                         continue
-                    if max_amount is not None and pct > Decimal(str(max_amount)):
+                    if max_amount is not None and val > Decimal(str(max_amount)):
                         continue
                     filtered_rows.append(row)
                 return filtered_rows, fee_category_ids, categories
