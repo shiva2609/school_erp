@@ -415,38 +415,39 @@ def _validate_photo(photo_file):
 def _compress_and_upload_photo(photo_file, s3_key):
     """
     Compress the photo to max 800x800 and upload to S3.
-    Returns the S3 key on success, None on failure.
+    Returns (s3_key, None) on success, or (None, error_msg) on failure.
     """
     try:
-        from PIL import Image
+        try:
+            from PIL import Image
+            img = Image.open(photo_file)
 
-        img = Image.open(photo_file)
+            # Convert RGBA/palette to RGB for JPEG
+            if img.mode in ('RGBA', 'P', 'LA'):
+                img = img.convert('RGB')
 
-        # Convert RGBA/palette to RGB for JPEG
-        if img.mode in ('RGBA', 'P', 'LA'):
-            img = img.convert('RGB')
+            # Resize if larger than max dimension
+            if img.width > MAX_PHOTO_DIMENSION or img.height > MAX_PHOTO_DIMENSION:
+                img.thumbnail((MAX_PHOTO_DIMENSION, MAX_PHOTO_DIMENSION), Image.LANCZOS)
 
-        # Resize if larger than max dimension
-        if img.width > MAX_PHOTO_DIMENSION or img.height > MAX_PHOTO_DIMENSION:
-            img.thumbnail((MAX_PHOTO_DIMENSION, MAX_PHOTO_DIMENSION), Image.LANCZOS)
+            # Save to buffer as JPEG
+            buffer = io.BytesIO()
+            img.save(buffer, format='JPEG', quality=80, optimize=True)
+            buffer.seek(0)
+            
+            from django.core.files.base import ContentFile
+            photo_to_save = ContentFile(buffer.read())
+        except ImportError:
+            # Pillow not installed — upload raw file
+            photo_to_save = photo_file
 
-        # Save to buffer as JPEG
-        buffer = io.BytesIO()
-        img.save(buffer, format='JPEG', quality=80, optimize=True)
-        buffer.seek(0)
-
-        # Upload to S3
         from django.core.files.storage import default_storage
-        saved_path = default_storage.save(s3_key, buffer)
-        return saved_path
+        saved_path = default_storage.save(s3_key, photo_to_save)
+        return saved_path, None
 
-    except ImportError:
-        # Pillow not installed — upload raw file
-        from django.core.files.storage import default_storage
-        saved_path = default_storage.save(s3_key, photo_file)
-        return saved_path
-    except Exception:
-        return None
+    except Exception as e:
+        import traceback
+        return None, f"Storage error: {str(e)} | {traceback.format_exc()}"
 
 
 @api_view(['POST'])
@@ -530,10 +531,10 @@ def mark_attendance(request):
             f"attendance_photos/{txn.tenant_id}/{txn.branch_id}/"
             f"{today.isoformat()}/{staff.employee_id}_{action.lower()}_{timestamp_str}.jpg"
         )
-        saved_key = _compress_and_upload_photo(photo, s3_key)
+        saved_key, storage_error = _compress_and_upload_photo(photo, s3_key)
         if not saved_key:
             return Response(
-                {'error': 'Failed to process photo. Please try again.'},
+                {'error': f'Failed to process photo: {storage_error or "Unknown error"}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
