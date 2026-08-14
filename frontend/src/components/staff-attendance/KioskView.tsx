@@ -184,71 +184,73 @@ export default function KioskView() {
   };
 
   if (loading) {
-    return <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto" />;
+    return <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin text-blue-500 mx-auto" />;
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto flex items-center justify-center min-h-[90vh]">
-      <div className="w-full bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col min-h-[700px]">
+    <div className="w-full max-w-4xl mx-auto flex items-center justify-center py-2 sm:py-6">
+      <div className="w-full bg-white/95 backdrop-blur-xl rounded-2xl sm:rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col min-h-auto md:min-h-[620px]">
         {/* Header */}
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 text-white flex justify-between items-center shrink-0">
-          <div className="flex items-center gap-5">
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-4 sm:p-6 text-white flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0 pr-2">
             {deviceInfo?.tenant_logo && (
-              <div className="w-14 h-14 bg-white/10 p-2 rounded-2xl backdrop-blur-md border border-white/20 flex items-center justify-center">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/10 p-1.5 rounded-xl sm:rounded-2xl backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={deviceInfo.tenant_logo} alt="Logo" className="w-full h-full object-contain" />
               </div>
             )}
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">{deviceInfo?.tenant_name || 'School ERP'}</h1>
-              <p className="text-slate-300 font-medium mt-1 tracking-wide opacity-90">
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl md:text-2xl font-bold tracking-tight truncate leading-snug">
+                {deviceInfo?.tenant_name || 'School ERP'}
+              </h1>
+              <p className="text-slate-300 font-medium text-xs sm:text-sm tracking-wide opacity-90 truncate">
                 Staff Attendance Device • {deviceInfo?.branch_name}
               </p>
             </div>
           </div>
           <button 
             onClick={handleLogout} 
-            className="p-3 hover:bg-white/10 rounded-2xl transition-all duration-200 text-slate-300 hover:text-white"
+            className="p-2 sm:p-2.5 hover:bg-white/10 rounded-xl sm:rounded-2xl transition-all duration-200 text-slate-300 hover:text-white shrink-0"
             title="Logout Device"
           >
-            <LogOut className="w-6 h-6" />
+            <LogOut className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gradient-to-b from-slate-50 to-white relative">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 bg-gradient-to-b from-slate-50 to-white relative">
           
           {kioskState === 'READY' && (
-            <div className="w-full max-w-md animate-in fade-in zoom-in duration-500 flex flex-col items-center">
-              <div className="w-32 h-32 bg-blue-50 rounded-full flex items-center justify-center mb-8 shadow-inner">
-                <QrCode className="w-16 h-16 text-blue-600" />
+            <div className="w-full max-w-sm sm:max-w-md animate-in fade-in zoom-in duration-300 flex flex-col items-center py-4 sm:py-6">
+              <div className="w-20 h-20 sm:w-28 sm:h-28 bg-blue-50 rounded-full flex items-center justify-center mb-4 sm:mb-6 shadow-inner">
+                <QrCode className="w-10 h-10 sm:w-14 sm:h-14 text-blue-600" />
               </div>
               
-              <h2 className="text-3xl font-bold text-slate-900 mb-3 tracking-tight">Ready to Scan</h2>
-              <p className="text-slate-500 text-center mb-10 text-lg">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-900 mb-2 tracking-tight">Ready to Scan</h2>
+              <p className="text-slate-500 text-center mb-6 sm:mb-8 text-sm sm:text-base max-w-xs sm:max-w-sm">
                 Open "My Attendance" on your phone to generate your personal QR code.
               </p>
 
               <button
                 onClick={() => setKioskState('SCANNING')}
-                className="group relative inline-flex items-center justify-center gap-3 w-full bg-blue-600 text-white px-8 py-5 rounded-2xl text-xl font-semibold shadow-xl shadow-blue-600/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 overflow-hidden"
+                className="group relative inline-flex items-center justify-center gap-2.5 sm:gap-3 w-full bg-blue-600 text-white px-6 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-base sm:text-lg font-semibold shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 overflow-hidden"
               >
                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-                <QrCode className="w-6 h-6 relative z-10" />
+                <QrCode className="w-5 h-5 sm:w-6 sm:h-6 relative z-10" />
                 <span className="relative z-10">Scan QR Code</span>
               </button>
 
-              <div className="mt-12 bg-white px-8 py-5 rounded-2xl border border-slate-100 shadow-sm w-full">
-                <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider text-center mb-4">Today's Overview</p>
+              <div className="mt-6 sm:mt-8 bg-white px-4 py-3.5 sm:px-6 sm:py-4 rounded-xl sm:rounded-2xl border border-slate-100 shadow-sm w-full">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider text-center mb-3">Today's Overview</p>
                 <div className="flex justify-around items-center">
                   <div className="text-center">
-                    <span className="block text-3xl font-bold text-slate-800">{deviceInfo?.stats.checked_in}</span>
-                    <span className="text-sm font-medium text-slate-500">Checked In</span>
+                    <span className="block text-xl sm:text-2xl md:text-3xl font-bold text-slate-800">{deviceInfo?.stats.checked_in ?? 0}</span>
+                    <span className="text-xs sm:text-sm font-medium text-slate-500">Checked In</span>
                   </div>
-                  <div className="w-px h-12 bg-slate-200" />
+                  <div className="w-px h-8 sm:h-10 bg-slate-200" />
                   <div className="text-center">
-                    <span className="block text-3xl font-bold text-slate-800">{deviceInfo?.stats.checked_out}</span>
-                    <span className="text-sm font-medium text-slate-500">Checked Out</span>
+                    <span className="block text-xl sm:text-2xl md:text-3xl font-bold text-slate-800">{deviceInfo?.stats.checked_out ?? 0}</span>
+                    <span className="text-xs sm:text-sm font-medium text-slate-500">Checked Out</span>
                   </div>
                 </div>
               </div>
@@ -256,94 +258,94 @@ export default function KioskView() {
           )}
 
           {kioskState === 'SCANNING' && (
-            <div className="w-full max-w-lg animate-in slide-in-from-bottom-8 duration-300">
+            <div className="w-full max-w-sm sm:max-w-lg animate-in slide-in-from-bottom-6 duration-300 py-2 sm:py-4">
               <button 
                 onClick={resetKiosk}
-                className="mb-6 flex items-center gap-2 text-slate-500 hover:text-slate-800 font-medium transition-colors"
+                className="mb-3 sm:mb-4 flex items-center gap-1.5 text-slate-500 hover:text-slate-800 text-sm sm:text-base font-medium transition-colors"
               >
-                <ChevronLeft className="w-5 h-5" /> Back
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" /> Back
               </button>
               
-              <div className="bg-white p-2 rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden">
-                <div id="reader" className="w-full rounded-3xl overflow-hidden [&>div]:border-none"></div>
+              <div className="bg-white p-2 rounded-2xl sm:rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
+                <div id="reader" className="w-full rounded-xl sm:rounded-3xl overflow-hidden [&>div]:border-none"></div>
               </div>
-              <p className="text-center text-slate-500 mt-6 font-medium animate-pulse">Position QR code within the frame</p>
+              <p className="text-center text-slate-500 mt-4 text-xs sm:text-sm font-medium animate-pulse">Position QR code within the frame</p>
             </div>
           )}
 
           {kioskState === 'CONFIRMING' && validationData && (
-            <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8 animate-in slide-in-from-right-8 duration-500">
+            <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 animate-in slide-in-from-right-6 duration-300 py-2">
               {/* Employee Details Panel */}
-              <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 p-8 flex flex-col">
-                <div className="inline-flex items-center px-4 py-2 rounded-full bg-blue-50 text-blue-700 font-bold text-sm tracking-wide uppercase self-start mb-8 border border-blue-100">
+              <div className="bg-white rounded-2xl sm:rounded-[2rem] shadow-md border border-slate-100 p-4 sm:p-6 flex flex-col">
+                <div className="inline-flex items-center px-3 py-1 sm:px-4 sm:py-1.5 rounded-full bg-blue-50 text-blue-700 font-bold text-xs sm:text-sm tracking-wide uppercase self-start mb-4 sm:mb-6 border border-blue-100">
                   {validationData.action === 'CHECK_IN' ? 'Check In Request' : 'Check Out Request'}
                 </div>
                 
-                <div className="flex-1 flex flex-col justify-center">
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center shrink-0">
-                      <User className="w-6 h-6 text-slate-500" />
+                <div className="flex-1 flex flex-col justify-center space-y-4 sm:space-y-5">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-100 rounded-full flex items-center justify-center shrink-0">
+                      <User className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500" />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-500">Employee Name</p>
-                      <h2 className="text-2xl font-bold text-slate-900">{validationData.staff_name}</h2>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-slate-500">Employee Name</p>
+                      <h2 className="text-base sm:text-xl font-bold text-slate-900 truncate">{validationData.staff_name}</h2>
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center shrink-0">
-                      <QrCode className="w-6 h-6 text-slate-500" />
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-100 rounded-full flex items-center justify-center shrink-0">
+                      <QrCode className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500" />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-500">Employee ID</p>
-                      <p className="text-xl font-semibold text-slate-800">{validationData.employee_id}</p>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-slate-500">Employee ID</p>
+                      <p className="text-sm sm:text-base font-semibold text-slate-800 truncate">{validationData.employee_id}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center shrink-0">
-                      <Briefcase className="w-6 h-6 text-slate-500" />
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-100 rounded-full flex items-center justify-center shrink-0">
+                      <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500" />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-500">Designation</p>
-                      <p className="text-xl font-semibold text-slate-800">{validationData.designation}</p>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-slate-500">Designation</p>
+                      <p className="text-sm sm:text-base font-semibold text-slate-800 truncate">{validationData.designation || 'Staff'}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Camera & Actions Panel */}
-              <div className="flex flex-col gap-6">
-                <div className="bg-black rounded-[2rem] overflow-hidden relative aspect-[4/3] shadow-xl ring-4 ring-slate-900/5">
+              <div className="flex flex-col gap-4">
+                <div className="bg-black rounded-2xl sm:rounded-[2rem] overflow-hidden relative aspect-video md:aspect-[4/3] shadow-lg ring-2 sm:ring-4 ring-slate-900/5">
                   <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                   <canvas ref={canvasRef} className="hidden" />
                   
                   {/* Overlay instructions */}
-                  <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-                    <p className="text-white font-medium text-center text-lg shadow-sm">
+                  <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 bg-gradient-to-t from-black/80 to-transparent">
+                    <p className="text-white font-medium text-center text-xs sm:text-sm">
                       Please look at the camera to verify your identity.
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <button 
                     onClick={resetKiosk}
                     disabled={isSubmitting}
-                    className="py-5 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-lg hover:bg-slate-50 hover:border-slate-300 transition-all focus:ring-4 focus:ring-slate-100"
+                    className="py-3 sm:py-3.5 bg-white border border-slate-200 text-slate-700 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base hover:bg-slate-50 hover:border-slate-300 transition-all focus:ring-2 focus:ring-slate-100"
                   >
                     Decline
                   </button>
                   <button 
                     onClick={captureAndSubmit}
                     disabled={isSubmitting}
-                    className="py-5 bg-blue-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-blue-600/30 hover:bg-blue-700 transition-all focus:ring-4 focus:ring-blue-600/20 flex justify-center items-center gap-3 hover:scale-[1.02] active:scale-[0.98]"
+                    className="py-3 sm:py-3.5 bg-blue-600 text-white rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base shadow-md shadow-blue-600/30 hover:bg-blue-700 transition-all focus:ring-2 focus:ring-blue-600/20 flex justify-center items-center gap-2 hover:scale-[1.01] active:scale-[0.99]"
                   >
                     {isSubmitting ? (
-                      <Loader2 className="w-6 h-6 animate-spin" />
+                      <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
-                        Proceed <CheckCircle className="w-6 h-6" />
+                        Proceed <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                       </>
                     )}
                   </button>
@@ -353,15 +355,15 @@ export default function KioskView() {
           )}
 
           {kioskState === 'SUCCESS' && (
-            <div className="text-center animate-in zoom-in duration-500 flex flex-col items-center max-w-md">
-              <div className="w-32 h-32 bg-green-50 rounded-full flex items-center justify-center mb-8 relative">
+            <div className="text-center animate-in zoom-in duration-300 flex flex-col items-center max-w-sm py-6">
+              <div className="w-20 h-20 sm:w-28 sm:h-28 bg-green-50 rounded-full flex items-center justify-center mb-4 sm:mb-6 relative">
                 <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-20"></div>
-                <CheckCircle className="w-16 h-16 text-green-500 relative z-10" />
+                <CheckCircle className="w-10 h-10 sm:w-14 sm:h-14 text-green-500 relative z-10" />
               </div>
-              <h2 className="text-4xl font-bold text-slate-900 mb-4 tracking-tight">Success!</h2>
-              <p className="text-xl text-slate-600 font-medium">
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 tracking-tight">Success!</h2>
+              <p className="text-sm sm:text-base text-slate-600 font-medium">
                 {validationData?.action === 'CHECK_IN' ? 'Check-in' : 'Check-out'} recorded for <br/>
-                <span className="text-slate-900 font-bold mt-2 inline-block">{validationData?.staff_name}</span>
+                <span className="text-slate-900 font-bold mt-1 inline-block">{validationData?.staff_name}</span>
               </p>
             </div>
           )}
