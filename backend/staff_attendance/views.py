@@ -463,140 +463,151 @@ def mark_attendance(request):
     
     Creates/updates the StaffAttendance record with server timestamp.
     """
-    device_user = request.user
-    now = timezone.now()
-    today = timezone.localdate()
+    try:
+        device_user = request.user
+        now = timezone.now()
+        today = timezone.localdate()
 
-    # Parse request
-    transaction_id = request.data.get('transaction_id')
-    action = request.data.get('action')
-    photo = request.FILES.get('photo')
+        # Parse request
+        transaction_id = request.data.get('transaction_id')
+        action = request.data.get('action')
+        photo = request.FILES.get('photo')
 
-    # Validate required fields
-    if not transaction_id:
-        return Response({'error': 'transaction_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
-    if action not in ('CHECK_IN', 'CHECK_OUT'):
-        return Response({'error': 'action must be CHECK_IN or CHECK_OUT.'}, status=status.HTTP_400_BAD_REQUEST)
-    if not photo:
-        return Response({'error': 'photo is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Validate required fields
+        if not transaction_id:
+            return Response({'error': 'transaction_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if action not in ('CHECK_IN', 'CHECK_OUT'):
+            return Response({'error': 'action must be CHECK_IN or CHECK_OUT.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not photo:
+            return Response({'error': 'photo is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Validate photo
-    is_valid, error_msg = _validate_photo(photo)
-    if not is_valid:
-        return Response({'error': error_msg}, status=status.HTTP_400_BAD_REQUEST)
+        # Validate photo
+        is_valid, error_msg = _validate_photo(photo)
+        if not is_valid:
+            return Response({'error': error_msg}, status=status.HTTP_400_BAD_REQUEST)
 
-    with transaction.atomic():
-        # Fetch and lock the transaction
-        try:
-            txn = (
-                StaffAttendanceTransaction.objects
-                .select_for_update()
-                .get(id=transaction_id, status='VALIDATED', validated_by_device=device_user)
-            )
-        except StaffAttendanceTransaction.DoesNotExist:
-            return Response(
-                {'error': 'Invalid or expired transaction. Please scan QR again.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        staff = txn.staff
-
-        # Server-side re-validation of attendance state
-        attendance = StaffAttendance.objects.filter(
-            staff=staff,
-            date=today,
-        ).select_for_update().first()
-
-        if action == 'CHECK_IN':
-            if attendance and attendance.check_in_at:
+        with transaction.atomic():
+            # Fetch and lock the transaction
+            try:
+                txn = (
+                    StaffAttendanceTransaction.objects
+                    .select_for_update()
+                    .get(id=transaction_id, status='VALIDATED', validated_by_device=device_user)
+                )
+            except StaffAttendanceTransaction.DoesNotExist:
                 return Response(
-                    {'error': 'Already checked in today.'},
-                    status=status.HTTP_409_CONFLICT,
+                    {'error': 'Invalid or expired transaction. Please scan QR again.'},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-        elif action == 'CHECK_OUT':
-            if not attendance or not attendance.check_in_at:
+            except Exception as txn_err:
                 return Response(
-                    {'error': 'Must check in before checking out.'},
-                    status=status.HTTP_409_CONFLICT,
-                )
-            if attendance.check_out_at:
-                return Response(
-                    {'error': 'Already checked out today.'},
-                    status=status.HTTP_409_CONFLICT,
+                    {'error': f'Transaction lookup error: {str(txn_err)}'},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        # Upload photo to S3
-        timestamp_str = now.strftime('%Y%m%d_%H%M%S')
-        s3_key = (
-            f"attendance_photos/{txn.tenant_id}/{txn.branch_id}/"
-            f"{today.isoformat()}/{staff.employee_id}_{action.lower()}_{timestamp_str}.jpg"
-        )
-        saved_key, storage_error = _compress_and_upload_photo(photo, s3_key)
-        if not saved_key:
-            return Response(
-                {'error': f'Failed to process photo: {storage_error or "Unknown error"}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            staff = txn.staff
+
+            # Server-side re-validation of attendance state
+            attendance = StaffAttendance.objects.filter(
+                staff=staff,
+                date=today,
+            ).select_for_update().first()
+
+            if action == 'CHECK_IN':
+                if attendance and attendance.check_in_at:
+                    return Response(
+                        {'error': 'Already checked in today.'},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+            elif action == 'CHECK_OUT':
+                if not attendance or not attendance.check_in_at:
+                    return Response(
+                        {'error': 'Must check in before checking out.'},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                if attendance.check_out_at:
+                    return Response(
+                        {'error': 'Already checked out today.'},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+
+            # Upload photo to S3
+            timestamp_str = now.strftime('%Y%m%d_%H%M%S')
+            s3_key = (
+                f"attendance_photos/{txn.tenant_id}/{txn.branch_id}/"
+                f"{today.isoformat()}/{staff.employee_id}_{action.lower()}_{timestamp_str}.jpg"
             )
-
-        # Create or update attendance record
-        if action == 'CHECK_IN':
-            if not attendance:
-                attendance = StaffAttendance.objects.create(
-                    tenant=txn.tenant,
-                    staff=staff,
-                    branch=txn.branch,
-                    date=today,
-                    check_in_at=now,
-                    check_in_photo=saved_key,
-                    check_in_device=device_user,
-                    check_in_transaction=txn,
-                    status='CHECKED_IN',
-                    source='QR_DEVICE',
+            saved_key, storage_error = _compress_and_upload_photo(photo, s3_key)
+            if not saved_key:
+                return Response(
+                    {'error': f'Failed to process photo: {storage_error or "Unknown error"}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
-            else:
-                attendance.check_in_at = now
-                attendance.check_in_photo = saved_key
-                attendance.check_in_device = device_user
-                attendance.check_in_transaction = txn
-                attendance.status = 'CHECKED_IN'
-                attendance.source = 'QR_DEVICE'
+
+            # Create or update attendance record
+            if action == 'CHECK_IN':
+                if not attendance:
+                    attendance = StaffAttendance.objects.create(
+                        tenant=txn.tenant,
+                        staff=staff,
+                        branch=txn.branch,
+                        date=today,
+                        check_in_at=now,
+                        check_in_photo=saved_key,
+                        check_in_device=device_user,
+                        check_in_transaction=txn,
+                        status='CHECKED_IN',
+                        source='QR_DEVICE',
+                    )
+                else:
+                    attendance.check_in_at = now
+                    attendance.check_in_photo = saved_key
+                    attendance.check_in_device = device_user
+                    attendance.check_in_transaction = txn
+                    attendance.status = 'CHECKED_IN'
+                    attendance.source = 'QR_DEVICE'
+                    attendance.save()
+            else:  # CHECK_OUT
+                attendance.check_out_at = now
+                attendance.check_out_photo = saved_key
+                attendance.check_out_device = device_user
+                attendance.check_out_transaction = txn
+                attendance.status = 'CHECKED_OUT'
                 attendance.save()
-        else:  # CHECK_OUT
-            attendance.check_out_at = now
-            attendance.check_out_photo = saved_key
-            attendance.check_out_device = device_user
-            attendance.check_out_transaction = txn
-            attendance.status = 'CHECKED_OUT'
-            attendance.save()
 
-        # Transition transaction: VALIDATED → USED
-        txn.status = 'USED'
-        txn.save(update_fields=['status'])
+            # Transition transaction: VALIDATED → USED
+            txn.status = 'USED'
+            txn.save(update_fields=['status'])
 
-    # Audit log
-    log_audit_action(
-        user=device_user,
-        action='ATTENDANCE_MARKED',
-        model_name='StaffAttendance',
-        record_id=attendance.id,
-        details={
-            'employee_id': staff.employee_id,
+        # Audit log
+        log_audit_action(
+            user=device_user,
+            action='ATTENDANCE_MARKED',
+            model_name='StaffAttendance',
+            record_id=attendance.id,
+            details={
+                'employee_id': staff.employee_id,
+                'action': action,
+                'photo_key': saved_key,
+                'server_timestamp': now.isoformat(),
+            },
+            tenant=device_user.tenant,
+        )
+
+        return Response({
+            'success': True,
             'action': action,
-            'photo_key': saved_key,
-            'server_timestamp': now.isoformat(),
-        },
-        tenant=device_user.tenant,
-    )
-
-    return Response({
-        'success': True,
-        'action': action,
-        'employee_id': staff.employee_id,
-        'staff_name': f"{staff.user.first_name} {staff.user.last_name}".strip() if staff.user else '',
-        'timestamp': now.isoformat(),
-        'status': attendance.status,
-        'message': f'{"Check-in" if action == "CHECK_IN" else "Check-out"} recorded successfully.',
-    })
+            'employee_id': staff.employee_id,
+            'staff_name': f"{staff.user.first_name} {staff.user.last_name}".strip() if staff.user else '',
+            'timestamp': now.isoformat(),
+            'status': attendance.status,
+            'message': f'{"Check-in" if action == "CHECK_IN" else "Check-out"} recorded successfully.',
+        })
+    except Exception as e:
+        import traceback
+        return Response({
+            'error': f'Unhandled server error: {str(e)} | {traceback.format_exc()}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
