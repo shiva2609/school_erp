@@ -144,10 +144,12 @@ def my_status(request):
 
     can_generate = attendance.status == 'CHECKED_IN' and not attendance.check_out_at
     if attendance.status == 'CHECKED_OUT':
-        message = f'Checked out at {attendance.check_out_at.strftime("%I:%M %p")}.'
+        local_time = timezone.localtime(attendance.check_out_at).strftime("%I:%M %p") if attendance.check_out_at else ''
+        message = f'Checked out at {local_time}.'
         can_generate = False
     elif attendance.status == 'CHECKED_IN':
-        message = f'Checked in at {attendance.check_in_at.strftime("%I:%M %p")}. Ready for check-out.'
+        local_time = timezone.localtime(attendance.check_in_at).strftime("%I:%M %p") if attendance.check_in_at else ''
+        message = f'Checked in at {local_time}. Ready for check-out.'
         can_generate = True
     else:
         message = f'Status: {attendance.get_status_display()}'
@@ -333,7 +335,8 @@ def qr_validate(request):
             message = 'Ready for check-in.'
         elif attendance.status == 'CHECKED_IN' and not attendance.check_out_at:
             action = 'CHECK_OUT'
-            message = f'Checked in at {attendance.check_in_at.strftime("%I:%M %p")}. Ready for check-out.'
+            local_time = timezone.localtime(attendance.check_in_at).strftime("%I:%M %p") if attendance.check_in_at else ''
+            message = f'Checked in at {local_time}. Ready for check-out.'
         else:
             action = 'COMPLETED'
             message = 'Attendance already completed for today.'

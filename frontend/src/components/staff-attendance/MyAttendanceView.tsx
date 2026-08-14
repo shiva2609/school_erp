@@ -67,6 +67,15 @@ export default function MyAttendanceView() {
     }
   };
 
+  const formatTime = (isoString?: string | null) => {
+    if (!isoString) return '--';
+    try {
+      return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch {
+      return isoString;
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">My Attendance</h1>
@@ -86,16 +95,6 @@ export default function MyAttendanceView() {
                 {status.status === 'CHECKED_OUT' && <CheckCircle className="w-5 h-5 text-blue-500" />}
                 <span className="font-medium text-gray-900 text-lg">{status.message}</span>
               </div>
-              {(status.check_in_at || status.check_out_at) && (
-                <div className="mt-3 text-sm text-gray-500 space-y-1">
-                  {status.check_in_at && (
-                    <p>Check-in: {new Date(status.check_in_at).toLocaleTimeString()}</p>
-                  )}
-                  {status.check_out_at && (
-                    <p>Check-out: {new Date(status.check_out_at).toLocaleTimeString()}</p>
-                  )}
-                </div>
-              )}
             </div>
             {status.can_generate_qr && (
               <button
@@ -147,11 +146,11 @@ export default function MyAttendanceView() {
                         {record.status.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="py-3 px-6">
-                      {record.check_in_at ? new Date(record.check_in_at).toLocaleTimeString() : '--'}
+                    <td className="py-3 px-6 font-mono">
+                      {formatTime(record.check_in_at)}
                     </td>
-                    <td className="py-3 px-6">
-                      {record.check_out_at ? new Date(record.check_out_at).toLocaleTimeString() : '--'}
+                    <td className="py-3 px-6 font-mono">
+                      {formatTime(record.check_out_at)}
                     </td>
                   </tr>
                 ))
