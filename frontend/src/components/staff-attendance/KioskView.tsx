@@ -162,9 +162,7 @@ export default function KioskView() {
     formData.append('photo', blob, 'photo.jpg');
 
     try {
-      await api.post('staff-attend/mark/', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      await api.post('staff-attend/mark/', formData);
       setKioskState('SUCCESS');
       stopCamera();
       fetchDeviceInfo(); // refresh stats
@@ -172,7 +170,10 @@ export default function KioskView() {
         resetKiosk();
       }, 3000);
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to mark attendance');
+      const msg = err.response?.data?.error 
+        || err.response?.data?.detail 
+        || (err.response?.status ? `Server error (${err.response.status})` : 'Network error');
+      toast.error(msg);
       setIsSubmitting(false);
     }
   };
