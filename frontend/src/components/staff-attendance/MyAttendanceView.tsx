@@ -172,7 +172,7 @@ export default function MyAttendanceView() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
             <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Scan at Kiosk</h3>
+              <h3 className="font-semibold text-gray-900">Scan at Device</h3>
               <button 
                 onClick={() => {
                   setShowQr(false);
