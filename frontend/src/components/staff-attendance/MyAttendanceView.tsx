@@ -35,7 +35,7 @@ export default function MyAttendanceView() {
 
   const fetchStatus = async () => {
     try {
-      const res = await api.get('/api/v1/staff-attend/my-status/');
+      const res = await api.get('staff-attend/my-status/');
       setStatus(res.data);
     } catch (err: any) {
       toast.error('Failed to load status');
@@ -46,7 +46,7 @@ export default function MyAttendanceView() {
 
   const fetchHistory = async () => {
     try {
-      const res = await api.get('/api/v1/staff-attend/my-history/');
+      const res = await api.get('staff-attend/my-history/');
       setHistory(res.data.results || []);
     } catch (err: any) {
       toast.error('Failed to load history');
@@ -57,7 +57,7 @@ export default function MyAttendanceView() {
 
   const generateQr = async () => {
     try {
-      const res = await api.get('/api/v1/staff-attend/qr/generate/');
+      const res = await api.get('staff-attend/qr/generate/');
       setQrData(res.data.qr_data);
       setTimeLeft(res.data.expires_in);
       setShowQr(true);

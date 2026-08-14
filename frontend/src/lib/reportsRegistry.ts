@@ -903,7 +903,7 @@ export const reportsRegistry: ReportCategory[] = [
                   onClick: async () => {
                     try {
                       const { default: api } = await import('@/lib/axios');
-                      const res = await api.get(`/api/v1/staff-attend/admin/photo/${row.id}/check_in/`);
+                      const res = await api.get(`staff-attend/admin/photo/${row.id}/check_in/`);
                       if (res.data.url) window.open(res.data.url, '_blank');
                     } catch (e) {
                       alert('Failed to load photo');
@@ -926,7 +926,7 @@ export const reportsRegistry: ReportCategory[] = [
                   onClick: async () => {
                     try {
                       const { default: api } = await import('@/lib/axios');
-                      const res = await api.get(`/api/v1/staff-attend/admin/photo/${row.id}/check_out/`);
+                      const res = await api.get(`staff-attend/admin/photo/${row.id}/check_out/`);
                       if (res.data.url) window.open(res.data.url, '_blank');
                     } catch (e) {
                       alert('Failed to load photo');

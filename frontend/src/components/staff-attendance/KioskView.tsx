@@ -78,7 +78,7 @@ export default function KioskView() {
 
   const fetchDeviceInfo = async () => {
     try {
-      const res = await api.get('/api/v1/staff-attend/device/info/');
+      const res = await api.get('staff-attend/device/info/');
       setDeviceInfo(res.data);
     } catch (err: any) {
       toast.error('Failed to load device info');
@@ -89,7 +89,7 @@ export default function KioskView() {
 
   const handleScan = async (token: string) => {
     try {
-      const res = await api.post('/api/v1/staff-attend/qr/validate/', { token });
+      const res = await api.post('staff-attend/qr/validate/', { token });
       setValidationData(res.data);
       if (res.data.action === 'COMPLETED') {
         toast.error('Attendance already completed for today.');
@@ -157,7 +157,7 @@ export default function KioskView() {
     formData.append('photo', photoBlob, 'photo.jpg');
 
     try {
-      await api.post('/api/v1/staff-attend/mark/', formData, {
+      await api.post('staff-attend/mark/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setKioskState('SUCCESS');
