@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 import api from '@/lib/axios';
 import { toast } from 'react-hot-toast';
-import { Loader2, LogOut, CheckCircle, XCircle, QrCode, User, Briefcase, ChevronLeft } from 'lucide-react';
+import { Loader2, LogOut, CheckCircle, XCircle, QrCode, User, Briefcase, ChevronLeft, Camera, Sparkles } from 'lucide-react';
 import { useAuth } from '@/components/common/AuthProvider';
 import { useRouter } from 'next/navigation';
 
@@ -316,36 +316,62 @@ export default function KioskView() {
 
               {/* Camera & Actions Panel */}
               <div className="flex flex-col gap-4">
-                <div className="bg-black rounded-2xl sm:rounded-[2rem] overflow-hidden relative aspect-video md:aspect-[4/3] shadow-lg ring-2 sm:ring-4 ring-slate-900/5">
+                <div className="bg-slate-950 rounded-2xl sm:rounded-[2rem] overflow-hidden relative aspect-video md:aspect-[4/3] shadow-xl border border-slate-800/80 ring-1 ring-black/5 group">
                   <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                   <canvas ref={canvasRef} className="hidden" />
                   
-                  {/* Overlay instructions */}
-                  <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 bg-gradient-to-t from-black/80 to-transparent">
-                    <p className="text-white font-medium text-center text-xs sm:text-sm">
-                      Please look at the camera to verify your identity.
+                  {/* Top Live Badge */}
+                  <div className="absolute top-3 left-3 z-10 flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] sm:text-xs font-semibold tracking-wide shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                    <span>Live Verification</span>
+                  </div>
+
+                  {/* Biometric Frame Corners / Focus Overlay */}
+                  <div className="absolute inset-8 sm:inset-10 border border-white/20 rounded-2xl pointer-events-none flex flex-col justify-between p-2">
+                    <div className="flex justify-between">
+                      <div className="w-4 h-4 border-t-2 border-l-2 border-blue-400/80 rounded-tl" />
+                      <div className="w-4 h-4 border-t-2 border-r-2 border-blue-400/80 rounded-tr" />
+                    </div>
+                    <div className="flex justify-between">
+                      <div className="w-4 h-4 border-b-2 border-l-2 border-blue-400/80 rounded-bl" />
+                      <div className="w-4 h-4 border-b-2 border-r-2 border-blue-400/80 rounded-br" />
+                    </div>
+                  </div>
+                  
+                  {/* Bottom Overlay Instructions */}
+                  <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-center justify-center gap-2">
+                    <Camera className="w-4 h-4 text-blue-300" />
+                    <p className="text-slate-100 font-medium text-center text-xs sm:text-sm">
+                      Please look directly at the camera to verify
                     </p>
                   </div>
                 </div>
 
+                {/* Premium Action Buttons */}
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <button 
                     onClick={resetKiosk}
                     disabled={isSubmitting}
-                    className="py-3 sm:py-3.5 bg-white border border-slate-200 text-slate-700 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base hover:bg-slate-50 hover:border-slate-300 transition-all focus:ring-2 focus:ring-slate-100"
+                    className="group py-3.5 sm:py-4 px-4 bg-white hover:bg-rose-50/70 border border-slate-200 hover:border-rose-200 text-slate-700 hover:text-rose-600 rounded-xl sm:rounded-2xl font-semibold text-sm sm:text-base shadow-sm hover:shadow transition-all duration-200 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
                   >
-                    Decline
+                    <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-hover:text-rose-500 transition-colors" />
+                    <span>Decline</span>
                   </button>
                   <button 
                     onClick={captureAndSubmit}
                     disabled={isSubmitting}
-                    className="py-3 sm:py-3.5 bg-blue-600 text-white rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base shadow-md shadow-blue-600/30 hover:bg-blue-700 transition-all focus:ring-2 focus:ring-blue-600/20 flex justify-center items-center gap-2 hover:scale-[1.01] active:scale-[0.99]"
+                    className="group py-3.5 sm:py-4 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:via-indigo-700 hover:to-blue-800 text-white rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-200 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-75 relative overflow-hidden"
                   >
+                    <div className="absolute inset-0 bg-white/15 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
                     {isSubmitting ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <>
+                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin relative z-10" />
+                        <span className="relative z-10">Recording...</span>
+                      </>
                     ) : (
                       <>
-                        Proceed <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                        <span className="relative z-10">Proceed</span>
+                        <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-100 group-hover:scale-110 transition-transform relative z-10" />
                       </>
                     )}
                   </button>
