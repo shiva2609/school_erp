@@ -899,22 +899,18 @@ export const reportsRegistry: ReportCategory[] = [
               if (!row.check_in_at) return '--';
               const time = new Date(row.check_in_at).toLocaleTimeString();
               if (row.check_in_photo) {
-                return (
-                  <button 
-                    onClick={async () => {
-                      try {
-                        const { default: api } = await import('@/lib/axios');
-                        const res = await api.get(`/api/v1/staff-attend/admin/photo/${row.id}/check_in/`);
-                        if (res.data.url) window.open(res.data.url, '_blank');
-                      } catch (e) {
-                        alert('Failed to load photo');
-                      }
-                    }}
-                    className="text-blue-600 hover:underline bg-transparent border-none p-0 cursor-pointer text-left"
-                  >
-                    {time} (Photo)
-                  </button>
-                );
+                return React.createElement('button', {
+                  onClick: async () => {
+                    try {
+                      const { default: api } = await import('@/lib/axios');
+                      const res = await api.get(`/api/v1/staff-attend/admin/photo/${row.id}/check_in/`);
+                      if (res.data.url) window.open(res.data.url, '_blank');
+                    } catch (e) {
+                      alert('Failed to load photo');
+                    }
+                  },
+                  className: 'text-blue-600 hover:underline bg-transparent border-none p-0 cursor-pointer text-left'
+                }, `${time} (Photo)`);
               }
               return time;
             }
@@ -926,22 +922,18 @@ export const reportsRegistry: ReportCategory[] = [
               if (!row.check_out_at) return '--';
               const time = new Date(row.check_out_at).toLocaleTimeString();
               if (row.check_out_photo) {
-                return (
-                  <button 
-                    onClick={async () => {
-                      try {
-                        const { default: api } = await import('@/lib/axios');
-                        const res = await api.get(`/api/v1/staff-attend/admin/photo/${row.id}/check_out/`);
-                        if (res.data.url) window.open(res.data.url, '_blank');
-                      } catch (e) {
-                        alert('Failed to load photo');
-                      }
-                    }}
-                    className="text-blue-600 hover:underline bg-transparent border-none p-0 cursor-pointer text-left"
-                  >
-                    {time} (Photo)
-                  </button>
-                );
+                return React.createElement('button', {
+                  onClick: async () => {
+                    try {
+                      const { default: api } = await import('@/lib/axios');
+                      const res = await api.get(`/api/v1/staff-attend/admin/photo/${row.id}/check_out/`);
+                      if (res.data.url) window.open(res.data.url, '_blank');
+                    } catch (e) {
+                      alert('Failed to load photo');
+                    }
+                  },
+                  className: 'text-blue-600 hover:underline bg-transparent border-none p-0 cursor-pointer text-left'
+                }, `${time} (Photo)`);
               }
               return time;
             }
