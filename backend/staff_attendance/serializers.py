@@ -41,13 +41,18 @@ class StaffAttendanceSerializer(serializers.ModelSerializer):
     """Full serializer for attendance records (used in history/reports)."""
     staff_name = serializers.SerializerMethodField()
     employee_id = serializers.SerializerMethodField()
+    designation = serializers.SerializerMethodField()
+    branch_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = StaffAttendance
         fields = [
             'id', 'date', 'status', 'source',
             'check_in_at', 'check_out_at',
-            'staff_name', 'employee_id',
+            'check_in_photo', 'check_out_photo',
+            'staff_name', 'employee_id', 'designation', 'branch_name',
+            'approval_status', 'approved_by_name', 'approved_at',
             'remarks', 'created_at',
         ]
 
@@ -58,3 +63,16 @@ class StaffAttendanceSerializer(serializers.ModelSerializer):
 
     def get_employee_id(self, obj):
         return obj.staff.employee_id if obj.staff else ''
+
+    def get_designation(self, obj):
+        if obj.staff and obj.staff.designation:
+            return obj.staff.designation.name
+        return ''
+
+    def get_branch_name(self, obj):
+        return obj.branch.name if obj.branch else ''
+
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return f"{obj.approved_by.first_name} {obj.approved_by.last_name}".strip()
+        return ''

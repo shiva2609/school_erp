@@ -18,4 +18,6 @@ urlpatterns = [
     path('staff-attend/admin/daily/', views.admin_daily, name='admin-daily'),
     path('staff-attend/admin/devices/', views.admin_devices, name='admin-devices'),
     path('staff-attend/admin/photo/<uuid:pk>/<str:photo_type>/', views.admin_photo, name='admin-photo'),
+    path('staff-attend/admin/list/', views.admin_attendance_list, name='admin-attendance-list'),
+    path('staff-attend/admin/<uuid:pk>/action/', views.admin_attendance_action, name='admin-attendance-action'),
 ]

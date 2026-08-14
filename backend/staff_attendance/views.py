@@ -630,8 +630,10 @@ def device_info(request):
         branch=branch,
         date=today,
     )
-    checked_in = today_stats.filter(status='CHECKED_IN').count()
-    checked_out = today_stats.filter(status='CHECKED_OUT').count()
+    # 'Checked In' = everyone who has check_in_at set today (regardless of current status)
+    checked_in = today_stats.filter(check_in_at__isnull=False).count()
+    # 'Checked Out' = everyone who has check_out_at set today
+    checked_out = today_stats.filter(check_out_at__isnull=False).count()
     total_marked = today_stats.count()
 
     return Response({
@@ -700,8 +702,8 @@ def admin_daily(request):
         qs = qs.filter(branch_id=user.branch_id)
 
     # Calculate stats
-    checked_in = qs.filter(status='CHECKED_IN').count()
-    checked_out = qs.filter(status='CHECKED_OUT').count()
+    checked_in = qs.filter(check_in_at__isnull=False).count()
+    checked_out = qs.filter(check_out_at__isnull=False).count()
     on_leave = qs.filter(status='ON_LEAVE').count()
     absent = qs.filter(status='ABSENT').count()
 
@@ -739,3 +741,146 @@ def admin_devices(request):
         })
         
     return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsSchoolAdminOrAbove])
+def admin_attendance_list(request):
+    """
+    List all staff attendance records for the admin report page.
+    Supports filtering by employee_id, date range, and time threshold.
+    """
+    user = request.user
+    qs = StaffAttendance.objects.select_related(
+        'staff', 'staff__user', 'staff__designation', 'branch', 'approved_by'
+    ).filter(tenant=user.tenant)
+
+    # Branch scoping
+    if getattr(user, 'branch_id', None):
+        qs = qs.filter(branch_id=user.branch_id)
+
+    # Filter by employee_id (partial match)
+    employee_id = request.query_params.get('employee_id', '').strip()
+    if employee_id:
+        qs = qs.filter(staff__employee_id__icontains=employee_id)
+
+    # Filter by staff name (partial match)
+    staff_name = request.query_params.get('staff_name', '').strip()
+    if staff_name:
+        from django.db.models import Q
+        qs = qs.filter(
+            Q(staff__user__first_name__icontains=staff_name) |
+            Q(staff__user__last_name__icontains=staff_name)
+        )
+
+    # Filter by date range
+    date_from = request.query_params.get('date_from')
+    date_to = request.query_params.get('date_to')
+    if date_from:
+        from django.utils.dateparse import parse_date
+        d = parse_date(date_from)
+        if d:
+            qs = qs.filter(date__gte=d)
+    if date_to:
+        from django.utils.dateparse import parse_date
+        d = parse_date(date_to)
+        if d:
+            qs = qs.filter(date__lte=d)
+
+    # If no date filters provided, default to today
+    if not date_from and not date_to:
+        qs = qs.filter(date=timezone.localdate())
+
+    # Filter by check-in time threshold (e.g., 'after 8:00 AM')
+    check_in_after = request.query_params.get('check_in_after', '').strip()
+    if check_in_after:
+        try:
+            from datetime import datetime as dt
+            threshold_time = dt.strptime(check_in_after, '%H:%M').time()
+            # Combine with the date to create a datetime threshold
+            from django.db.models.functions import TruncTime
+            # We use __time lookup which extracts the time part
+            qs = qs.filter(check_in_at__isnull=False)
+            # Filter where the local time of check_in_at is after the threshold
+            # Since check_in_at is stored in UTC, we need to use database functions
+            from django.db.models.functions import Localtime
+            from django.db.models.lookups import GreaterThanOrEqual
+            qs = qs.annotate(
+                local_check_in=Localtime('check_in_at')
+            ).filter(
+                local_check_in__time__gte=threshold_time
+            )
+        except (ValueError, TypeError):
+            pass  # Ignore invalid time format
+
+    # Filter by approval status
+    approval_status = request.query_params.get('approval_status', '').strip()
+    if approval_status:
+        qs = qs.filter(approval_status=approval_status)
+
+    # Ordering
+    qs = qs.order_by('-date', 'staff__employee_id')
+
+    # Simple pagination
+    page = int(request.query_params.get('page', 1))
+    page_size = int(request.query_params.get('page_size', 50))
+    total = qs.count()
+    start = (page - 1) * page_size
+    end = start + page_size
+    records = qs[start:end]
+
+    from .serializers import StaffAttendanceSerializer
+    serializer = StaffAttendanceSerializer(records, many=True)
+
+    return Response({
+        'results': serializer.data,
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': (total + page_size - 1) // page_size,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsSchoolAdminOrAbove])
+def admin_attendance_action(request, pk):
+    """
+    Approve or reject a staff attendance record.
+    Body: { "action": "APPROVE" | "REJECT", "remarks": "optional" }
+    """
+    from django.shortcuts import get_object_or_404
+    user = request.user
+    
+    attendance = get_object_or_404(
+        StaffAttendance.objects.select_related('staff', 'staff__user'),
+        pk=pk, tenant=user.tenant
+    )
+    
+    # Branch scoping
+    if getattr(user, 'branch_id', None) and attendance.branch_id != user.branch_id:
+        return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+    
+    action = request.data.get('action', '').strip().upper()
+    if action not in ('APPROVE', 'REJECT'):
+        return Response({'error': 'Invalid action. Must be APPROVE or REJECT.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if action == 'APPROVE':
+        attendance.approval_status = 'APPROVED'
+    else:
+        attendance.approval_status = 'REJECTED'
+    
+    attendance.approved_by = user
+    attendance.approved_at = timezone.now()
+    
+    # Append remarks if provided
+    remarks = request.data.get('remarks', '').strip()
+    if remarks:
+        if attendance.remarks:
+            attendance.remarks += f'\n[{action}] {remarks}'
+        else:
+            attendance.remarks = f'[{action}] {remarks}'
+    
+    attendance.save(update_fields=['approval_status', 'approved_by', 'approved_at', 'remarks', 'updated_at'])
+    
+    from .serializers import StaffAttendanceSerializer
+    return Response(StaffAttendanceSerializer(attendance).data)

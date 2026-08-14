@@ -159,7 +159,21 @@ class StaffAttendance(models.Model):
     )
 
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='ABSENT')
+    APPROVAL_CHOICES = [
+        ('PENDING', 'Pending Review'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    ]
+
     source = models.CharField(max_length=15, choices=SOURCE_CHOICES, default='QR_DEVICE')
+    approval_status = models.CharField(max_length=10, choices=APPROVAL_CHOICES, default='PENDING')
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='approved_attendances',
+        help_text='Admin who approved/rejected this record'
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
     remarks = models.TextField(blank=True, default='')
 
     created_at = models.DateTimeField(auto_now_add=True)
