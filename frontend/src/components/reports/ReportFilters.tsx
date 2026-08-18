@@ -23,6 +23,7 @@ interface ReportFiltersProps {
   showAdmissionPaymentFilter?: boolean;
   showFixedDepositPaymentFilter?: boolean;
   showSpecialFeePaymentFilter?: boolean;
+  showStudentStatus?: boolean;
   showGroupBy?: boolean;
   groupByOptions?: { value: string; label: string }[];
   /** Dropdown: All / Commute Bills / Vendor Bills — sends `bill_category` query param. */
@@ -39,6 +40,7 @@ export default function ReportFilters({
   showExam = false,
   showStatus = false,
   statusOptions = [],
+  showStudentStatus = false,
   showAdSource = false,
   showPaymentMode = false,
   showVendor = false,
@@ -66,6 +68,7 @@ export default function ReportFilters({
     section_id: '',
     exam_id: '',
     status: '',
+    student_status: showStudentStatus ? 'ACTIVE' : '',
     source: '',
     payment_mode: '',
     vendor_id: '',
@@ -355,6 +358,21 @@ export default function ReportFilters({
               {statusOptions.map(s => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
+            </select>
+          </div>
+        )}
+
+        {showStudentStatus && (
+          <div className="flex flex-col gap-1.5 min-w-[150px]">
+            <label className="text-xs font-semibold text-slate-500 uppercase">Student Status</label>
+            <select
+              className={selectClass}
+              value={filters.student_status || 'ACTIVE'}
+              onChange={(e) => handleChange('student_status', e.target.value)}
+            >
+              <option value="ACTIVE">Active Students</option>
+              <option value="INACTIVE">Inactive Students</option>
+              <option value="ALL">All Students</option>
             </select>
           </div>
         )}

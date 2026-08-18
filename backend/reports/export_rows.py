@@ -601,12 +601,12 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
     if report_type == 'BUS_FEE_BALANCES':
         qs = BusService.get_bus_fee_balances(bundle).values(
             'invoice_number', 'student__admission_number', 'student__first_name', 'student__last_name',
-            'student__class_section__grade', 'student__class_section__section',
+            'student__class_section__grade', 'student__class_section__section', 'student__status',
             'outstanding_amount', 'due_date',
         )
         headers = [
             'Invoice', 'Admission number', 'Student first name', 'Student last name', 'Grade', 'Section',
-            'Outstanding', 'Due date',
+            'Student Status', 'Outstanding', 'Due date',
         ]
         rows = []
         for row in qs.iterator(chunk_size=500):
@@ -614,6 +614,7 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
                 _cell(row['invoice_number']), _cell(row['student__admission_number']),
                 _cell(row['student__first_name']), _cell(row['student__last_name']),
                 _cell(row['student__class_section__grade']), _cell(row['student__class_section__section']),
+                _cell(row['student__status'] or 'ACTIVE'),
                 _cell(row['outstanding_amount']), _cell(row['due_date']),
             ])
         return headers, rows

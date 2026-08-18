@@ -65,6 +65,8 @@ class BaseReportFilter:
         self.group_by = (request.query_params.get('group_by') or 'gender').lower()
         _bc = (request.query_params.get('bill_category') or '').strip().upper()
         self.bill_category = _bc if _bc in ('GENERAL', 'COMMUTE') else None
+        _ss = (request.query_params.get('student_status') or '').strip().upper()
+        self.student_status = _ss if _ss in ('ACTIVE', 'INACTIVE', 'ALL') else (_ss or None)
 
     def _get_branch_id(self):
         from accounts.utils import get_validated_branch_id

@@ -18,7 +18,7 @@ class BusReportViewSet(viewsets.ViewSet):
 
         data = qs.values(
             'invoice_number', 'student__admission_number', 'student__first_name', 'student__last_name',
-            'student__class_section__grade', 'student__class_section__section',
+            'student__class_section__grade', 'student__class_section__section', 'student__status',
             'outstanding_amount', 'due_date'
         )
         

@@ -24,6 +24,7 @@ export type ReportConfig = {
     showAdmissionPaymentFilter?: boolean;
     showFixedDepositPaymentFilter?: boolean;
     showSpecialFeePaymentFilter?: boolean;
+    showStudentStatus?: boolean;
     showGroupBy?: boolean;
     groupByOptions?: { value: string; label: string }[];
     showBillCategory?: boolean;
@@ -958,13 +959,14 @@ export const reportsRegistry: ReportCategory[] = [
         description: 'Bus fee balances for students',
         apiEndpoint: 'reports/bus/bus-fee-balances/',
         exportKey: 'BUS_FEE_BALANCES',
-        filters: { showDateRange: false, showClassSection: true, showAcademicYear: true },
-        // Backend .values(): invoice_number, student__admission_number, student names, class, outstanding_amount, due_date
+        filters: { showDateRange: false, showClassSection: true, showAcademicYear: true, showStudentStatus: true },
+        // Backend .values(): invoice_number, student__admission_number, student names, class, student__status, outstanding_amount, due_date
         columns: [
           { key: 'invoice_number', label: 'Invoice No.' },
           { key: 'student__admission_number', label: 'Admission No.' },
           { key: 'student_name', label: 'Student', render: (_v: any, row: any) => `${row.student__first_name || ''} ${row.student__last_name || ''}`.trim() || '-' },
           { key: 'class', label: 'Class', render: (_v: any, row: any) => `${row.student__class_section__grade || ''}-${row.student__class_section__section || ''}`.replace(/-$/, '') },
+          { key: 'student__status', label: 'Status', render: (_v: any, row: any) => row.student__status || 'ACTIVE' },
           { key: 'outstanding_amount', label: 'Balance', render: (_v: any, row: any) => `₹${Number(row.outstanding_amount || 0).toLocaleString('en-IN')}` },
           { key: 'due_date', label: 'Due Date' }
         ]
@@ -976,7 +978,7 @@ export const reportsRegistry: ReportCategory[] = [
         description: 'Day-wise transport fee collections and receipts',
         apiEndpoint: 'reports/bus/daily-collections/',
         exportKey: 'TRANSPORT_DAILY_COLLECTIONS',
-        filters: { showDateRange: true, showClassSection: false, showAcademicYear: false, showPaymentMode: true },
+        filters: { showDateRange: true, showClassSection: false, showAcademicYear: false, showPaymentMode: true, showStudentStatus: true },
         columns: [
           { key: 'receipt_number', label: 'Receipt No.' },
           { key: 'student__admission_number', label: 'Admission No.' },

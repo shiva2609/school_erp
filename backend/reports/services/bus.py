@@ -20,6 +20,11 @@ class BusService:
         if filters.section_id:
             qs = qs.filter(student__class_section_id=filters.section_id)
         
+        # Student status filter (ACTIVE / INACTIVE / ALL)
+        student_status = getattr(filters, 'student_status', None)
+        if student_status and student_status != 'ALL':
+            qs = qs.filter(student__status=student_status)
+        
         return qs.order_by('student__class_section__grade', 'student__first_name', '-due_date')
 
     @staticmethod
@@ -35,5 +40,10 @@ class BusService:
         qs = BaseReportService.apply_date_range(qs, 'payment_date', filters.start_date, filters.end_date)
         if getattr(filters, 'payment_mode', None):
             qs = qs.filter(payment_mode=filters.payment_mode)
+        
+        student_status = getattr(filters, 'student_status', None)
+        if student_status and student_status != 'ALL':
+            qs = qs.filter(student__status=student_status)
+            
         return qs.order_by('-payment_date', '-created_at')
 
