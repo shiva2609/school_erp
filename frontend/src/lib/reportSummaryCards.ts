@@ -68,6 +68,9 @@ export const reportSummaryCardsByExportKey: Record<string, SummaryCardConfig[]> 
     { key: 'total_outstanding', label: 'Total transport balance', format: 'inr' },
     { key: 'total_net', label: 'Total net', format: 'inr' },
   ],
+  TRANSPORT_DAILY_COLLECTIONS: [
+    { key: 'total_amount', label: 'Total Transport Collections', format: 'inr' },
+  ],
   PAST_DUES_LIST: [
     { key: 'total_outstanding', label: 'Total overdue balance', format: 'inr' },
     { key: 'total_net', label: 'Total net (invoices)', format: 'inr' },

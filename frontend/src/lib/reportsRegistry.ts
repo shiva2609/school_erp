@@ -968,6 +968,24 @@ export const reportsRegistry: ReportCategory[] = [
           { key: 'outstanding_amount', label: 'Balance', render: (_v: any, row: any) => `₹${Number(row.outstanding_amount || 0).toLocaleString('en-IN')}` },
           { key: 'due_date', label: 'Due Date' }
         ]
+      },
+      {
+        id: 'transport-collections',
+        categoryId: 'bus',
+        title: 'Transport Daily Collections',
+        description: 'Day-wise transport fee collections and receipts',
+        apiEndpoint: 'reports/bus/daily-collections/',
+        exportKey: 'TRANSPORT_DAILY_COLLECTIONS',
+        filters: { showDateRange: true, showClassSection: false, showAcademicYear: false, showPaymentMode: true },
+        columns: [
+          { key: 'receipt_number', label: 'Receipt No.' },
+          { key: 'student__admission_number', label: 'Admission No.' },
+          { key: 'student_name', label: 'Student', render: (_v: any, row: any) => `${row.student__first_name || ''} ${row.student__last_name || ''}`.trim() || '-' },
+          { key: 'class', label: 'Class', render: (_v: any, row: any) => `${row.student__class_section__grade || ''}-${row.student__class_section__section || ''}`.replace(/-$/, '') },
+          { key: 'amount', label: 'Amount', render: (_v: any, row: any) => `₹${Number(row.amount || 0).toLocaleString('en-IN')}` },
+          { key: 'payment_mode', label: 'Mode' },
+          { key: 'payment_date', label: 'Date' }
+        ]
       }
     ]
   },

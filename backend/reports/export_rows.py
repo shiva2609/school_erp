@@ -618,6 +618,26 @@ def build_export_rows(report_type: str, bundle: ExportFilterBundle) -> tuple[lis
             ])
         return headers, rows
 
+    if report_type == 'TRANSPORT_DAILY_COLLECTIONS':
+        qs = BusService.get_daily_collections(bundle).values(
+            'receipt_number', 'student__admission_number', 'student__first_name', 'student__last_name',
+            'student__class_section__grade', 'student__class_section__section',
+            'amount', 'payment_mode', 'payment_date'
+        )
+        headers = [
+            'Receipt Number', 'Admission Number', 'Student First Name', 'Student Last Name',
+            'Grade', 'Section', 'Amount', 'Payment Mode', 'Payment Date'
+        ]
+        rows = []
+        for row in qs.iterator(chunk_size=500):
+            rows.append([
+                _cell(row['receipt_number']), _cell(row['student__admission_number']),
+                _cell(row['student__first_name']), _cell(row['student__last_name']),
+                _cell(row['student__class_section__grade']), _cell(row['student__class_section__section']),
+                _cell(row['amount']), _cell(row['payment_mode']), _cell(row['payment_date']),
+            ])
+        return headers, rows
+
     if report_type == 'PAST_DUES_LIST':
         qs = PastDuesService.get_past_dues(bundle)
         headers = [

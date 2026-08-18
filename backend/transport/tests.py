@@ -162,3 +162,37 @@ class TransportFeeEnrollmentApiTests(TestCase):
         # Verify records are NOT deleted
         self.assertTrue(TransportFeeEnrollment.objects.filter(id=enrollment_id).exists())
         self.assertTrue(FeeInvoice.objects.filter(id=invoice.id).exists())
+
+    def test_sync_transport_enrollments_command(self):
+        from django.core.management import call_command
+        import io
+
+        # Create a student with a TRN- invoice but no TransportFeeEnrollment
+        invoice = FeeInvoice.objects.create(
+            tenant=self.tenant,
+            branch=self.branch,
+            academic_year=self.ay,
+            student=self.student,
+            invoice_number='TRN-PB01-2026-0001',
+            gross_amount=Decimal('8000.00'),
+            net_amount=Decimal('8000.00'),
+            paid_amount=Decimal('3000.00'),
+            outstanding_amount=Decimal('5000.00'),
+            due_date=date.today(),
+            status='PARTIALLY_PAID',
+        )
+
+        out = io.StringIO()
+        # Test dry-run
+        call_command('sync_transport_enrollments', dry_run=True, stdout=out)
+        self.assertIn('DRY RUN SUMMARY', out.getvalue())
+        self.assertFalse(TransportFeeEnrollment.objects.filter(student=self.student).exists())
+
+        # Test actual run
+        out = io.StringIO()
+        call_command('sync_transport_enrollments', stdout=out)
+        self.assertIn('SYNCHRONIZATION COMPLETED', out.getvalue())
+        enrollment = TransportFeeEnrollment.objects.filter(student=self.student, academic_year=self.ay).first()
+        self.assertIsNotNone(enrollment)
+        self.assertEqual(enrollment.agreed_amount, Decimal('8000.00'))
+

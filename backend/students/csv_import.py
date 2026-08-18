@@ -794,6 +794,20 @@ def process_rows(job, rows):
                                             allocation_type='CURRENT_YEAR',
                                         )
 
+                                # Create or update TransportFeeEnrollment record
+                                from transport.models import TransportFeeEnrollment
+                                TransportFeeEnrollment.objects.update_or_create(
+                                    student=student,
+                                    academic_year=ay,
+                                    defaults={
+                                        'tenant': tenant,
+                                        'branch': branch,
+                                        'agreed_amount': accepted_transport,
+                                        'is_active': True,
+                                        'enrolled_by': user,
+                                    }
+                                )
+
                         if past_due > 0:
                             legacy_ay_name = past_due_year_raw or "Legacy-Dues"
                             target_year    = ay.start_date.year - 1
