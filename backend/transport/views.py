@@ -169,6 +169,39 @@ class TransportFeeEnrollmentViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        qs = self.get_queryset()
+        from django.db.models import Sum
+        from fees.models import FeeInvoice
+        
+        total_enrolled = qs.count()
+        total_agreed = qs.aggregate(total=Sum('agreed_amount'))['total'] or Decimal('0.00')
+        
+        # Get all active transport invoices for the students in this queryset
+        student_ids = list(qs.values_list('student_id', flat=True))
+        academic_year_id = request.query_params.get('academic_year') or request.query_params.get('academic_year_id')
+        
+        inv_qs = FeeInvoice.objects.filter(
+            student_id__in=student_ids,
+            invoice_number__startswith='TRN-'
+        ).exclude(status='CANCELLED')
+        if academic_year_id:
+            inv_qs = inv_qs.filter(academic_year_id=academic_year_id)
+            
+        total_paid = inv_qs.aggregate(total=Sum('paid_amount'))['total'] or Decimal('0.00')
+        total_balance = max(Decimal('0.00'), total_agreed - total_paid)
+        
+        return Response({
+            'success': True,
+            'data': {
+                'total_enrolled': total_enrolled,
+                'total_agreed': float(total_agreed),
+                'total_paid': float(total_paid),
+                'total_balance': float(total_balance)
+            }
+        })
+
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         from students.models import Student

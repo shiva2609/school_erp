@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/axios';
 import { 
   Bus, IndianRupee, 
   Search, Users, Trash2, 
   CheckCircle, AlertTriangle, UserPlus, 
-  Settings2, CreditCard, RefreshCw
+  Settings2, CreditCard, RefreshCw,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useBranch } from '@/components/common/BranchContext';
 import EnrollStudentModal from '@/components/transport/EnrollStudentModal';
@@ -56,31 +57,117 @@ interface ApiError {
   };
 }
 
+const PAGE_SIZE = 50;
+
 export default function TransportPage() {
   const { selectedBranch } = useBranch();
   const [activeTab, setActiveTab] = useState<'students' | 'rates'>('students');
   const [search, setSearch] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
+  const [page, setPage] = useState(1);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState<PaymentInvoice | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TransportEnrollment | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Data fetching
-  const { data: enrollments, loading: enrollmentsLoading, refetch: refetchEnrollments } = useApi<TransportEnrollment[]>(
-    selectedBranch 
-      ? `/transport/enrollments/?branch_id=${selectedBranch}&search=${search}&academic_year=${selectedYear}` 
-      : null
-  );
-  
+  // Data fetching state
+  const [enrollments, setEnrollments] = useState<TransportEnrollment[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrev, setHasPrev] = useState(false);
+  const [enrollmentsLoading, setEnrollmentsLoading] = useState(true);
+  const [summaryStats, setSummaryStats] = useState({
+    total_enrolled: 0,
+    total_agreed: 0,
+    total_paid: 0,
+    total_balance: 0,
+  });
+
   const { data: rates, loading: ratesLoading } = useApi<RateSlab[]>(
     selectedBranch ? `/transport/rate-slabs/?branch_id=${selectedBranch}` : null
   );
 
-  // Derive stats dynamically from current enrollments list
-  const totalAgreed = enrollments?.reduce((acc, curr) => acc + (parseFloat(curr.agreed_amount) || 0), 0) || 0;
-  const totalPaid = enrollments?.reduce((acc, curr) => acc + (parseFloat(curr.paid_amount) || 0), 0) || 0;
-  const totalBalance = enrollments?.reduce((acc, curr) => acc + (parseFloat(curr.balance_amount) || 0), 0) || 0;
+  const fetchEnrollments = useCallback(async () => {
+    if (!selectedBranch) {
+      setEnrollments([]);
+      setTotalCount(0);
+      setEnrollmentsLoading(false);
+      return;
+    }
+    setEnrollmentsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('branch_id', selectedBranch);
+      params.set('page', String(page));
+      if (search) params.set('search', search);
+      if (selectedYear) params.set('academic_year', selectedYear);
+
+      const res = await api.get(`/transport/enrollments/?${params.toString()}`);
+      const payload = res.data;
+
+      if (payload?.results !== undefined) {
+        setEnrollments(payload.results);
+        setTotalCount(payload.count ?? payload.results.length);
+        setHasNext(!!payload.next);
+        setHasPrev(!!payload.previous);
+      } else if (payload?.data !== undefined) {
+        const list = Array.isArray(payload.data) ? payload.data : [];
+        setEnrollments(list);
+        setTotalCount(list.length);
+        setHasNext(false);
+        setHasPrev(false);
+      } else {
+        const list = Array.isArray(payload) ? payload : [];
+        setEnrollments(list);
+        setTotalCount(list.length);
+        setHasNext(false);
+        setHasPrev(false);
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to load transport enrollments.");
+    } finally {
+      setEnrollmentsLoading(false);
+    }
+  }, [selectedBranch, selectedYear, search, page]);
+
+  const fetchSummary = useCallback(async () => {
+    if (!selectedBranch) return;
+    try {
+      const params = new URLSearchParams();
+      params.set('branch_id', selectedBranch);
+      if (search) params.set('search', search);
+      if (selectedYear) params.set('academic_year', selectedYear);
+
+      const res = await api.get(`/transport/enrollments/summary/?${params.toString()}`);
+      if (res.data?.data) {
+        setSummaryStats(res.data.data);
+      }
+    } catch {
+      // Ignore if summary fails
+    }
+  }, [selectedBranch, selectedYear, search]);
+
+  useEffect(() => {
+    fetchEnrollments();
+  }, [fetchEnrollments]);
+
+  useEffect(() => {
+    fetchSummary();
+  }, [fetchSummary]);
+
+  // Reset to page 1 on filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [selectedBranch, selectedYear, search]);
+
+  const refetchAll = () => {
+    fetchEnrollments();
+    fetchSummary();
+  };
+
+  const totalAgreed = summaryStats.total_agreed || enrollments?.reduce((acc, curr) => acc + (parseFloat(curr.agreed_amount) || 0), 0) || 0;
+  const totalPaid = summaryStats.total_paid || enrollments?.reduce((acc, curr) => acc + (parseFloat(curr.paid_amount) || 0), 0) || 0;
+  const totalBalance = summaryStats.total_balance || enrollments?.reduce((acc, curr) => acc + (parseFloat(curr.balance_amount) || 0), 0) || 0;
 
   const handleDeleteEnrollment = async () => {
     if (!deleteTarget) return;
@@ -89,7 +176,7 @@ export default function TransportPage() {
       await api.delete(`/transport/enrollments/${deleteTarget.id}/`);
       toast.success("Transport enrollment cancelled successfully.");
       setDeleteTarget(null);
-      refetchEnrollments();
+      refetchAll();
     } catch (err) {
       const apiErr = err as ApiError;
       toast.error(apiErr.response?.data?.detail || "Failed to cancel transport enrollment.");
@@ -168,7 +255,7 @@ export default function TransportPage() {
 
       <div className="flex justify-between items-center bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm w-fit gap-2">
         {[
-          { id: 'students', label: 'Enrolled Students', icon: Users },
+          { id: 'students', label: `Enrolled Students${totalCount > 0 ? ` (${totalCount})` : ''}`, icon: Users },
           { id: 'rates', label: 'Rate Slabs (Reference)', icon: IndianRupee },
         ].map(tab => (
           <button 
@@ -201,7 +288,7 @@ export default function TransportPage() {
                  />
                </div>
                <button 
-                 onClick={() => refetchEnrollments()} 
+                 onClick={() => refetchAll()} 
                  className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors self-end md:self-auto"
                  title="Refresh list"
                >
@@ -288,6 +375,70 @@ export default function TransportPage() {
                  </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {!enrollmentsLoading && enrollments.length > 0 && (() => {
+              const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
+              const startRecord = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+              const endRecord = Math.min(page * PAGE_SIZE, totalCount);
+
+              return (
+                <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50 gap-4">
+                  <p className="text-xs text-slate-500 font-medium">
+                    Showing <span className="font-bold text-slate-700">{startRecord}–{endRecord}</span> of{' '}
+                    <span className="font-bold text-slate-700">{totalCount}</span> enrolled students
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={!hasPrev || page <= 1}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 border border-gray-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                    >
+                      <ChevronLeft size={14} /> Previous
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                        let pageNum: number;
+                        if (totalPages <= 7) {
+                          pageNum = i + 1;
+                        } else if (page <= 4) {
+                          pageNum = i < 5 ? i + 1 : i === 5 ? -1 : totalPages;
+                        } else if (page >= totalPages - 3) {
+                          pageNum = i === 0 ? 1 : i === 1 ? -1 : totalPages - 6 + i;
+                        } else {
+                          pageNum = i === 0 ? 1 : i === 1 ? -1 : i <= 4 ? page - 2 + (i - 2) : i === 5 ? -1 : totalPages;
+                        }
+                        if (pageNum === -1) {
+                          return <span key={`ellipsis-${i}`} className="px-1 text-slate-400 text-xs font-bold">…</span>;
+                        }
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setPage(pageNum)}
+                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                              page === pageNum
+                                ? 'bg-slate-900 text-white shadow-sm'
+                                : 'text-slate-500 hover:bg-slate-100'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => setPage(p => p + 1)}
+                      disabled={!hasNext || page >= totalPages}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 border border-gray-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                    >
+                      Next <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -328,10 +479,10 @@ export default function TransportPage() {
       {/* Modals */}
       <EnrollStudentModal 
         isOpen={showEnrollModal} 
-        onClose={() => setShowEnrollModal(false)}
+        onClose={() => setShowEnrollModal(false)} 
         onSuccess={() => {
           setShowEnrollModal(false);
-          refetchEnrollments();
+          refetchAll();
         }}
       />
 
@@ -341,7 +492,7 @@ export default function TransportPage() {
           onClose={() => setPaymentInvoice(null)}
           onSuccess={() => {
             setPaymentInvoice(null);
-            refetchEnrollments();
+            refetchAll();
           }}
         />
       )}
