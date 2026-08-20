@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'inventory',
     'library',
     'document_templates',
+    'payroll',
     'storages',
 ]
 

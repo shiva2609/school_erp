@@ -349,6 +349,10 @@ def build_document_html(template, context_dict: dict) -> str:
         return _build_vendor_bill_receipt_html(
             context_dict, cfg, school_name, logo_url, primary_color, bg_color, text_color, branch_name,
         )
+    if template.type == 'SALARY_SLIP':
+        # For HTML mode templates, the Django template rendering handles it
+        # For CONFIG mode, throw exception to fall through to basic renderer
+        raise ValueError("Fallback to basic renderer")
     return f"<html><body><h1>Document type {escape(template.type)} not configured fully.</h1></body></html>"
 
 

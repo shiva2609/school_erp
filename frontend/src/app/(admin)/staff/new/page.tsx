@@ -44,6 +44,7 @@ export default function StaffCreatePage() {
     joining_date: '',
     employment_type: 'REGULAR',
     experience_years: '',
+    basic_salary: '',
     
     // 3. Login
     requires_portal_access: false,
@@ -340,6 +341,19 @@ export default function StaffCreatePage() {
                       <option value="CONTRACT">Contract</option>
                       <option value="TEMPORARY">Temporary</option>
                     </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="esms-label">Basic Salary (Monthly ₹)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={formData.basic_salary}
+                      onChange={setField('basic_salary')}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+                      placeholder="e.g. 25000"
+                    />
+                    <p className="text-xs text-slate-400">Used for monthly salary statement generation</p>
                   </div>
 
                   <div className="space-y-1.5">

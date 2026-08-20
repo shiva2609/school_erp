@@ -11,6 +11,7 @@ TEMPLATE_TYPES = [
     ('REPORT_CARD', 'Report Card (per student)'),
     ('REPORT_CARD_SUMMARY', 'Report Card Summary (section)'),
     ('VENDOR_BILL_RECEIPT', 'Vendor Bill Receipt'),
+    ('SALARY_SLIP', 'Salary Slip'),
 ]
 
 TEMPLATE_MODES = [

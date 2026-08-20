@@ -182,6 +182,7 @@ const masterNavigation: NavCategory[] = [
           { href: '/my-attendance', label: 'My Attendance', icon: ClipboardCheck, allowedRoles: ['PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT', 'TEACHER', 'STAFF'] },
           { href: '#add-staff-attendance', label: 'Add Staff Attendance', isFuture: true, icon: ClipboardCheck, allowedRoles: SCHOOL_ADMINS },
           { href: '/staff-attendance-report', label: 'Staff Attendance Report', icon: ClipboardCheck, allowedRoles: ['SUPER_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
+          { href: '/salary-statements', label: 'Salary Statements', icon: Banknote, allowedRoles: ['SUPER_ADMIN', 'PRINCIPAL', 'BRANCH_ADMIN', 'ACCOUNTANT'] },
         ]
       },
       {

@@ -115,7 +115,7 @@ class StaffProfileSerializer(serializers.ModelSerializer):
             # Core IDs
             'id', 'tenant', 'employee_id', 'branch',
             # Status / HR
-            'status', 'status_reason', 'employment_type', 'experience_years', 'joining_date',
+            'status', 'status_reason', 'employment_type', 'experience_years', 'joining_date', 'basic_salary',
             # FK relations
             'category', 'category_name', 'department', 'department_name',
             'designation', 'designation_name',

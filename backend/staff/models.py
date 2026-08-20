@@ -152,6 +152,13 @@ class StaffProfile(models.Model):
     emergency_contact_number = models.CharField(max_length=15, blank=True)  # frontend sends this name
     
     joining_date = models.DateField(null=True, blank=True)
+    
+    # Salary
+    basic_salary = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Monthly basic salary in INR.'
+    )
+    
     bio = models.TextField(blank=True)
     
     is_active = models.BooleanField(default=True)
