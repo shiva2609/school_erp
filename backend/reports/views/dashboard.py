@@ -264,6 +264,22 @@ class ReportingViewSet(viewsets.ViewSet):
         academic_revenue_collected = admission_rev + special_rev + academic_core_rev_total + transport_rev
         transport_revenue_collected = transport_rev
 
+        # Calculate expected metrics for progress bars
+        expected_qs = FeeInvoice.objects.filter(tenant=request.user.tenant, student__status='ACTIVE')
+        expected_qs = self._filter_fee_invoice_qs(expected_qs, branch_id, zone_ids)
+        if ay_id:
+            expected_qs = expected_qs.filter(academic_year_id=ay_id)
+        expected_qs = self._billable_fee_invoices(expected_qs).exclude(invoice_number__startswith='FDP-')
+
+        expected_stats = expected_qs.aggregate(
+            total_net=Sum('net_amount'),
+            transport_net=Sum('net_amount', filter=Q(invoice_number__startswith='TRN-'))
+        )
+        
+        transport_expected = expected_stats['transport_net'] or Decimal('0.00')
+        academic_revenue_expected = (expected_stats['total_net'] or Decimal('0.00')) + cf_due
+        total_expected = academic_revenue_expected
+
         return Response({
             'success': True,
             'data': {
@@ -289,6 +305,9 @@ class ReportingViewSet(viewsets.ViewSet):
                 'previous_year_dues_collected': float(cf_collected_total),
                 'this_academic_balance_due': float(stats['total_outstanding'] or Decimal('0.00')),
                 'old_dues_remaining': float(cf_outstanding),
+                'academic_revenue_expected': float(academic_revenue_expected),
+                'transport_expected': float(transport_expected),
+                'total_expected': float(total_expected),
             }
         })
 

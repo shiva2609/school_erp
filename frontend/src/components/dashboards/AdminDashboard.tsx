@@ -101,6 +101,11 @@ export default function AdminDashboard({ user }: { user: any }) {
               value={`₹${(data.stats?.academic_revenue_collected ?? data.stats?.revenue_collected ?? data.stats?.total_paid ?? 0).toLocaleString('en-IN')}`}
               icon={TrendingUp}
               color="green"
+              progress={{
+                current: data.stats?.academic_revenue_collected ?? 0,
+                total: data.stats?.academic_revenue_expected ?? 1,
+                label: 'Collected'
+              }}
             />
             {hasTransportRevenue ? (
               <StatCard
@@ -108,6 +113,11 @@ export default function AdminDashboard({ user }: { user: any }) {
                 value={`₹${(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}`}
                 icon={IndianRupee}
                 color="amber"
+                progress={{
+                  current: data.stats?.transport_revenue_collected ?? 0,
+                  total: data.stats?.transport_expected ?? 1,
+                  label: 'Collected'
+                }}
               />
             ) : <div />}
             <StatCard 

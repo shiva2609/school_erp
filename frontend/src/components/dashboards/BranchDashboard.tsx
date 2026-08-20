@@ -119,6 +119,11 @@ export default function BranchDashboard({ user }: { user: any }) {
               value={`₹${(data.stats?.academic_revenue_collected ?? data.stats?.revenue_collected ?? data.stats?.total_paid ?? 0).toLocaleString('en-IN')}`}
               icon={TrendingUp}
               color="blue"
+              progress={{
+                current: data.stats?.academic_revenue_collected ?? 0,
+                total: data.stats?.academic_revenue_expected ?? 1,
+                label: 'Collected'
+              }}
               details={
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between gap-4">
@@ -146,7 +151,11 @@ export default function BranchDashboard({ user }: { user: any }) {
                     <span className="font-medium text-slate-900">₹{(data.stats?.previous_year_dues_collected || 0).toLocaleString('en-IN')}</span>
                   </div>
                   <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between gap-4">
-                    <span className="text-slate-700 font-medium">Total Amount:</span>
+                    <span className="text-slate-700 font-medium">Total Expected:</span>
+                    <span className="font-bold text-slate-900">₹{(data.stats?.academic_revenue_expected ?? 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-700 font-medium">Total Collected:</span>
                     <span className="font-bold text-slate-900">₹{(data.stats?.academic_revenue_collected ?? 0).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
@@ -158,6 +167,11 @@ export default function BranchDashboard({ user }: { user: any }) {
                 value={`₹${(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}`}
                 icon={IndianRupee}
                 color="amber"
+                progress={{
+                  current: data.stats?.transport_revenue_collected ?? 0,
+                  total: data.stats?.transport_expected ?? 1,
+                  label: 'Collected'
+                }}
                 details={
                   <div className="space-y-1.5 text-xs">
                     <div className="flex justify-between gap-4">
@@ -165,6 +179,10 @@ export default function BranchDashboard({ user }: { user: any }) {
                       <span className="font-medium text-slate-900">₹{(data.stats?.today_transport || 0).toLocaleString('en-IN')}</span>
                     </div>
                     <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between gap-4">
+                      <span className="text-slate-700 font-medium">Total Expected:</span>
+                      <span className="font-bold text-slate-900">₹{(data.stats?.transport_expected || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
                       <span className="text-slate-700 font-medium">Overall Collected:</span>
                       <span className="font-bold text-slate-900">₹{(data.stats?.transport_revenue_collected || 0).toLocaleString('en-IN')}</span>
                     </div>
@@ -177,6 +195,11 @@ export default function BranchDashboard({ user }: { user: any }) {
               value={`₹${(data.stats?.total_outstanding || 0).toLocaleString('en-IN')}`} 
               icon={AlertCircle} 
               color="red" 
+              progress={{
+                current: data.stats?.academic_revenue_collected ?? 0,
+                total: data.stats?.total_expected ?? 1,
+                label: 'Recovery Rate'
+              }}
               details={
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between gap-4">

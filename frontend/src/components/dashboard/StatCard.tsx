@@ -13,6 +13,11 @@ interface StatCardProps {
     value: number;
     label: string;
   };
+  progress?: {
+    current: number;
+    total: number;
+    label?: string;
+  };
   details?: React.ReactNode;
 }
 
@@ -24,7 +29,15 @@ const colorMap = {
   purple: 'bg-purple-50 text-purple-600 border-purple-100',
 };
 
-export default function StatCard({ title, value, icon: Icon, color, trend, details }: StatCardProps) {
+const progressColorMap = {
+  blue: 'bg-blue-500',
+  green: 'bg-green-500',
+  amber: 'bg-amber-500',
+  red: 'bg-red-500',
+  purple: 'bg-purple-500',
+};
+
+export default function StatCard({ title, value, icon: Icon, color, trend, progress, details }: StatCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   return (
@@ -74,6 +87,21 @@ export default function StatCard({ title, value, icon: Icon, color, trend, detai
                     {trend.value >= 0 ? '+' : ''}{trend.value}%
                   </span>
                   <span className="text-slate-500 font-medium ml-1">{trend.label}</span>
+                </div>
+              )}
+
+              {progress && (
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-slate-500 font-medium">{progress.label || 'Progress'}</span>
+                    <span className="text-slate-700 font-bold">{Math.round((progress.current / (progress.total || 1)) * 100)}%</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full ${progressColorMap[color]}`} 
+                      style={{ width: `${Math.min(100, Math.max(0, (progress.current / (progress.total || 1)) * 100))}%` }} 
+                    />
+                  </div>
                 </div>
               )}
             </motion.div>
