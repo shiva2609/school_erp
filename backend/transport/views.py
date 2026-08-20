@@ -167,6 +167,11 @@ class TransportFeeEnrollmentViewSet(viewsets.ModelViewSet):
                 Q(student__last_name__icontains=search) |
                 Q(student__admission_number__icontains=search)
             )
+            
+        student_status = self.request.query_params.get('student_status', 'ACTIVE')
+        if student_status != 'ALL':
+            qs = qs.filter(student__status=student_status)
+            
         return qs
 
     @action(detail=False, methods=['get'], url_path='summary')

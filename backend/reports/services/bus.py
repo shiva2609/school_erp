@@ -7,8 +7,6 @@ class BusService:
     def get_bus_fee_balances(filters):
         # Find invoices that have transport items or TRN- prefix
         qs = FeeInvoice.objects.select_related('student', 'student__class_section').filter(
-            outstanding_amount__gt=0
-        ).filter(
             Q(invoice_number__startswith='TRN-') |
             Q(items__category__code__iexact='TRANSPORT')
         ).exclude(status='CANCELLED').distinct()
