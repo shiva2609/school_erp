@@ -86,11 +86,30 @@ class Branch(models.Model):
     address = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 
+    # Staff attendance shift settings
+    shift_start_time = models.TimeField(
+        default='09:00',
+        help_text='Standard shift start time (e.g. 09:00). Used to auto-tag Late-In.'
+    )
+    shift_end_time = models.TimeField(
+        default='17:00',
+        help_text='Standard shift end time (e.g. 17:00). Used to auto-tag Early-Out.'
+    )
+    late_in_grace_minutes = models.PositiveIntegerField(
+        default=15,
+        help_text='Grace period in minutes after shift start before marking as Late-In.'
+    )
+    early_out_grace_minutes = models.PositiveIntegerField(
+        default=15,
+        help_text='Grace period in minutes before shift end; checkout before this is Early-Out.'
+    )
+
     class Meta:
         unique_together = ('tenant', 'branch_code')
 
     def __str__(self):
         return f"{self.name} ({self.tenant.name})"
+
 
 
 class BranchAdmissionFee(models.Model):

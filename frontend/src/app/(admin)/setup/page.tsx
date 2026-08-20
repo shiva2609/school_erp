@@ -394,10 +394,12 @@ function BranchManager() {
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '', branch_code: '', staff_code: '', address: '', is_active: true, zone: '',
+    shift_start_time: '09:00', shift_end_time: '17:00',
+    late_in_grace_minutes: 15, early_out_grace_minutes: 15,
   });
 
   const resetForm = () => {
-    setFormData({ name: '', branch_code: '', staff_code: '', address: '', is_active: true, zone: '' });
+    setFormData({ name: '', branch_code: '', staff_code: '', address: '', is_active: true, zone: '', shift_start_time: '09:00', shift_end_time: '17:00', late_in_grace_minutes: 15, early_out_grace_minutes: 15 });
     setEditingBranchId(null);
     setShowForm(false);
   };
@@ -459,6 +461,10 @@ function BranchManager() {
         staff_code: formData.staff_code.trim().toUpperCase(),
         address: formData.address,
         is_active: formData.is_active,
+        shift_start_time: formData.shift_start_time || '09:00',
+        shift_end_time: formData.shift_end_time || '17:00',
+        late_in_grace_minutes: Number(formData.late_in_grace_minutes) || 15,
+        early_out_grace_minutes: Number(formData.early_out_grace_minutes) || 15,
       };
       if (formData.zone) payload.zone = formData.zone;
 
@@ -487,6 +493,10 @@ function BranchManager() {
       address: branch.address || '',
       is_active: !!branch.is_active,
       zone: branch.zone || '',
+      shift_start_time: branch.shift_start_time || '09:00',
+      shift_end_time: branch.shift_end_time || '17:00',
+      late_in_grace_minutes: branch.late_in_grace_minutes ?? 15,
+      early_out_grace_minutes: branch.early_out_grace_minutes ?? 15,
     });
     setShowForm(true);
   };
@@ -572,6 +582,60 @@ function BranchManager() {
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
+
+            {/* Shift / Attendance Settings */}
+            <div className="md:col-span-2 pt-2">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <span className="w-4 h-px bg-slate-300 inline-block" />
+                Staff Attendance Shift Settings
+                <span className="flex-1 h-px bg-slate-100 inline-block" />
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 px-1">Shift Start Time</label>
+              <input
+                type="time"
+                value={formData.shift_start_time}
+                onChange={e => setFormData({ ...formData, shift_start_time: e.target.value })}
+                className="w-full px-4 py-2.5 border border-emerald-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+              <p className="text-[10px] text-emerald-600 px-1">Check-in after this time is flagged as Late-In</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 px-1">Shift End Time</label>
+              <input
+                type="time"
+                value={formData.shift_end_time}
+                onChange={e => setFormData({ ...formData, shift_end_time: e.target.value })}
+                className="w-full px-4 py-2.5 border border-rose-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none"
+              />
+              <p className="text-[10px] text-rose-600 px-1">Checkout before this time is flagged as Early-Out</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 px-1">Late-In Grace (minutes)</label>
+              <input
+                type="number"
+                min={0}
+                max={120}
+                value={formData.late_in_grace_minutes}
+                onChange={e => setFormData({ ...formData, late_in_grace_minutes: Number(e.target.value) })}
+                className="w-full px-4 py-2.5 border border-amber-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+              <p className="text-[10px] text-amber-600 px-1">e.g. 15 = flagged only if check-in is 15+ min late</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 px-1">Early-Out Grace (minutes)</label>
+              <input
+                type="number"
+                min={0}
+                max={120}
+                value={formData.early_out_grace_minutes}
+                onChange={e => setFormData({ ...formData, early_out_grace_minutes: Number(e.target.value) })}
+                className="w-full px-4 py-2.5 border border-amber-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+              <p className="text-[10px] text-amber-600 px-1">e.g. 15 = flagged only if checkout is 15+ min early</p>
+            </div>
+
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-500 px-1">Zone</label>
               <select

@@ -270,8 +270,6 @@ export default function StaffAttendanceReportPage() {
                   <th>Check-Out</th>
                   <th>Photos</th>
                   <th>Status</th>
-                  <th>Approval</th>
-                  <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -309,33 +307,6 @@ export default function StaffAttendanceReportPage() {
                     </td>
                     {/* Status */}
                     <td>{statusBadge(record.status)}</td>
-                    {/* Approval Status */}
-                    <td>{approvalBadge(record.approval_status)}</td>
-                    {/* Actions */}
-                    <td className="text-right">
-                      {record.approval_status === 'PENDING' ? (
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => handleAction(record.id, 'APPROVE')}
-                            disabled={processingId === record.id}
-                            className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-bold transition-all border border-emerald-200 hover:border-emerald-600 shadow-sm disabled:opacity-50"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleAction(record.id, 'REJECT')}
-                            disabled={processingId === record.id}
-                            className="px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-600 hover:text-white rounded-lg text-xs font-bold transition-all border border-rose-200 hover:border-rose-600 shadow-sm disabled:opacity-50"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold px-2 py-1 bg-slate-50 rounded-md border border-slate-100">
-                          Processed
-                        </span>
-                      )}
-                    </td>
                   </tr>
                 ))}
               </tbody>

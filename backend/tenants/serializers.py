@@ -23,7 +23,12 @@ class BranchSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Branch
-        fields = ['id', 'tenant', 'tenant_name', 'zone', 'zone_name', 'name', 'branch_code', 'staff_code', 'address', 'is_active']
+        fields = [
+            'id', 'tenant', 'tenant_name', 'zone', 'zone_name',
+            'name', 'branch_code', 'staff_code', 'address', 'is_active',
+            'shift_start_time', 'shift_end_time',
+            'late_in_grace_minutes', 'early_out_grace_minutes',
+        ]
         read_only_fields = ['id', 'tenant']
 
 
