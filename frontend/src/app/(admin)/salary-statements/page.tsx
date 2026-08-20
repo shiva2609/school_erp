@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/axios';
 import { toast } from 'react-hot-toast';
-import { RefreshCw, Download, Save, Calendar, AlertCircle, FileText } from 'lucide-react';
+import { RefreshCw, Download, Save, Calendar, AlertCircle, FileText, Clock, X, Eye } from 'lucide-react';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -30,6 +30,74 @@ interface StatementRow {
   status: string;
 }
 
+interface AttendanceRecord {
+  id: string;
+  employee_id: string;
+  staff_name: string;
+  designation: string;
+  branch_name: string;
+  date: string;
+  check_in_at: string | null;
+  check_out_at: string | null;
+  check_in_photo: string | null;
+  check_out_photo: string | null;
+  status: string;
+  remarks: string;
+}
+
+function formatDateTime(isoStr: string | null): string {
+  if (!isoStr) return '—';
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return '—';
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${hours}:${String(minutes).padStart(2, '0')} ${ampm}`;
+  } catch {
+    return '—';
+  }
+}
+
+function PhotoThumbnail({ id, type, s3Key, onView }: { id: string; type: 'check_in' | 'check_out'; s3Key: string | null; onView: (url: string, title: string) => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!s3Key) return;
+    let mounted = true;
+    setLoading(true);
+    setError(false);
+    api.get(`/staff-attend/admin/photo/${id}/${type}/`)
+      .then(res => {
+        if (mounted && res.data?.url) setUrl(res.data.url);
+      })
+      .catch(() => {
+        if (mounted) setError(true);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => { mounted = false; };
+  }, [id, type, s3Key]);
+
+  if (!s3Key) return <span className="text-slate-400 text-[10px]">—</span>;
+  if (loading) return <div className="w-8 h-8 bg-slate-100 rounded-md animate-pulse" />;
+  if (error || !url) return <span className="text-rose-400 text-[10px]">Error</span>;
+
+  return (
+    <img
+      src={url}
+      alt={`${type === 'check_in' ? 'Check-in' : 'Check-out'} photo`}
+      className="w-8 h-8 object-cover rounded-md cursor-pointer border border-slate-200 hover:border-blue-400 transition-colors shadow-sm"
+      onClick={() => onView(url, type === 'check_in' ? 'Check-In Photo' : 'Check-Out Photo')}
+    />
+  );
+}
+
 export default function SalaryStatementsPage() {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -41,6 +109,12 @@ export default function SalaryStatementsPage() {
 
   // Local edits for deduction
   const [deductions, setDeductions] = useState<Record<string, { amount: string; reason: string }>>({});
+
+  // Employee detail attendance modal state
+  const [selectedStaff, setSelectedStaff] = useState<StatementRow | null>(null);
+  const [staffAttendanceRecords, setStaffAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [loadingStaffAttendance, setLoadingStaffAttendance] = useState(false);
+  const [photoModal, setPhotoModal] = useState<{ url: string; title: string } | null>(null);
 
   const fetchPreview = useCallback(async () => {
     setLoading(true);
@@ -64,6 +138,25 @@ export default function SalaryStatementsPage() {
       setLoading(false);
     }
   }, [month, year]);
+
+  const handleOpenAttendanceDetail = async (row: StatementRow) => {
+    setSelectedStaff(row);
+    setLoadingStaffAttendance(true);
+    setStaffAttendanceRecords([]);
+
+    try {
+      const lastDay = new Date(year, month, 0).getDate();
+      const dateFrom = `${year}-${String(month).padStart(2, '0')}-01`;
+      const dateTo = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      const res = await api.get(`/staff-attend/admin/list/?employee_id=${encodeURIComponent(row.employee_id)}&date_from=${dateFrom}&date_to=${dateTo}&page_size=100`);
+      setStaffAttendanceRecords(res.data?.results || []);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to fetch employee attendance records');
+    } finally {
+      setLoadingStaffAttendance(false);
+    }
+  };
 
   const handleSaveAll = async () => {
     if (rows.length === 0) return;
@@ -124,12 +217,27 @@ export default function SalaryStatementsPage() {
   const totalDeduction = rows.reduce((sum, r) => sum + parseFloat(deductions[r.staff_id]?.amount || '0'), 0);
   const totalNet = totalGross - totalDeduction;
 
+  const statusBadge = (status: string) => {
+    switch (status) {
+      case 'CHECKED_IN':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">CHECKED IN</span>;
+      case 'CHECKED_OUT':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">CHECKED OUT</span>;
+      case 'ON_LEAVE':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">ON LEAVE</span>;
+      case 'ABSENT':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">ABSENT</span>;
+      default:
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-slate-50 text-slate-700 border border-slate-200">{status}</span>;
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Salary Statements</h1>
-        <p className="text-gray-500 text-sm mt-1">Generate and manage monthly salary statements for all staff.</p>
+        <p className="text-gray-500 text-sm mt-1">Generate and manage monthly salary statements for all staff. Click on an employee name to view full daily attendance.</p>
       </div>
 
       {/* Month/Year Selector */}
@@ -236,8 +344,17 @@ export default function SalaryStatementsPage() {
                 {rows.map(row => (
                   <tr key={row.staff_id} className="hover:bg-slate-50/50 transition-colors">
                     <td>
-                      <p className="font-semibold text-slate-900 text-sm">{row.staff_name}</p>
-                      <p className="text-[10px] text-slate-500 font-mono">{row.employee_id}{row.designation ? ` • ${row.designation}` : ''}</p>
+                      <button
+                        onClick={() => handleOpenAttendanceDetail(row)}
+                        className="text-left group flex flex-col focus:outline-none"
+                        title="Click to view full attendance breakdown"
+                      >
+                        <span className="font-semibold text-slate-900 text-sm group-hover:text-blue-600 group-hover:underline flex items-center gap-1.5 transition-colors">
+                          {row.staff_name}
+                          <Eye size={13} className="opacity-0 group-hover:opacity-100 text-blue-500 transition-opacity" />
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">{row.employee_id}{row.designation ? ` • ${row.designation}` : ''}</span>
+                      </button>
                     </td>
                     <td className="text-center">
                       <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-700 font-bold text-sm border border-emerald-200">{row.present_days}</span>
@@ -296,6 +413,151 @@ export default function SalaryStatementsPage() {
           </div>
         )}
       </div>
+
+      {/* Staff Attendance Detail Modal */}
+      {selectedStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-4xl max-h-[88vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center font-bold text-base shadow-sm">
+                  {selectedStaff.staff_name ? selectedStaff.staff_name.charAt(0).toUpperCase() : 'S'}
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    {selectedStaff.staff_name}
+                    <span className="text-xs font-mono px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                      {selectedStaff.employee_id}
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {selectedStaff.designation || 'Staff'} · Attendance for {MONTHS[month - 1]} {year}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedStaff(null)}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Attendance Summary Cards */}
+            <div className="grid grid-cols-6 gap-2 p-4 bg-white border-b border-slate-100 text-center">
+              <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-100">
+                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Present</p>
+                <p className="text-lg font-black text-emerald-700">{selectedStaff.present_days}</p>
+              </div>
+              <div className="p-2 rounded-xl bg-rose-50 border border-rose-100">
+                <p className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Absent</p>
+                <p className="text-lg font-black text-rose-700">{selectedStaff.absent_days}</p>
+              </div>
+              <div className="p-2 rounded-xl bg-blue-50 border border-blue-100">
+                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Leave</p>
+                <p className="text-lg font-black text-blue-700">{selectedStaff.leave_days}</p>
+              </div>
+              <div className="p-2 rounded-xl bg-orange-50 border border-orange-100">
+                <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Half Day</p>
+                <p className="text-lg font-black text-orange-700">{selectedStaff.half_days}</p>
+              </div>
+              <div className="p-2 rounded-xl bg-amber-50 border border-amber-100">
+                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Late In</p>
+                <p className="text-lg font-black text-amber-700">{selectedStaff.late_in_count}</p>
+              </div>
+              <div className="p-2 rounded-xl bg-purple-50 border border-purple-100">
+                <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Early Out</p>
+                <p className="text-lg font-black text-purple-700">{selectedStaff.early_out_count}</p>
+              </div>
+            </div>
+
+            {/* Modal Body / Table */}
+            <div className="p-4 flex-1 overflow-y-auto">
+              {loadingStaffAttendance ? (
+                <div className="py-16 text-center flex flex-col items-center">
+                  <RefreshCw className="animate-spin text-blue-600 mb-2" size={24} />
+                  <p className="text-xs text-slate-500">Loading attendance records...</p>
+                </div>
+              ) : staffAttendanceRecords.length === 0 ? (
+                <div className="py-16 text-center flex flex-col items-center">
+                  <AlertCircle size={28} className="text-slate-300 mb-2" />
+                  <p className="text-sm font-semibold text-slate-600">No punch records found for this employee in {MONTHS[month - 1]} {year}.</p>
+                  <p className="text-xs text-slate-400 mt-1">Attendance will be marked according to policy or absence.</p>
+                </div>
+              ) : (
+                <table className="esms-table w-full whitespace-nowrap text-xs">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Check-In</th>
+                      <th>Check-Out</th>
+                      <th>Photos</th>
+                      <th>Status</th>
+                      <th>Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffAttendanceRecords.map(rec => (
+                      <tr key={rec.id} className="hover:bg-slate-50/50">
+                        <td className="font-semibold text-slate-800">{rec.date}</td>
+                        <td>
+                          <span className="flex items-center gap-1 font-medium text-slate-700">
+                            <Clock size={12} className="text-emerald-500" />
+                            {formatDateTime(rec.check_in_at)}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="flex items-center gap-1 font-medium text-slate-700">
+                            <Clock size={12} className="text-rose-500" />
+                            {formatDateTime(rec.check_out_at)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-1.5">
+                            <PhotoThumbnail id={rec.id} type="check_in" s3Key={rec.check_in_photo} onView={(url, title) => setPhotoModal({ url, title })} />
+                            <PhotoThumbnail id={rec.id} type="check_out" s3Key={rec.check_out_photo} onView={(url, title) => setPhotoModal({ url, title })} />
+                          </div>
+                        </td>
+                        <td>{statusBadge(rec.status)}</td>
+                        <td className="text-slate-500 max-w-[200px] truncate">{rec.remarks || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+              <button
+                onClick={() => setSelectedStaff(null)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Photo Enlarge Modal */}
+      {photoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-2xl max-w-lg w-full border border-slate-100">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-slate-800 text-sm">{photoModal.title}</h3>
+              <button onClick={() => setPhotoModal(null)} className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4 flex items-center justify-center bg-slate-50 min-h-[300px]">
+              <img src={photoModal.url} alt={photoModal.title} className="max-h-[60vh] rounded-xl object-contain shadow-sm" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
