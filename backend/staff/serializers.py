@@ -96,11 +96,11 @@ class StaffProfileSerializer(serializers.ModelSerializer):
 
     # Portal-access toggle fields (write-only, optional)
     requires_portal_access = serializers.BooleanField(write_only=True, required=False, default=False)
-    email = serializers.EmailField(write_only=True, required=False)
-    first_name = serializers.CharField(write_only=True, required=False)
-    last_name = serializers.CharField(write_only=True, required=False)
+    email = serializers.EmailField(write_only=True, required=False, allow_blank=True, allow_null=True)
+    first_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    last_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
     phone = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    password = serializers.CharField(write_only=True, required=False)
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
     user_role = serializers.CharField(write_only=True, required=False, default='TEACHER')
 
     branch = serializers.PrimaryKeyRelatedField(
@@ -158,9 +158,11 @@ class StaffProfileSerializer(serializers.ModelSerializer):
                 self.fields['branch'].queryset = Branch.objects.filter(tenant=request.user.tenant)
 
     def validate_email(self, value):
+        if not value or not value.strip():
+            return None
         email = User.objects.normalize_email(value)
         # On updates, allow the existing user's own email
-        if self.instance and self.instance.user and self.instance.user.email == email:
+        if self.instance and self.instance.user and self.instance.user.email.lower() == email.lower():
             return email
         if User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError("A user with this email already exists.")

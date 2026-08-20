@@ -90,11 +90,20 @@ export default function SalaryStatementsPage() {
       return;
     }
     try {
-      // Open PDF in new tab
-      const baseUrl = api.defaults?.baseURL || '';
-      window.open(`${baseUrl}/payroll/${row.statement_id}/pdf/`, '_blank');
+      const res = await api.get(`/payroll/${row.statement_id}/pdf/`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Salary_Slip_${(row.staff_name || 'Staff').replace(/\s+/g, '_')}_${month}_${year}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      toast.error('Failed to open PDF.');
+      toast.error('Failed to download PDF.');
     }
   };
 

@@ -140,11 +140,18 @@ export default function StaffCreatePage() {
     
     try {
       // Backend expects branch in the payload
-      const payload = { ...formData, branch: branchId };
+      const payload: any = { ...formData, branch: branchId };
+
+      if (payload.basic_salary === '' || payload.basic_salary === undefined || payload.basic_salary === null) {
+        delete payload.basic_salary;
+      } else {
+        payload.basic_salary = Number(payload.basic_salary);
+      }
+
       // Remove empty strings for nullable fields
       Object.keys(payload).forEach(key => {
-        if (payload[key as keyof typeof payload] === '') {
-          delete payload[key as keyof typeof payload];
+        if (payload[key] === '') {
+          delete payload[key];
         }
       });
       

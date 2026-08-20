@@ -161,8 +161,21 @@ export default function StaffEditPage() {
     setLoading(true);
     try {
       const payload: any = { ...formData };
-      // Remove empty strings for nullable fields (but keep required ones)
-      const keepEmpty = ['mobile', 'personal_email', 'current_address', 'permanent_address', 'city', 'state', 'pincode', 'status', 'requires_portal_access', 'email', 'password'];
+
+      // Only send password if user explicitly entered a new one
+      if (!payload.password || !payload.password.trim()) {
+        delete payload.password;
+      }
+
+      // Handle basic salary properly
+      if (payload.basic_salary === '' || payload.basic_salary === undefined || payload.basic_salary === null) {
+        payload.basic_salary = null;
+      } else {
+        payload.basic_salary = Number(payload.basic_salary);
+      }
+
+      // Remove empty strings for nullable/optional fields (but keep required ones)
+      const keepEmpty = ['mobile', 'personal_email', 'current_address', 'permanent_address', 'city', 'state', 'pincode', 'status', 'requires_portal_access', 'email'];
       Object.keys(payload).forEach(key => {
         if (payload[key] === '' && !keepEmpty.includes(key)) {
           delete payload[key];

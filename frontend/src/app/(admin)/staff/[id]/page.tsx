@@ -602,6 +602,12 @@ export default function StaffProfilePage() {
                     <p className="font-semibold text-slate-800 mt-1">{staff.experience_years || 'N/A'}</p>
                   </div>
                   <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Basic Salary (Monthly)</p>
+                    <p className="font-semibold text-emerald-700 mt-1">
+                      {staff.basic_salary ? `₹${Number(staff.basic_salary).toLocaleString('en-IN')}` : 'Not configured'}
+                    </p>
+                  </div>
+                  <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Qualification</p>
                     <p className="font-semibold text-slate-800 mt-1">{staff.qualification || 'N/A'}</p>
                   </div>
