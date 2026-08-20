@@ -105,22 +105,21 @@ def compute_monthly_summary(staff, year, month, branch):
         record = records_by_date.get(d)
         tag = get_attendance_tag(record, branch)
 
-        if tag == PRESENT:
+        # Whenever check-in has occurred, count as present
+        if record and (record.check_in_at or record.status in ['CHECKED_IN', 'CHECKED_OUT']):
             present += 1
-        elif tag == ABSENT:
-            absent += 1
-        elif tag == LATE_IN:
-            present += 1  # Still present, just late
-            late_in += 1
-        elif tag == EARLY_OUT:
-            present += 1  # Still present, just left early
-            early_out += 1
-        elif tag == HALF_DAY:
-            half_day += 1
-            late_in += 1
-            early_out += 1
+            if tag == LATE_IN:
+                late_in += 1
+            elif tag == EARLY_OUT:
+                early_out += 1
+            elif tag == HALF_DAY:
+                half_day += 1
+                late_in += 1
+                early_out += 1
         elif tag == LEAVE:
             leave += 1
+        else:
+            absent += 1
 
     return {
         'total_working_days': total_working_days,

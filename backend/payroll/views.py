@@ -337,3 +337,4 @@ def _build_salary_slip_html(ctx):
         </div>
     </body></html>
     """
+
