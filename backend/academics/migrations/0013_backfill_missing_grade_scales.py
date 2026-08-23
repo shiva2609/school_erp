@@ -1,21 +1,26 @@
 """
 Migration: backfill GradeScale for branches that were created after migration
 0012 and therefore never got their grade scale seeded.
+Also patches remarks='' on existing GradeScale rows so the Final Remark
+column in PDF report cards is populated correctly.
 """
 from django.db import migrations
 
 
 SCALES = [
-    ('A1', 91.0, 100.0,  10.0),
-    ('A2', 81.0,  90.99,  9.0),
-    ('B1', 71.0,  80.99,  8.0),
-    ('B2', 61.0,  70.99,  7.0),
-    ('C1', 51.0,  60.99,  6.0),
-    ('C2', 41.0,  50.99,  5.0),
-    ('D1', 33.0,  40.99,  4.0),
-    ('D2', 21.0,  32.99,  0.0),
-    ('E',   0.0,  20.99,  0.0),
+    ('A1', 91.0, 100.0,  10.0, 'Outstanding'),
+    ('A2', 81.0,  90.99,  9.0, 'Excellent'),
+    ('B1', 71.0,  80.99,  8.0, 'Very Good'),
+    ('B2', 61.0,  70.99,  7.0, 'Good'),
+    ('C1', 51.0,  60.99,  6.0, 'Above Average'),
+    ('C2', 41.0,  50.99,  5.0, 'Satisfactory'),
+    ('D1', 33.0,  40.99,  4.0, 'Needs Improvement'),
+    ('D2', 21.0,  32.99,  0.0, 'Requires Significant Improvement'),
+    ('E',   0.0,  20.99,  0.0, 'Unsatisfactory'),
 ]
+
+# grade → remark lookup for patching existing rows
+GRADE_REMARK = {grade: remark for grade, _min, _max, _pt, remark in SCALES}
 
 
 def seed_missing_grade_scales(apps, schema_editor):
@@ -24,22 +29,32 @@ def seed_missing_grade_scales(apps, schema_editor):
 
     for branch in Branch.objects.all():
         if GradeScale.objects.filter(branch=branch).exists():
-            continue  # already has a scale — skip
-        for grade, min_p, max_p, point in SCALES:
-            GradeScale.objects.get_or_create(
-                branch=branch,
-                name='Standard Indian Scale',
-                grade=grade,
-                defaults={
-                    'tenant': branch.tenant,
-                    'min_marks_percent': min_p,
-                    'max_marks_percent': max_p,
-                    'grade_point': point,
-                },
-            )
+            # Already has a scale — just patch any missing remarks (e.g. seeded
+            # by migration 0012 or by the old _seed_grade_scale which had no
+            # remarks field).
+            for gs in GradeScale.objects.filter(branch=branch, name='Standard Indian Scale', remarks=''):
+                remark = GRADE_REMARK.get(gs.grade, '')
+                if remark:
+                    gs.remarks = remark
+                    gs.save(update_fields=['remarks'])
+        else:
+            # Branch never got a scale — create it now with remarks.
+            for grade, min_p, max_p, point, remark in SCALES:
+                GradeScale.objects.get_or_create(
+                    branch=branch,
+                    name='Standard Indian Scale',
+                    grade=grade,
+                    defaults={
+                        'tenant': branch.tenant,
+                        'min_marks_percent': min_p,
+                        'max_marks_percent': max_p,
+                        'grade_point': point,
+                        'remarks': remark,
+                    },
+                )
 
-    # Also backfill the grade field on ExamResult rows that have marks but
-    # no grade yet (missed due to the update_fields bug in teacher_marks_publish).
+    # Backfill the grade field on ExamResult rows that have marks but no grade
+    # (missed due to the update_fields bug in teacher_marks_publish).
     ExamResult = apps.get_model('academics', 'ExamResult')
     for result in ExamResult.objects.filter(grade='').exclude(marks_obtained__isnull=True):
         if not result.max_marks or result.max_marks <= 0:

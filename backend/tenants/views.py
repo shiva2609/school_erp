@@ -146,17 +146,17 @@ class BranchViewSet(viewsets.ModelViewSet):
         if GradeScale.objects.filter(branch=branch).exists():
             return  # already seeded — don't overwrite custom scales
         scales = [
-            ('A1', 91.0, 100.0,  10.0),
-            ('A2', 81.0,  90.99,  9.0),
-            ('B1', 71.0,  80.99,  8.0),
-            ('B2', 61.0,  70.99,  7.0),
-            ('C1', 51.0,  60.99,  6.0),
-            ('C2', 41.0,  50.99,  5.0),
-            ('D1', 33.0,  40.99,  4.0),
-            ('D2', 21.0,  32.99,  0.0),
-            ('E',   0.0,  20.99,  0.0),
+            ('A1', 91.0, 100.0,  10.0, 'Outstanding'),
+            ('A2', 81.0,  90.99,  9.0, 'Excellent'),
+            ('B1', 71.0,  80.99,  8.0, 'Very Good'),
+            ('B2', 61.0,  70.99,  7.0, 'Good'),
+            ('C1', 51.0,  60.99,  6.0, 'Above Average'),
+            ('C2', 41.0,  50.99,  5.0, 'Satisfactory'),
+            ('D1', 33.0,  40.99,  4.0, 'Needs Improvement'),
+            ('D2', 21.0,  32.99,  0.0, 'Requires Significant Improvement'),
+            ('E',   0.0,  20.99,  0.0, 'Unsatisfactory'),
         ]
-        for grade, min_p, max_p, point in scales:
+        for grade, min_p, max_p, point, remark in scales:
             GradeScale.objects.get_or_create(
                 branch=branch,
                 name='Standard Indian Scale',
@@ -166,8 +166,10 @@ class BranchViewSet(viewsets.ModelViewSet):
                     'min_marks_percent': min_p,
                     'max_marks_percent': max_p,
                     'grade_point': point,
+                    'remarks': remark,
                 },
             )
+
 
 
     @action(detail=True, methods=['get', 'patch'], url_path='admission-fee')
