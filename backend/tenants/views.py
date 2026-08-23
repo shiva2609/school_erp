@@ -135,6 +135,41 @@ class BranchViewSet(viewsets.ModelViewSet):
             },
         )
 
+        # Seed default Indian grading scale so grades are computed correctly
+        # for this branch from day one.
+        self._seed_grade_scale(branch)
+
+    @staticmethod
+    def _seed_grade_scale(branch):
+        """Seed the standard Indian grading scale for a branch if not already present."""
+        from academics.models import GradeScale
+        if GradeScale.objects.filter(branch=branch).exists():
+            return  # already seeded — don't overwrite custom scales
+        scales = [
+            ('A1', 91.0, 100.0,  10.0),
+            ('A2', 81.0,  90.99,  9.0),
+            ('B1', 71.0,  80.99,  8.0),
+            ('B2', 61.0,  70.99,  7.0),
+            ('C1', 51.0,  60.99,  6.0),
+            ('C2', 41.0,  50.99,  5.0),
+            ('D1', 33.0,  40.99,  4.0),
+            ('D2', 21.0,  32.99,  0.0),
+            ('E',   0.0,  20.99,  0.0),
+        ]
+        for grade, min_p, max_p, point in scales:
+            GradeScale.objects.get_or_create(
+                branch=branch,
+                name='Standard Indian Scale',
+                grade=grade,
+                defaults={
+                    'tenant': branch.tenant,
+                    'min_marks_percent': min_p,
+                    'max_marks_percent': max_p,
+                    'grade_point': point,
+                },
+            )
+
+
     @action(detail=True, methods=['get', 'patch'], url_path='admission-fee')
     def admission_fee(self, request, pk=None):
         """GET/PATCH configured admission fee for this branch and an academic year (not part of class fee structure)."""
