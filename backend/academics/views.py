@@ -408,7 +408,8 @@ def teacher_marks_publish(request):
     from students.models import ParentStudentRelation
     from notifications.dispatcher import dispatch_notification
     from accounts.models import User
-    
+    from academics.models import GradeScale
+
     for sub in subjects:
         # Calculate ranks for this subject
         results = list(ExamResult.objects.filter(
@@ -427,9 +428,30 @@ def teacher_marks_publish(request):
             else:
                 r.subject_rank = current_rank
             current_rank += 1
-            
+
             r.is_published = True
-            r.save(update_fields=['subject_rank', 'is_published'])
+
+            # Compute grade & grade_point from GradeScale so they are persisted.
+            # update_fields bypasses the model's save() hook, so we resolve the
+            # scale here and write all auto-calculated fields explicitly.
+            if not r.is_absent and r.marks_obtained is not None and r.max_marks > 0:
+                pct = r.percentage  # already stored when marks were entered
+                scale = GradeScale.objects.filter(
+                    branch=r.branch,
+                    min_marks_percent__lte=pct,
+                    max_marks_percent__gte=pct,
+                ).first()
+                if scale:
+                    r.grade = scale.grade
+                    r.grade_point = scale.grade_point
+                else:
+                    r.grade = ''
+                    r.grade_point = None
+            else:
+                r.grade = ''
+                r.grade_point = None
+
+            r.save(update_fields=['subject_rank', 'is_published', 'grade', 'grade_point'])
             published_count += 1
             
         # Send notifications
