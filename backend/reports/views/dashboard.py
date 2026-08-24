@@ -212,11 +212,12 @@ class ReportingViewSet(viewsets.ViewSet):
         # Exclude them from the Payment queries to prevent double-counting.
         cf_payment_ids = cf_payments_qs.values_list('payment_id', flat=True)
 
-        # Today's collection (current-year payments only — carry-forwards counted separately)
+        # Today's collection — includes COMPLETED and PENDING (awaiting approval)
+        # so the dashboard card reflects all money received today, not just approved.
         today_payments = Payment.objects.filter(
             tenant=request.user.tenant,
             payment_date=timezone.now().date(),
-            status='COMPLETED',
+            status__in=['COMPLETED', 'PENDING'],
             invoice__student__status='ACTIVE',
         )
         today_payments = self._filter_payment_qs(today_payments, branch_id, zone_ids)
