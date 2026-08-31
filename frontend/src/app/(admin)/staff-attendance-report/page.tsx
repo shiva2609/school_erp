@@ -2,7 +2,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/axios';
-import { Search, Filter, CheckCircle2, XCircle, Clock, X, RefreshCw, AlertCircle } from 'lucide-react';
+import { useBranch } from '@/components/common/BranchContext';
+import { useAuth } from '@/components/common/AuthProvider';
+import {
+  Search, Filter, CheckCircle2, XCircle, Clock, X, RefreshCw,
+  AlertCircle, Users, UserCheck, Palmtree,
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 interface AttendanceRecord {
@@ -23,6 +28,13 @@ interface AttendanceRecord {
   remarks: string;
 }
 
+interface TodaySummary {
+  date: string;
+  total_staff: number;
+  attended_today: number;
+  on_leave_today: number;
+}
+
 function formatDateTime(isoStr: string | null): string {
   if (!isoStr) return '—';
   try {
@@ -39,7 +51,14 @@ function formatDateTime(isoStr: string | null): string {
   }
 }
 
-function PhotoThumbnail({ id, type, s3Key, onView }: { id: string; type: 'check_in' | 'check_out'; s3Key: string | null; onView: (url: string, title: string) => void }) {
+function PhotoThumbnail({
+  id, type, s3Key, onView,
+}: {
+  id: string;
+  type: 'check_in' | 'check_out';
+  s3Key: string | null;
+  onView: (url: string, title: string) => void;
+}) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -50,15 +69,9 @@ function PhotoThumbnail({ id, type, s3Key, onView }: { id: string; type: 'check_
     setLoading(true);
     setError(false);
     api.get(`/staff-attend/admin/photo/${id}/${type}/`)
-      .then(res => {
-        if (mounted && res.data?.url) setUrl(res.data.url);
-      })
-      .catch(() => {
-        if (mounted) setError(true);
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
+      .then(res => { if (mounted && res.data?.url) setUrl(res.data.url); })
+      .catch(() => { if (mounted) setError(true); })
+      .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
   }, [id, type, s3Key]);
 
@@ -76,7 +89,42 @@ function PhotoThumbnail({ id, type, s3Key, onView }: { id: string; type: 'check_
   );
 }
 
+function SummaryCard({
+  title, value, icon: Icon, color, loading,
+}: {
+  title: string;
+  value: number;
+  icon: React.ElementType;
+  color: 'blue' | 'green' | 'amber';
+  loading: boolean;
+}) {
+  const colors = {
+    blue:  { bg: 'bg-blue-50',  icon: 'text-blue-500',  val: 'text-blue-700' },
+    green: { bg: 'bg-emerald-50', icon: 'text-emerald-500', val: 'text-emerald-700' },
+    amber: { bg: 'bg-amber-50', icon: 'text-amber-500', val: 'text-amber-700' },
+  };
+  const c = colors[color];
+  return (
+    <div className={`esms-card p-5 flex items-center gap-4 ${c.bg} border border-${color === 'blue' ? 'blue' : color === 'green' ? 'emerald' : 'amber'}-100`}>
+      <div className={`p-3 rounded-xl bg-white shadow-sm`}>
+        <Icon size={22} className={c.icon} />
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{title}</p>
+        {loading ? (
+          <div className="h-8 w-12 bg-white/70 rounded animate-pulse mt-1" />
+        ) : (
+          <p className={`text-3xl font-black ${c.val} tabular-nums leading-tight`}>{value}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function StaffAttendanceReportPage() {
+  const { selectedBranch } = useBranch();
+  const { user } = useAuth();
+
   const getLocalDate = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -99,10 +147,29 @@ export default function StaffAttendanceReportPage() {
   const [photoModal, setPhotoModal] = useState<{ url: string; title: string } | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
+  // Today's summary state
+  const [summary, setSummary] = useState<TodaySummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  const fetchSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (selectedBranch) params.append('branch_id', selectedBranch);
+      const res = await api.get(`/staff-attend/admin/today-summary/?${params.toString()}`);
+      setSummary(res.data);
+    } catch {
+      // summary is non-critical; fail silently
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [selectedBranch]);
+
   const fetchRecords = useCallback(async (pageNum = 1) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      if (selectedBranch) params.append('branch_id', selectedBranch);
       if (filters.employee_id) params.append('employee_id', filters.employee_id);
       if (filters.staff_name) params.append('staff_name', filters.staff_name);
       if (filters.date_from) params.append('date_from', filters.date_from);
@@ -124,13 +191,24 @@ export default function StaffAttendanceReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, selectedBranch]);
 
+  // Re-fetch everything when branch changes
   useEffect(() => {
+    fetchSummary();
+    fetchRecords(1);
+  }, [selectedBranch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Initial load
+  useEffect(() => {
+    fetchSummary();
     fetchRecords();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = () => fetchRecords(1);
+  const handleSearch = () => {
+    fetchSummary();
+    fetchRecords(1);
+  };
 
   const handleClearFilters = () => {
     setFilters({
@@ -192,6 +270,31 @@ export default function StaffAttendanceReportPage() {
         <p className="text-gray-500 text-sm mt-1">Review, filter, and approve daily staff attendance records.</p>
       </div>
 
+      {/* Today's Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <SummaryCard
+          title="Total Staff"
+          value={summary?.total_staff ?? 0}
+          icon={Users}
+          color="blue"
+          loading={summaryLoading}
+        />
+        <SummaryCard
+          title="Attended Today"
+          value={summary?.attended_today ?? 0}
+          icon={UserCheck}
+          color="green"
+          loading={summaryLoading}
+        />
+        <SummaryCard
+          title="On Leave Today"
+          value={summary?.on_leave_today ?? 0}
+          icon={Palmtree}
+          color="amber"
+          loading={summaryLoading}
+        />
+      </div>
+
       {/* Filters */}
       <div className="esms-card p-5 space-y-4">
         <div className="flex items-center gap-2 text-slate-700 font-semibold text-sm">
@@ -241,7 +344,10 @@ export default function StaffAttendanceReportPage() {
       {/* Summary Bar */}
       <div className="flex items-center justify-between text-sm text-slate-500 px-1">
         <span>{total} record{total !== 1 ? 's' : ''} found</span>
-        <button onClick={() => fetchRecords(page)} className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 font-medium transition-colors">
+        <button
+          onClick={() => { fetchSummary(); fetchRecords(page); }}
+          className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 font-medium transition-colors"
+        >
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
@@ -275,37 +381,31 @@ export default function StaffAttendanceReportPage() {
               <tbody>
                 {records.map(record => (
                   <tr key={record.id} className="hover:bg-slate-50/50 transition-colors">
-                    {/* Employee Info */}
                     <td>
                       <p className="font-semibold text-slate-900 text-sm">{record.staff_name}</p>
                       <p className="text-[10px] text-slate-500 font-mono tracking-wide">
                         {record.employee_id}{record.designation ? ` • ${record.designation}` : ''}
                       </p>
                     </td>
-                    {/* Date */}
                     <td className="text-sm text-slate-600 font-medium">{record.date}</td>
-                    {/* Check-In Time */}
                     <td>
                       <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
                         <Clock size={12} className="text-emerald-500" />
                         {formatDateTime(record.check_in_at)}
                       </span>
                     </td>
-                    {/* Check-Out Time */}
                     <td>
                       <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
                         <Clock size={12} className="text-rose-500" />
                         {formatDateTime(record.check_out_at)}
                       </span>
                     </td>
-                    {/* Photos */}
                     <td>
                       <div className="flex items-center gap-2">
                         <PhotoThumbnail id={record.id} type="check_in" s3Key={record.check_in_photo} onView={(url, title) => setPhotoModal({ url, title })} />
                         <PhotoThumbnail id={record.id} type="check_out" s3Key={record.check_out_photo} onView={(url, title) => setPhotoModal({ url, title })} />
                       </div>
                     </td>
-                    {/* Status */}
                     <td>{statusBadge(record.status)}</td>
                   </tr>
                 ))}

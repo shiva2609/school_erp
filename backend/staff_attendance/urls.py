@@ -20,4 +20,5 @@ urlpatterns = [
     path('staff-attend/admin/photo/<uuid:pk>/<str:photo_type>/', views.admin_photo, name='admin-photo'),
     path('staff-attend/admin/list/', views.admin_attendance_list, name='admin-attendance-list'),
     path('staff-attend/admin/<uuid:pk>/action/', views.admin_attendance_action, name='admin-attendance-action'),
+    path('staff-attend/admin/today-summary/', views.admin_today_summary, name='admin-today-summary'),
 ]

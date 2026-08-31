@@ -13,7 +13,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from accounts.permissions import CanUseStaffAttendance, IsAttendanceDevice, IsSchoolAdminOrAbove
+from accounts.permissions import CanUseStaffAttendance, IsAttendanceDevice, IsSchoolAdminOrAbove, IsAccountantOrAbove
 from accounts.utils import log_audit_action
 from django.contrib.auth import get_user_model
 
@@ -386,20 +386,20 @@ ALLOWED_PHOTO_TYPES = {
     'image/jpeg': [b'\xff\xd8\xff'],
     'image/png': [b'\x89PNG'],
 }
-MAX_PHOTO_SIZE = 2 * 1024 * 1024  # 2MB
+MAX_PHOTO_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_PHOTO_DIMENSION = 800  # Max width/height after compression
 
 
 def _validate_photo(photo_file):
     """
     Validate uploaded photo:
-    - Size under 2MB
+    - Size under 10MB
     - Content-type is jpeg or png
     - Magic bytes match declared content-type
     Returns (is_valid, error_message)
     """
     if photo_file.size > MAX_PHOTO_SIZE:
-        return False, f'Photo too large ({photo_file.size // 1024}KB). Max is 2MB.'
+        return False, f'Photo too large ({photo_file.size // 1024}KB). Max is 10MB.'
 
     content_type = photo_file.content_type
     if content_type not in ALLOWED_PHOTO_TYPES:
@@ -656,7 +656,7 @@ def device_info(request):
 # ------------------------------------------------------------------
 
 @api_view(['GET'])
-@permission_classes([IsSchoolAdminOrAbove])
+@permission_classes([IsAccountantOrAbove])
 def admin_photo(request, pk, photo_type):
     """
     Returns a temporary presigned URL or directly serves the photo.
@@ -681,7 +681,7 @@ def admin_photo(request, pk, photo_type):
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
-@permission_classes([IsSchoolAdminOrAbove])
+@permission_classes([IsAccountantOrAbove])
 def admin_daily(request):
     """
     Get branch-wide daily summary (present/absent/late counts).
@@ -719,7 +719,7 @@ def admin_daily(request):
     })
 
 @api_view(['GET'])
-@permission_classes([IsSchoolAdminOrAbove])
+@permission_classes([IsAccountantOrAbove])
 def admin_devices(request):
     """
     List all ATTENDANCE_DEVICE accounts for the tenant.
@@ -744,20 +744,28 @@ def admin_devices(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsSchoolAdminOrAbove])
+@permission_classes([IsAccountantOrAbove])
 def admin_attendance_list(request):
     """
     List all staff attendance records for the admin report page.
     Supports filtering by employee_id, date range, and time threshold.
+    For super-admin/owner roles, accepts ?branch_id= to scope to a specific branch.
     """
     user = request.user
     qs = StaffAttendance.objects.select_related(
         'staff', 'staff__user', 'staff__designation', 'branch', 'approved_by'
     ).filter(tenant=user.tenant)
 
-    # Branch scoping
+    # Branch scoping:
+    # - Branch-scoped staff (ACCOUNTANT, PRINCIPAL, etc.) always see their own branch only.
+    # - Global roles (SUPER_ADMIN, OWNER, etc.) see all branches unless ?branch_id= is provided.
     if getattr(user, 'branch_id', None):
         qs = qs.filter(branch_id=user.branch_id)
+    else:
+        # Global role — honour optional ?branch_id= query param from the top-bar selector
+        qp_branch_id = request.query_params.get('branch_id', '').strip()
+        if qp_branch_id:
+            qs = qs.filter(branch_id=qp_branch_id)
 
     # Filter by employee_id (partial match)
     employee_id = request.query_params.get('employee_id', '').strip()
@@ -842,7 +850,7 @@ def admin_attendance_list(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsSchoolAdminOrAbove])
+@permission_classes([IsAccountantOrAbove])
 def admin_attendance_action(request, pk):
     """
     Approve or reject a staff attendance record.
@@ -884,3 +892,46 @@ def admin_attendance_action(request, pk):
     
     from .serializers import StaffAttendanceSerializer
     return Response(StaffAttendanceSerializer(attendance).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAccountantOrAbove])
+def admin_today_summary(request):
+    """
+    Return today's attendance summary for the report page header cards.
+    Returns: total_staff, attended_today, on_leave_today, date.
+
+    For global roles (SUPER_ADMIN/OWNER) accepts ?branch_id= query param.
+    Branch-scoped roles (ACCOUNTANT, PRINCIPAL, etc.) always see their own branch.
+    """
+    from staff.models import StaffProfile
+
+    user = request.user
+    today = timezone.localdate()
+
+    # Determine branch scope
+    branch_id = getattr(user, 'branch_id', None)
+    if not branch_id:
+        # Global role — honour optional ?branch_id= from the top-bar selector
+        branch_id = request.query_params.get('branch_id', '').strip() or None
+
+    # Count active staff
+    staff_qs = StaffProfile.objects.filter(tenant=user.tenant, status='ACTIVE', is_active=True)
+    if branch_id:
+        staff_qs = staff_qs.filter(branch_id=branch_id)
+    total_staff = staff_qs.count()
+
+    # Today's attendance records
+    att_qs = StaffAttendance.objects.filter(tenant=user.tenant, date=today)
+    if branch_id:
+        att_qs = att_qs.filter(branch_id=branch_id)
+
+    attended_today = att_qs.filter(check_in_at__isnull=False).count()
+    on_leave_today = att_qs.filter(status='ON_LEAVE').count()
+
+    return Response({
+        'date': today.isoformat(),
+        'total_staff': total_staff,
+        'attended_today': attended_today,
+        'on_leave_today': on_leave_today,
+    })
