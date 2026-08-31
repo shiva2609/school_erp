@@ -90,23 +90,28 @@ function PhotoThumbnail({
 }
 
 function SummaryCard({
-  title, value, icon: Icon, color, loading,
+  title, value, icon: Icon, color, loading, onClick, active,
 }: {
   title: string;
   value: number;
   icon: React.ElementType;
   color: 'blue' | 'green' | 'amber';
   loading: boolean;
+  onClick?: () => void;
+  active?: boolean;
 }) {
   const colors = {
-    blue:  { bg: 'bg-blue-50',  icon: 'text-blue-500',  val: 'text-blue-700' },
-    green: { bg: 'bg-emerald-50', icon: 'text-emerald-500', val: 'text-emerald-700' },
-    amber: { bg: 'bg-amber-50', icon: 'text-amber-500', val: 'text-amber-700' },
+    blue:  { bg: 'bg-blue-50',  icon: 'text-blue-500',  val: 'text-blue-700', border: 'border-blue-200', activeRing: 'ring-2 ring-blue-500 shadow-md' },
+    green: { bg: 'bg-emerald-50', icon: 'text-emerald-500', val: 'text-emerald-700', border: 'border-emerald-200', activeRing: 'ring-2 ring-emerald-500 shadow-md' },
+    amber: { bg: 'bg-amber-50', icon: 'text-amber-500', val: 'text-amber-700', border: 'border-amber-200', activeRing: 'ring-2 ring-amber-500 shadow-md' },
   };
   const c = colors[color];
   return (
-    <div className={`esms-card p-5 flex items-center gap-4 ${c.bg} border border-${color === 'blue' ? 'blue' : color === 'green' ? 'emerald' : 'amber'}-100`}>
-      <div className={`p-3 rounded-xl bg-white shadow-sm`}>
+    <div
+      onClick={onClick}
+      className={`esms-card p-5 flex items-center gap-4 ${c.bg} border ${c.border} ${active ? c.activeRing : ''} ${onClick ? 'cursor-pointer hover:shadow-md transition-all' : ''}`}
+    >
+      <div className="p-3 rounded-xl bg-white shadow-sm">
         <Icon size={22} className={c.icon} />
       </div>
       <div>
@@ -135,6 +140,7 @@ export default function StaffAttendanceReportPage() {
     staff_name: '',
     date_from: getLocalDate(),
     date_to: getLocalDate(),
+    status: '',
     check_in_after: '',
     approval_status: '',
   });
@@ -174,6 +180,7 @@ export default function StaffAttendanceReportPage() {
       if (filters.staff_name) params.append('staff_name', filters.staff_name);
       if (filters.date_from) params.append('date_from', filters.date_from);
       if (filters.date_to) params.append('date_to', filters.date_to);
+      if (filters.status) params.append('status', filters.status);
       if (filters.check_in_after) params.append('check_in_after', filters.check_in_after);
       if (filters.approval_status) params.append('approval_status', filters.approval_status);
       params.append('page', pageNum.toString());
@@ -216,6 +223,7 @@ export default function StaffAttendanceReportPage() {
       staff_name: '',
       date_from: getLocalDate(),
       date_to: getLocalDate(),
+      status: '',
       check_in_after: '',
       approval_status: '',
     });
@@ -251,10 +259,14 @@ export default function StaffAttendanceReportPage() {
   const statusBadge = (status: string) => {
     const isIn = status === 'CHECKED_IN';
     const isOut = status === 'CHECKED_OUT';
+    const isLeave = status === 'ON_LEAVE';
+    const isAbsent = status === 'ABSENT';
     return (
       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
         isIn ? 'bg-blue-50 text-blue-700 border-blue-200' :
         isOut ? 'bg-slate-100 text-slate-600 border-slate-200' :
+        isLeave ? 'bg-amber-50 text-amber-700 border-amber-200' :
+        isAbsent ? 'bg-rose-50 text-rose-700 border-rose-200' :
         'bg-gray-50 text-gray-500 border-gray-200'
       }`}>
         {status?.replace(/_/g, ' ')}
@@ -278,6 +290,10 @@ export default function StaffAttendanceReportPage() {
           icon={Users}
           color="blue"
           loading={summaryLoading}
+          active={filters.status === ''}
+          onClick={() => {
+            setFilters(prev => ({ ...prev, status: '', date_from: getLocalDate(), date_to: getLocalDate() }));
+          }}
         />
         <SummaryCard
           title="Attended Today"
@@ -285,6 +301,10 @@ export default function StaffAttendanceReportPage() {
           icon={UserCheck}
           color="green"
           loading={summaryLoading}
+          active={filters.status === 'CHECKED_IN'}
+          onClick={() => {
+            setFilters(prev => ({ ...prev, status: 'CHECKED_IN', date_from: getLocalDate(), date_to: getLocalDate() }));
+          }}
         />
         <SummaryCard
           title="On Leave Today"
@@ -292,6 +312,10 @@ export default function StaffAttendanceReportPage() {
           icon={Palmtree}
           color="amber"
           loading={summaryLoading}
+          active={filters.status === 'ON_LEAVE'}
+          onClick={() => {
+            setFilters(prev => ({ ...prev, status: 'ON_LEAVE', date_from: getLocalDate(), date_to: getLocalDate() }));
+          }}
         />
       </div>
 
@@ -300,7 +324,7 @@ export default function StaffAttendanceReportPage() {
         <div className="flex items-center gap-2 text-slate-700 font-semibold text-sm">
           <Filter size={15} /> Filters
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
           <div>
             <label className="esms-label">Employee ID</label>
             <input type="text" value={filters.employee_id} onChange={e => setFilters({ ...filters, employee_id: e.target.value })} className="esms-input" placeholder="e.g. EMP001" />
@@ -318,11 +342,21 @@ export default function StaffAttendanceReportPage() {
             <input type="date" value={filters.date_to} onChange={e => setFilters({ ...filters, date_to: e.target.value })} className="esms-input" />
           </div>
           <div>
+            <label className="esms-label">Status</label>
+            <select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })} className="esms-input">
+              <option value="">All Statuses</option>
+              <option value="CHECKED_IN">Checked In</option>
+              <option value="CHECKED_OUT">Checked Out</option>
+              <option value="ON_LEAVE">On Leave</option>
+              <option value="ABSENT">Absent</option>
+            </select>
+          </div>
+          <div>
             <label className="esms-label">Check-in After</label>
             <input type="time" value={filters.check_in_after} onChange={e => setFilters({ ...filters, check_in_after: e.target.value })} className="esms-input" />
           </div>
           <div>
-            <label className="esms-label">Approval Status</label>
+            <label className="esms-label">Approval</label>
             <select value={filters.approval_status} onChange={e => setFilters({ ...filters, approval_status: e.target.value })} className="esms-input">
               <option value="">All</option>
               <option value="PENDING">Pending</option>

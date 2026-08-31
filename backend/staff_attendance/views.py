@@ -821,6 +821,11 @@ def admin_attendance_list(request):
         except (ValueError, TypeError):
             pass  # Ignore invalid time format
 
+    # Filter by attendance status (CHECKED_IN, CHECKED_OUT, ON_LEAVE, ABSENT)
+    att_status = request.query_params.get('status', '').strip()
+    if att_status:
+        qs = qs.filter(status=att_status)
+
     # Filter by approval status
     approval_status = request.query_params.get('approval_status', '').strip()
     if approval_status:
