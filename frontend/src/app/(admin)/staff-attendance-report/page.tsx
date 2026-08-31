@@ -6,7 +6,7 @@ import { useBranch } from '@/components/common/BranchContext';
 import { useAuth } from '@/components/common/AuthProvider';
 import {
   Search, Filter, CheckCircle2, XCircle, Clock, X, RefreshCw,
-  AlertCircle, Users, UserCheck, Palmtree,
+  AlertCircle, Users, UserCheck, Palmtree, UserX,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -33,6 +33,7 @@ interface TodaySummary {
   total_staff: number;
   attended_today: number;
   on_leave_today: number;
+  absent_today: number;
 }
 
 function formatDateTime(isoStr: string | null): string {
@@ -95,7 +96,7 @@ function SummaryCard({
   title: string;
   value: number;
   icon: React.ElementType;
-  color: 'blue' | 'green' | 'amber';
+  color: 'blue' | 'green' | 'amber' | 'rose';
   loading: boolean;
   onClick?: () => void;
   active?: boolean;
@@ -104,6 +105,7 @@ function SummaryCard({
     blue:  { bg: 'bg-blue-50',  icon: 'text-blue-500',  val: 'text-blue-700', border: 'border-blue-200', activeRing: 'ring-2 ring-blue-500 shadow-md' },
     green: { bg: 'bg-emerald-50', icon: 'text-emerald-500', val: 'text-emerald-700', border: 'border-emerald-200', activeRing: 'ring-2 ring-emerald-500 shadow-md' },
     amber: { bg: 'bg-amber-50', icon: 'text-amber-500', val: 'text-amber-700', border: 'border-amber-200', activeRing: 'ring-2 ring-amber-500 shadow-md' },
+    rose:  { bg: 'bg-rose-50',  icon: 'text-rose-500',  val: 'text-rose-700', border: 'border-rose-200', activeRing: 'ring-2 ring-rose-500 shadow-md' },
   };
   const c = colors[color];
   return (
@@ -283,7 +285,7 @@ export default function StaffAttendanceReportPage() {
       </div>
 
       {/* Today's Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard
           title="Total Staff"
           value={summary?.total_staff ?? 0}
@@ -315,6 +317,17 @@ export default function StaffAttendanceReportPage() {
           active={filters.status === 'ON_LEAVE'}
           onClick={() => {
             setFilters(prev => ({ ...prev, status: 'ON_LEAVE', date_from: getLocalDate(), date_to: getLocalDate() }));
+          }}
+        />
+        <SummaryCard
+          title="Absent Today"
+          value={summary?.absent_today ?? 0}
+          icon={UserX}
+          color="rose"
+          loading={summaryLoading}
+          active={filters.status === 'ABSENT'}
+          onClick={() => {
+            setFilters(prev => ({ ...prev, status: 'ABSENT', date_from: getLocalDate(), date_to: getLocalDate() }));
           }}
         />
       </div>

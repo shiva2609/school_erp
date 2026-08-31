@@ -132,7 +132,7 @@ def my_status(request):
         date=today,
     ).first()
 
-    if not attendance:
+    if not attendance or (attendance.status == 'ABSENT' and not attendance.check_in_at):
         return Response({
             'date': today.isoformat(),
             'status': 'NOT_CHECKED_IN',
@@ -330,7 +330,7 @@ def qr_validate(request):
             date=today,
         ).first()
 
-        if not attendance:
+        if not attendance or not attendance.check_in_at:
             action = 'CHECK_IN'
             message = 'Ready for check-in.'
         elif attendance.status == 'CHECKED_IN' and not attendance.check_out_at:
@@ -743,6 +743,51 @@ def admin_devices(request):
     return Response(data)
 
 
+def ensure_daily_staff_attendance(tenant, branch_id=None, target_date=None):
+    """
+    Ensure all active staff members have a StaffAttendance record for the given date.
+    Staff who have not checked in or marked leave are automatically initialized as ABSENT.
+    """
+    from staff.models import StaffProfile
+    target_date = target_date or timezone.localdate()
+
+    staff_qs = StaffProfile.objects.filter(
+        tenant=tenant,
+        status='ACTIVE',
+        is_active=True,
+        branch__isnull=False,
+    )
+    if branch_id:
+        staff_qs = staff_qs.filter(branch_id=branch_id)
+
+    # Fetch existing attendance records for target_date
+    existing_staff_ids = set(
+        StaffAttendance.objects.filter(
+            tenant=tenant,
+            date=target_date,
+            staff__in=staff_qs,
+        ).values_list('staff_id', flat=True)
+    )
+
+    new_records = []
+    for staff in staff_qs.select_related('branch'):
+        if staff.id not in existing_staff_ids:
+            new_records.append(
+                StaffAttendance(
+                    tenant=tenant,
+                    staff=staff,
+                    branch=staff.branch,
+                    date=target_date,
+                    status='ABSENT',
+                    source='SYSTEM',
+                    approval_status='PENDING',
+                )
+            )
+
+    if new_records:
+        StaffAttendance.objects.bulk_create(new_records, ignore_conflicts=True)
+
+
 @api_view(['GET'])
 @permission_classes([IsAccountantOrAbove])
 def admin_attendance_list(request):
@@ -759,12 +804,14 @@ def admin_attendance_list(request):
     # Branch scoping:
     # - Branch-scoped staff (ACCOUNTANT, PRINCIPAL, etc.) always see their own branch only.
     # - Global roles (SUPER_ADMIN, OWNER, etc.) see all branches unless ?branch_id= is provided.
-    if getattr(user, 'branch_id', None):
+    branch_id = getattr(user, 'branch_id', None)
+    if branch_id:
         qs = qs.filter(branch_id=user.branch_id)
     else:
         # Global role — honour optional ?branch_id= query param from the top-bar selector
         qp_branch_id = request.query_params.get('branch_id', '').strip()
         if qp_branch_id:
+            branch_id = qp_branch_id
             qs = qs.filter(branch_id=qp_branch_id)
 
     # Filter by employee_id (partial match)
@@ -784,20 +831,31 @@ def admin_attendance_list(request):
     # Filter by date range
     date_from = request.query_params.get('date_from')
     date_to = request.query_params.get('date_to')
+    parsed_date_from = None
+    parsed_date_to = None
     if date_from:
         from django.utils.dateparse import parse_date
-        d = parse_date(date_from)
-        if d:
-            qs = qs.filter(date__gte=d)
+        parsed_date_from = parse_date(date_from)
+        if parsed_date_from:
+            qs = qs.filter(date__gte=parsed_date_from)
     if date_to:
         from django.utils.dateparse import parse_date
-        d = parse_date(date_to)
-        if d:
-            qs = qs.filter(date__lte=d)
+        parsed_date_to = parse_date(date_to)
+        if parsed_date_to:
+            qs = qs.filter(date__lte=parsed_date_to)
 
     # If no date filters provided, default to today
     if not date_from and not date_to:
-        qs = qs.filter(date=timezone.localdate())
+        today = timezone.localdate()
+        parsed_date_from = today
+        parsed_date_to = today
+        qs = qs.filter(date=today)
+
+    # Automatically ensure absent records exist for single-date queries or today
+    if parsed_date_from and parsed_date_to and parsed_date_from == parsed_date_to:
+        ensure_daily_staff_attendance(user.tenant, branch_id=branch_id, target_date=parsed_date_from)
+    elif not date_from and not date_to:
+        ensure_daily_staff_attendance(user.tenant, branch_id=branch_id, target_date=timezone.localdate())
 
     # Filter by check-in time threshold (e.g., 'after 8:00 AM')
     check_in_after = request.query_params.get('check_in_after', '').strip()
@@ -850,7 +908,7 @@ def admin_attendance_list(request):
         'total': total,
         'page': page,
         'page_size': page_size,
-        'total_pages': (total + page_size - 1) // page_size,
+        'total_pages': (total + page_size - 1) // page_size if total > 0 else 1,
     })
 
 
@@ -904,7 +962,7 @@ def admin_attendance_action(request, pk):
 def admin_today_summary(request):
     """
     Return today's attendance summary for the report page header cards.
-    Returns: total_staff, attended_today, on_leave_today, date.
+    Returns: total_staff, attended_today, on_leave_today, absent_today, date.
 
     For global roles (SUPER_ADMIN/OWNER) accepts ?branch_id= query param.
     Branch-scoped roles (ACCOUNTANT, PRINCIPAL, etc.) always see their own branch.
@@ -920,8 +978,11 @@ def admin_today_summary(request):
         # Global role — honour optional ?branch_id= from the top-bar selector
         branch_id = request.query_params.get('branch_id', '').strip() or None
 
+    # Automatically ensure daily attendance records exist for all active staff today
+    ensure_daily_staff_attendance(user.tenant, branch_id=branch_id, target_date=today)
+
     # Count active staff
-    staff_qs = StaffProfile.objects.filter(tenant=user.tenant, status='ACTIVE', is_active=True)
+    staff_qs = StaffProfile.objects.filter(tenant=user.tenant, status='ACTIVE', is_active=True, branch__isnull=False)
     if branch_id:
         staff_qs = staff_qs.filter(branch_id=branch_id)
     total_staff = staff_qs.count()
@@ -933,10 +994,13 @@ def admin_today_summary(request):
 
     attended_today = att_qs.filter(check_in_at__isnull=False).count()
     on_leave_today = att_qs.filter(status='ON_LEAVE').count()
+    absent_today = att_qs.filter(status='ABSENT').count()
 
     return Response({
         'date': today.isoformat(),
         'total_staff': total_staff,
         'attended_today': attended_today,
         'on_leave_today': on_leave_today,
+        'absent_today': absent_today,
     })
+
